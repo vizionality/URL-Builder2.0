@@ -1,37 +1,72 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Header } from "@/components/Header";
+import { StatCard } from "@/components/StatCard";
+import { Card } from "@/components/Card";
 import { buildUtmUrl } from "@/lib/utm";
+import { downloadCsv } from "@/lib/csv";
+import {
+  distinctCampaignCount,
+  useBulkRows,
+  useGa4PropertyId,
+  useSavedUrls,
+} from "@/lib/storage";
+import {
+  SAMPLE_CLICKS,
+  SAMPLE_ENGAGEMENT_RATE,
+  defaultDateRange,
+  useGa4Summary,
+} from "@/lib/ga4";
 
 const inputClass =
-  "w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black placeholder:text-black/40 focus:border-black/30 focus:outline-none dark:border-white/15 dark:bg-black/20 dark:text-white dark:placeholder:text-white/40";
+  "w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500";
 
-const labelClass = "block text-sm font-medium mb-1";
+const labelClass = "block text-sm font-medium text-zinc-700 mb-1";
 
 export default function Home() {
   const [baseUrl, setBaseUrl] = useState("");
-  const [utmSource, setUtmSource] = useState("");
-  const [utmMedium, setUtmMedium] = useState("");
-  const [utmCampaign, setUtmCampaign] = useState("");
-  const [utmTerm, setUtmTerm] = useState("");
-  const [utmContent, setUtmContent] = useState("");
-  const [keepCase, setKeepCase] = useState(false);
+  const [source, setSource] = useState("");
+  const [medium, setMedium] = useState("");
+  const [campaign, setCampaign] = useState("");
   const [copied, setCopied] = useState(false);
 
+  const [savedUrls, setSavedUrls] = useSavedUrls();
+  const [bulkRows] = useBulkRows();
+  const [propertyId] = useGa4PropertyId();
+  const { startDate, endDate } = useMemo(() => defaultDateRange(), []);
+  const ga4 = useGa4Summary(propertyId, startDate, endDate);
+
   const result = useMemo(
-    () =>
-      buildUtmUrl(
-        { baseUrl, utmSource, utmMedium, utmCampaign, utmTerm, utmContent },
-        { keepCase }
-      ),
-    [baseUrl, utmSource, utmMedium, utmCampaign, utmTerm, utmContent, keepCase]
+    () => buildUtmUrl({ baseUrl, source, medium, campaign }),
+    [baseUrl, source, medium, campaign]
   );
 
   const hasInput =
-    baseUrl.trim() ||
-    utmSource.trim() ||
-    utmMedium.trim() ||
-    utmCampaign.trim();
+    baseUrl.trim() || source.trim() || medium.trim() || campaign.trim();
+
+  const activeCampaigns = distinctCampaignCount(savedUrls, bulkRows);
+  const clicksValue = propertyId
+    ? ga4.data
+      ? ga4.data.totalSessions.toLocaleString()
+      : ga4.loading
+        ? "…"
+        : "0"
+    : SAMPLE_CLICKS.toLocaleString();
+  const engagementValue = propertyId
+    ? ga4.data
+      ? `${ga4.data.avgEngagementRate.toFixed(1)}%`
+      : ga4.loading
+        ? "…"
+        : "0%"
+    : `${SAMPLE_ENGAGEMENT_RATE.toFixed(1)}%`;
+
+  function handleClear() {
+    setBaseUrl("");
+    setSource("");
+    setMedium("");
+    setCampaign("");
+  }
 
   async function handleCopy() {
     if (!result.ok) return;
@@ -40,139 +75,167 @@ export default function Home() {
     setTimeout(() => setCopied(false), 1500);
   }
 
+  function handleSave() {
+    if (!result.ok) return;
+    setSavedUrls((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        baseUrl: baseUrl.trim(),
+        source: source.trim(),
+        medium: medium.trim(),
+        campaign: campaign.trim(),
+        generatedUrl: result.url,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+  }
+
+  function handleExport() {
+    downloadCsv(
+      "utm-urls.csv",
+      savedUrls.map((row) => ({
+        baseUrl: row.baseUrl,
+        source: row.source,
+        medium: row.medium,
+        campaign: row.campaign,
+        generatedUrl: row.generatedUrl,
+        createdAt: row.createdAt,
+      }))
+    );
+  }
+
   return (
-    <main className="flex-1 mx-auto w-full max-w-2xl px-4 py-10 sm:py-16">
-      <h1 className="text-2xl font-semibold mb-1">UTM Builder</h1>
-      <p className="text-sm text-black/60 dark:text-white/60 mb-8">
-        Build a UTM-tagged URL, then copy it.
-      </p>
-
-      <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
-        <div>
-          <label className={labelClass} htmlFor="baseUrl">
-            Base URL
-          </label>
-          <input
-            id="baseUrl"
-            className={inputClass}
-            type="text"
-            placeholder="https://example.com/landing"
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
+    <>
+      <Header
+        title="UTM Builder"
+        subtitle="Build and customize your campaign tracking URLs"
+        onExport={handleExport}
+        onSave={handleSave}
+      />
+      <main className="flex-1 px-4 py-6 sm:px-6">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <StatCard
+            label="Active Campaigns"
+            value={String(activeCampaigns)}
+            sublabel="From bulk builder"
+          />
+          <StatCard
+            label="Clicks"
+            value={clicksValue}
+            sublabel={propertyId ? "From GA4" : "Sample data"}
+            sample={!propertyId}
+          />
+          <StatCard
+            label="Engagement Rate"
+            value={engagementValue}
+            sublabel={propertyId ? "From GA4" : "Sample data"}
+            sample={!propertyId}
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className={labelClass} htmlFor="utmSource">
-              utm_source <span className="text-black/40 dark:text-white/40">*</span>
-            </label>
-            <input
-              id="utmSource"
-              className={inputClass}
-              type="text"
-              placeholder="google"
-              value={utmSource}
-              onChange={(e) => setUtmSource(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="utmMedium">
-              utm_medium <span className="text-black/40 dark:text-white/40">*</span>
-            </label>
-            <input
-              id="utmMedium"
-              className={inputClass}
-              type="text"
-              placeholder="cpc"
-              value={utmMedium}
-              onChange={(e) => setUtmMedium(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className={labelClass} htmlFor="utmCampaign">
-            utm_campaign <span className="text-black/40 dark:text-white/40">*</span>
-          </label>
-          <input
-            id="utmCampaign"
-            className={inputClass}
-            type="text"
-            placeholder="spring_sale"
-            value={utmCampaign}
-            onChange={(e) => setUtmCampaign(e.target.value)}
-          />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className={labelClass} htmlFor="utmTerm">
-              utm_term
-            </label>
-            <input
-              id="utmTerm"
-              className={inputClass}
-              type="text"
-              placeholder="running+shoes"
-              value={utmTerm}
-              onChange={(e) => setUtmTerm(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="utmContent">
-              utm_content
-            </label>
-            <input
-              id="utmContent"
-              className={inputClass}
-              type="text"
-              placeholder="logolink"
-              value={utmContent}
-              onChange={(e) => setUtmContent(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <label className="flex items-center gap-2 text-sm text-black/70 dark:text-white/70">
-          <input
-            type="checkbox"
-            checked={keepCase}
-            onChange={(e) => setKeepCase(e.target.checked)}
-          />
-          Keep case for source/medium
-        </label>
-      </form>
-
-      <div className="mt-8">
-        <label className={labelClass}>Generated URL</label>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <textarea
-            readOnly
-            rows={3}
-            className={`${inputClass} resize-none font-mono text-xs`}
-            value={result.ok ? result.url : ""}
-            placeholder={
-              hasInput && !result.ok
-                ? result.error
-                : "Fill in the fields above to build your URL"
-            }
-          />
-          <button
-            type="button"
-            onClick={handleCopy}
-            disabled={!result.ok}
-            className="shrink-0 rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-40 dark:bg-white dark:text-black"
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <Card
+            title="Build Your UTM URL"
+            description="Fill in the required fields to generate a tagged URL."
           >
-            {copied ? "Copied!" : "Copy"}
-          </button>
+            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+              <div>
+                <label className={labelClass} htmlFor="baseUrl">
+                  Website URL <span className="text-green-600">*</span>
+                </label>
+                <input
+                  id="baseUrl"
+                  className={inputClass}
+                  type="text"
+                  placeholder="https://example.com/landing"
+                  value={baseUrl}
+                  onChange={(e) => setBaseUrl(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className={labelClass} htmlFor="source">
+                  UTM Source <span className="text-green-600">*</span>
+                </label>
+                <input
+                  id="source"
+                  className={inputClass}
+                  type="text"
+                  placeholder="google"
+                  value={source}
+                  onChange={(e) => setSource(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className={labelClass} htmlFor="medium">
+                  UTM Medium <span className="text-green-600">*</span>
+                </label>
+                <input
+                  id="medium"
+                  className={inputClass}
+                  type="text"
+                  placeholder="cpc"
+                  value={medium}
+                  onChange={(e) => setMedium(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className={labelClass} htmlFor="campaign">
+                  UTM Campaign <span className="text-green-600">*</span>
+                </label>
+                <input
+                  id="campaign"
+                  className={inputClass}
+                  type="text"
+                  placeholder="spring_sale"
+                  value={campaign}
+                  onChange={(e) => setCampaign(e.target.value)}
+                />
+                <p className="mt-1 text-xs text-zinc-400">
+                  Use lowercase letters, numbers, and underscores, e.g. spring_sale.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleClear}
+                className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              >
+                Clear Form
+              </button>
+            </form>
+          </Card>
+
+          <Card title="Generated UTM URL">
+            {result.ok ? (
+              <div className="space-y-3">
+                <textarea
+                  readOnly
+                  rows={4}
+                  className={`${inputClass} resize-none font-mono text-xs`}
+                  value={result.url}
+                />
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="w-full rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+                >
+                  {copied ? "Copied!" : "Copy URL"}
+                </button>
+              </div>
+            ) : (
+              <div className="flex min-h-32 items-center justify-center rounded-md border border-dashed border-zinc-200 px-4 py-8 text-center text-sm text-zinc-400">
+                {hasInput
+                  ? result.error
+                  : "Fill in the required fields to generate your UTM URL"}
+              </div>
+            )}
+          </Card>
         </div>
-        {hasInput && !result.ok && (
-          <p className="mt-2 text-sm text-red-600 dark:text-red-400">
-            {result.error}
-          </p>
-        )}
-      </div>
-    </main>
+      </main>
+    </>
   );
 }

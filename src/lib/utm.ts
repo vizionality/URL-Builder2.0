@@ -1,14 +1,8 @@
 export type UtmFields = {
   baseUrl: string;
-  utmSource: string;
-  utmMedium: string;
-  utmCampaign: string;
-  utmTerm?: string;
-  utmContent?: string;
-};
-
-export type BuildUtmUrlOptions = {
-  keepCase?: boolean;
+  source: string;
+  medium: string;
+  campaign: string;
 };
 
 export type BuildUtmUrlResult =
@@ -24,37 +18,30 @@ export function isValidHttpUrl(value: string): boolean {
   }
 }
 
-export function buildUtmUrl(
-  fields: UtmFields,
-  options: BuildUtmUrlOptions = {}
-): BuildUtmUrlResult {
+export function buildUtmUrl(fields: UtmFields): BuildUtmUrlResult {
   const baseUrl = fields.baseUrl.trim();
-  const utmSource = fields.utmSource.trim();
-  const utmMedium = fields.utmMedium.trim();
-  const utmCampaign = fields.utmCampaign.trim();
-  const utmTerm = fields.utmTerm?.trim() ?? "";
-  const utmContent = fields.utmContent?.trim() ?? "";
+  const source = fields.source.trim();
+  const medium = fields.medium.trim();
+  const campaign = fields.campaign.trim();
 
+  if (!baseUrl) {
+    return { ok: false, error: "Enter a website URL." };
+  }
   if (!isValidHttpUrl(baseUrl)) {
     return { ok: false, error: "Enter a valid http(s) URL." };
   }
-  if (!utmSource || !utmMedium || !utmCampaign) {
+  if (!source || !medium || !campaign) {
     return {
       ok: false,
-      error: "utm_source, utm_medium, and utm_campaign are required.",
+      error: "UTM Source, UTM Medium, and UTM Campaign are required.",
     };
   }
 
-  const normalize = (value: string) =>
-    options.keepCase ? value : value.toLowerCase();
-
   const params: [string, string][] = [
-    ["utm_source", normalize(utmSource)],
-    ["utm_medium", normalize(utmMedium)],
-    ["utm_campaign", utmCampaign],
+    ["utm_source", source],
+    ["utm_medium", medium],
+    ["utm_campaign", campaign],
   ];
-  if (utmTerm) params.push(["utm_term", utmTerm]);
-  if (utmContent) params.push(["utm_content", utmContent]);
 
   const queryString = params
     .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
