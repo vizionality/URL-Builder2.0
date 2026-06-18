@@ -18,9 +18,17 @@ export default async function AppLayout({
     redirect("/sign-in");
   }
 
+  const meta = user.user_metadata ?? {};
+  const profile = {
+    email: user.email ?? "",
+    name: (meta.full_name as string) || (meta.name as string) || "",
+    avatarUrl:
+      (meta.avatar_url as string) || (meta.picture as string) || null,
+  };
+
   return (
     <div className="flex min-h-full">
-      <Sidebar userEmail={user.email} />
+      <Sidebar profile={profile} />
       <div className="flex min-h-screen flex-1 flex-col min-w-0">
         <MobileTabBar />
         {children}
