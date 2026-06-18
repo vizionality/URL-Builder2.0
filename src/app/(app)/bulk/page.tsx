@@ -178,15 +178,20 @@ export default function BulkBuilderPage() {
                       </select>
                     </td>
                     <td className="px-2 py-2">
-                      <input
+                      <select
                         className={inputClass}
-                        type="text"
-                        placeholder="spring_sale"
                         value={row.campaign}
                         onChange={(e) =>
                           updateRow(row.id, { campaign: e.target.value })
                         }
-                      />
+                      >
+                        <option value="">Select…</option>
+                        {options.campaigns.map((value) => (
+                          <option key={value} value={value}>
+                            {value}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-2 py-2">
                       <input
