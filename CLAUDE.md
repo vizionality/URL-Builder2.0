@@ -93,3 +93,11 @@ with real GA4 reporting.
 - Pages: sign-up, sign-in, sign-out. Protect the app so only logged-in users reach it;
   redirect logged-out visitors to sign-in.
 - Env: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY.
+
+## Account page (/account)
+- Shows the logged-in user's profile: name, email, avatar (from Google metadata when present),
+  sign-in method (Google or email), account created date, last sign-in.
+- Edit display name via supabase.auth.updateUser({ data: { full_name } }).
+- Change password for email/password users via supabase.auth.updateUser({ password }).
+- Sign out. Optional delete-account (needs a server route with the service_role key).
+- Reachable from a profile menu in the sidebar.
