@@ -78,6 +78,22 @@ export function Sidebar({ profile }: { profile?: SidebarProfile }) {
         {NAV_ITEMS.map((item) => {
           const active = pathname === item.href;
           const Icon = item.icon;
+          if (item.comingSoon) {
+            return (
+              <div
+                key={item.href}
+                aria-disabled="true"
+                title="Coming soon"
+                className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-300"
+              >
+                <Icon size={18} />
+                <span>{item.label}</span>
+                <span className="ml-auto rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-400">
+                  Soon
+                </span>
+              </div>
+            );
+          }
           return (
             <Link
               key={item.href}
@@ -109,6 +125,22 @@ export function MobileTabBar() {
       {NAV_ITEMS.map((item) => {
         const active = pathname === item.href;
         const Icon = item.icon;
+        if (item.comingSoon) {
+          return (
+            <div
+              key={item.href}
+              aria-disabled="true"
+              title="Coming soon"
+              className="flex shrink-0 cursor-not-allowed items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium whitespace-nowrap text-zinc-300"
+            >
+              <Icon size={14} />
+              {item.label}
+              <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[9px] font-medium text-zinc-400">
+                Soon
+              </span>
+            </div>
+          );
+        }
         return (
           <Link
             key={item.href}

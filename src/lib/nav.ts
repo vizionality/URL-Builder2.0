@@ -7,11 +7,18 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 
-export const NAV_ITEMS = [
+export type NavItem = {
+  href: string;
+  label: string;
+  icon: typeof Link2;
+  comingSoon?: boolean;
+};
+
+export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "UTM Builder", icon: Link2 },
   { href: "/bulk", label: "Bulk Builder", icon: Table2 },
   { href: "/campaigns", label: "Campaign Creator", icon: Sparkles },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/integrations", label: "Integrations", icon: Plug },
   { href: "/options", label: "UTM Options", icon: SlidersHorizontal },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, comingSoon: true },
+  { href: "/integrations", label: "Integrations", icon: Plug, comingSoon: true },
 ];
