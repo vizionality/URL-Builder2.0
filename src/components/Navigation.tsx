@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV_ITEMS } from "@/lib/nav";
+import { SignOutButton } from "@/components/auth/SignOutButton";
 
 function Logo() {
   return (
@@ -18,7 +19,7 @@ function Logo() {
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ userEmail }: { userEmail?: string | null }) {
   const pathname = usePathname();
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r border-zinc-200 bg-white md:flex">
@@ -43,6 +44,14 @@ export function Sidebar() {
           );
         })}
       </nav>
+      <div className="border-t border-zinc-200 px-3 py-3">
+        {userEmail && (
+          <p className="mb-1 truncate px-3 text-xs text-zinc-400" title={userEmail}>
+            {userEmail}
+          </p>
+        )}
+        <SignOutButton />
+      </div>
     </aside>
   );
 }
@@ -50,7 +59,7 @@ export function Sidebar() {
 export function MobileTabBar() {
   const pathname = usePathname();
   return (
-    <nav className="flex gap-1 overflow-x-auto border-b border-zinc-200 bg-white px-3 py-2 md:hidden">
+    <nav className="flex items-center gap-1 overflow-x-auto border-b border-zinc-200 bg-white px-3 py-2 md:hidden">
       {NAV_ITEMS.map((item) => {
         const active = pathname === item.href;
         const Icon = item.icon;
@@ -69,6 +78,7 @@ export function MobileTabBar() {
           </Link>
         );
       })}
+      <SignOutButton className="ml-auto flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium whitespace-nowrap text-zinc-600 hover:bg-zinc-100 disabled:opacity-60" />
     </nav>
   );
 }
