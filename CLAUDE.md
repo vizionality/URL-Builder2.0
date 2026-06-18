@@ -86,3 +86,10 @@ with real GA4 reporting.
 - Save persists to localStorage; Export downloads relevant data as CSV.
 - Any metric not from the app's own data must come from GA4 when connected, or be
   clearly labeled sample data when not. Never present fake numbers as real.
+
+## Auth (accounts)
+- Supabase Auth, two methods: email + password, and Continue with Google.
+- Use @supabase/ssr for Next.js App Router: browser + server clients, middleware session.
+- Pages: sign-up, sign-in, sign-out. Protect the app so only logged-in users reach it;
+  redirect logged-out visitors to sign-in.
+- Env: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY.
