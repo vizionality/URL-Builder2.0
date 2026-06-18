@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { Trash2, Plus, Copy, Check, Save } from "lucide-react";
+import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
 import { buildUtmUrl } from "@/lib/utm";
+import { downloadCsv } from "@/lib/csv";
 import { useBulkRows, useUtmOptions } from "@/lib/storage";
 import type { BulkRow } from "@/lib/types";
 
@@ -93,54 +95,73 @@ export default function BulkBuilderPage() {
     setTimeout(() => setCopiedId((id) => (id === row.id ? null : id)), 1500);
   }
 
+  function handleExport() {
+    downloadCsv(
+      "bulk-utm-urls.csv",
+      rows.map((row) => ({
+        baseUrl: row.baseUrl,
+        source: row.source,
+        medium: row.medium,
+        campaign: row.campaign,
+        generatedUrl: row.generatedUrl,
+      }))
+    );
+  }
+
   return (
     <>
-      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-zinc-200 bg-white px-4 py-5 sm:px-6">
-        <div>
-          <h1 className="text-xl font-semibold text-zinc-900">
-            Bulk UTM Builder
-          </h1>
-          <p className="mt-0.5 text-sm text-zinc-500">
-            Build multiple UTM URLs at once using spreadsheet-style input
-          </p>
-          {savedAt && (
-            <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-green-600">
-              <Save size={14} />
-              Auto-saved at {savedAt}
-            </p>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={addRow}
-            className="flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-          >
-            <Plus size={16} />
-            Add Row
-          </button>
-          <button
-            type="button"
-            onClick={clearAll}
-            disabled={rows.length === 0}
-            className="rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
-          >
-            Clear All
-          </button>
-          <button
-            type="button"
-            onClick={copyAll}
-            disabled={rows.length === 0}
-            className="flex items-center gap-1.5 rounded-md bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:from-violet-700 hover:to-purple-700 disabled:opacity-40"
-          >
-            <Copy size={16} />
-            {copiedAll ? "Copied!" : "Copy All URLs"}
-          </button>
-        </div>
-      </div>
-
+      <Header
+        title="Bulk Builder"
+        subtitle="Build multiple UTM URLs at once"
+        onExport={handleExport}
+        onSave={markSaved}
+      />
       <main className="flex-1 px-4 py-6 sm:px-6">
         <Card>
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="text-base font-semibold text-zinc-900">
+                Bulk UTM Builder
+              </h2>
+              <p className="mt-1 text-sm text-zinc-500">
+                Build multiple UTM URLs at once using spreadsheet-style input
+              </p>
+              {savedAt && (
+                <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-green-600">
+                  <Save size={14} />
+                  Auto-saved at {savedAt}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={addRow}
+                className="flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              >
+                <Plus size={16} />
+                Add Row
+              </button>
+              <button
+                type="button"
+                onClick={clearAll}
+                disabled={rows.length === 0}
+                className="rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
+              >
+                Clear All
+              </button>
+              <button
+                type="button"
+                onClick={copyAll}
+                disabled={rows.length === 0}
+                className="flex items-center gap-1.5 rounded-md bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:from-violet-700 hover:to-purple-700 disabled:opacity-40"
+              >
+                <Copy size={16} />
+                {copiedAll ? "Copied!" : "Copy All URLs"}
+              </button>
+            </div>
+          </div>
+
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
