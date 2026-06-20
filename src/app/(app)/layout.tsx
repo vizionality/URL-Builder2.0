@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { Sidebar, MobileTabBar } from "@/components/Navigation";
+import { InviteBanner } from "@/components/InviteBanner";
 import { createClient } from "@/lib/supabase/server";
 import { WorkspaceProvider } from "@/lib/workspace-context";
 
@@ -33,6 +34,7 @@ export default async function AppLayout({
         <Sidebar profile={profile} />
         <div className="flex min-h-screen flex-1 flex-col min-w-0">
           <MobileTabBar />
+          <InviteBanner />
           {children}
         </div>
       </div>
