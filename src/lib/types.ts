@@ -22,3 +22,14 @@ export type BulkRow = {
   campaign: string;
   generatedUrl: string;
 };
+
+export type BulkProject = {
+  id: string;
+  name: string;
+  rows: BulkRow[];
+};
+
+export type BulkProjectsState = {
+  projects: BulkProject[];
+  activeProjectId: string;
+};
