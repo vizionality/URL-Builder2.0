@@ -32,6 +32,7 @@ type WorkspaceContextValue = {
   workspaces: WorkspaceWithRole[];
   activeWorkspace: WorkspaceWithRole | null;
   loading: boolean;
+  error: string | null;
   switchWorkspace: (id: string) => void;
   refreshWorkspaces: (preferredId?: string) => Promise<void>;
 };
@@ -42,29 +43,37 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [workspaces, setWorkspaces] = useState<WorkspaceWithRole[]>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const refreshWorkspaces = useCallback(async (preferredId?: string) => {
     const supabase = createClient();
-    const list = await listMyWorkspaces(supabase);
-    setWorkspaces(list);
+    try {
+      const list = await listMyWorkspaces(supabase);
+      setWorkspaces(list);
+      setError(null);
 
-    const cookieId = preferredId ?? readCookie(ACTIVE_WORKSPACE_COOKIE);
-    const fromCookie = cookieId ? list.find((w) => w.id === cookieId) : undefined;
-    const fallback = fromCookie ?? findPersonalWorkspace(list) ?? list[0];
-    if (fallback) {
-      setActiveWorkspaceId(fallback.id);
-      writeCookie(ACTIVE_WORKSPACE_COOKIE, fallback.id);
+      const cookieId = preferredId ?? readCookie(ACTIVE_WORKSPACE_COOKIE);
+      const fromCookie = cookieId ? list.find((w) => w.id === cookieId) : undefined;
+      const fallback = fromCookie ?? findPersonalWorkspace(list) ?? list[0];
+      if (fallback) {
+        setActiveWorkspaceId(fallback.id);
+        writeCookie(ACTIVE_WORKSPACE_COOKIE, fallback.id);
+      } else {
+        setActiveWorkspaceId(null);
+      }
+    } catch (err) {
+      console.error("Failed to load workspaces", err);
+      setWorkspaces([]);
+      setActiveWorkspaceId(null);
+      setError(err instanceof Error ? err.message : "Failed to load workspaces.");
     }
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      try {
-        await refreshWorkspaces();
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      await refreshWorkspaces();
+      if (!cancelled) setLoading(false);
     }
     load();
     return () => {
@@ -83,8 +92,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = useMemo<WorkspaceContextValue>(
-    () => ({ workspaces, activeWorkspace, loading, switchWorkspace, refreshWorkspaces }),
-    [workspaces, activeWorkspace, loading, switchWorkspace, refreshWorkspaces]
+    () => ({ workspaces, activeWorkspace, loading, error, switchWorkspace, refreshWorkspaces }),
+    [workspaces, activeWorkspace, loading, error, switchWorkspace, refreshWorkspaces]
   );
 
   return (

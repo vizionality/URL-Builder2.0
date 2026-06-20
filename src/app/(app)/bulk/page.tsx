@@ -103,11 +103,12 @@ async function importLegacyProjects(
 }
 
 export default function BulkBuilderPage() {
-  const { activeWorkspace, loading: workspaceLoading } = useWorkspace();
+  const { activeWorkspace, loading: workspaceLoading, error: workspaceError } = useWorkspace();
   const [options] = useUtmOptions();
   const [projects, setProjects] = useState<WorkspaceProject[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [projectsLoading, setProjectsLoading] = useState(true);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
 
   const [copiedAll, setCopiedAll] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -126,30 +127,55 @@ export default function BulkBuilderPage() {
   const rows = activeProject?.rows ?? [];
 
   useEffect(() => {
-    if (!activeWorkspace) return;
-    const workspaceId = activeWorkspace.id;
+    if (workspaceLoading) return;
     let cancelled = false;
+
+    if (!activeWorkspace) {
+      Promise.resolve().then(() => {
+        if (cancelled) return;
+        setProjects([]);
+        setActiveProjectId(null);
+        setProjectsLoading(false);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+    const workspaceId = activeWorkspace.id;
 
     async function load() {
       setProjectsLoading(true);
-      const supabase = createClient();
-      let list = await listProjects(supabase, workspaceId);
-      if (!cancelled && list.length === 0) {
-        list = await importLegacyProjects(supabase, workspaceId);
-      }
-      if (!cancelled && list.length === 0) {
-        const created = await createProjectApi(
-          supabase,
-          workspaceId,
-          "Project 1",
-          [emptyRow()]
-        );
-        list = [created];
-      }
-      if (!cancelled) {
-        setProjects(list);
-        setActiveProjectId(list[0]?.id ?? null);
-        setProjectsLoading(false);
+      setProjectsError(null);
+      try {
+        const supabase = createClient();
+        let list = await listProjects(supabase, workspaceId);
+        if (!cancelled && list.length === 0) {
+          list = await importLegacyProjects(supabase, workspaceId);
+        }
+        if (!cancelled && list.length === 0) {
+          const created = await createProjectApi(
+            supabase,
+            workspaceId,
+            "Project 1",
+            [emptyRow()]
+          );
+          list = [created];
+        }
+        if (!cancelled) {
+          setProjects(list);
+          setActiveProjectId(list[0]?.id ?? null);
+        }
+      } catch (err) {
+        console.error("Failed to load projects", err);
+        if (!cancelled) {
+          setProjects([]);
+          setActiveProjectId(null);
+          setProjectsError(
+            err instanceof Error ? err.message : "Failed to load projects."
+          );
+        }
+      } finally {
+        if (!cancelled) setProjectsLoading(false);
       }
     }
 
@@ -157,7 +183,7 @@ export default function BulkBuilderPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeWorkspace]);
+  }, [activeWorkspace, workspaceLoading]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -317,7 +343,8 @@ export default function BulkBuilderPage() {
     markSaved();
   }
 
-  const isLoading = workspaceLoading || projectsLoading || !activeProject;
+  const isLoading = workspaceLoading || projectsLoading;
+  const loadError = workspaceError || projectsError;
 
   return (
     <>
@@ -333,6 +360,17 @@ export default function BulkBuilderPage() {
             <div className="flex flex-col items-center justify-center gap-3 py-16 text-zinc-400">
               <Loader2 size={24} className="animate-spin" />
               <p className="text-sm">Loading projects…</p>
+            </div>
+          ) : loadError ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
+              <p className="text-sm font-medium text-red-600">{loadError}</p>
+              <p className="text-xs text-zinc-400">
+                Try refreshing the page. If this keeps happening, contact support.
+              </p>
+            </div>
+          ) : !activeProject ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-zinc-400">
+              <p className="text-sm">No workspace available.</p>
             </div>
           ) : (
             <>
