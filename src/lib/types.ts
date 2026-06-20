@@ -33,3 +33,24 @@ export type BulkProjectsState = {
   projects: BulkProject[];
   activeProjectId: string;
 };
+
+export type WorkspaceRole = "owner" | "admin" | "editor" | "viewer";
+
+export type Workspace = {
+  id: string;
+  name: string;
+  isPersonal: boolean;
+};
+
+export type WorkspaceWithRole = Workspace & {
+  role: WorkspaceRole;
+};
+
+export type WorkspaceProject = {
+  id: string;
+  workspaceId: string;
+  name: string;
+  rows: BulkRow[];
+  createdAt: string;
+  updatedAt: string;
+};

@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { UserRound } from "lucide-react";
+import { Check, ChevronDown, UserRound } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/nav";
 import { SignOutButton } from "@/components/auth/SignOutButton";
+import { useWorkspace } from "@/lib/workspace-context";
 
 function Logo() {
   return (
@@ -16,6 +18,87 @@ function Logo() {
         <p className="text-sm font-semibold leading-tight text-zinc-900">UTMBuilder</p>
         <p className="text-xs leading-tight text-zinc-500">Campaign Tracker</p>
       </div>
+    </div>
+  );
+}
+
+function WorkspaceSwitcher() {
+  const { workspaces, activeWorkspace, loading, switchWorkspace } = useWorkspace();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handlePointerDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  if (loading) {
+    return (
+      <div className="mx-3 mb-2 h-9 animate-pulse rounded-lg bg-zinc-100" />
+    );
+  }
+
+  if (workspaces.length === 0) return null;
+
+  return (
+    <div className="relative mx-3 mb-2" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+      >
+        <span className="truncate">{activeWorkspace?.name ?? "Select workspace"}</span>
+        <ChevronDown
+          size={14}
+          className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full z-20 mt-1 w-full rounded-md border border-zinc-200 bg-white p-1 shadow-lg">
+          <ul className="max-h-64 overflow-y-auto">
+            {workspaces.map((workspace) => {
+              const isActive = workspace.id === activeWorkspace?.id;
+              return (
+                <li key={workspace.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      switchWorkspace(workspace.id);
+                      setOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-zinc-50"
+                  >
+                    <Check
+                      size={14}
+                      className={isActive ? "text-green-600" : "text-transparent"}
+                    />
+                    <span
+                      className={`truncate ${
+                        isActive ? "font-medium text-green-700" : "text-zinc-700"
+                      }`}
+                    >
+                      {workspace.name}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
@@ -74,6 +157,7 @@ export function Sidebar({ profile }: { profile?: SidebarProfile }) {
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r border-zinc-200 bg-white md:flex">
       <Logo />
+      <WorkspaceSwitcher />
       <nav className="flex-1 space-y-1 px-3">
         {NAV_ITEMS.map((item) => {
           const active = pathname === item.href;
