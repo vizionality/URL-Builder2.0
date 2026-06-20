@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useSyncExternalStore } from "react";
-import type { BulkRow, SavedUrl, UtmOptions } from "@/lib/types";
+import type { BulkProjectsState, BulkRow, SavedUrl, UtmOptions } from "@/lib/types";
 
 const EVENT_PREFIX = "utm-builder:event:";
 
@@ -10,6 +10,7 @@ export const STORAGE_KEYS = {
   savedUrls: "utm-builder:savedUrls",
   bulkRows: "utm-builder:bulkRows",
   ga4PropertyId: "utm-builder:ga4PropertyId",
+  bulkProjects: "bulk-utm-projects",
 } as const;
 
 export const DEFAULT_UTM_OPTIONS: UtmOptions = {
@@ -89,6 +90,35 @@ export function useSavedUrls() {
 
 export function useBulkRows() {
   return useStoredState<BulkRow[]>(STORAGE_KEYS.bulkRows, []);
+}
+
+// Fixed (non-random) ids so the default state is identical on the server
+// and client render, avoiding a hydration mismatch.
+const DEFAULT_BULK_PROJECTS_STATE: BulkProjectsState = {
+  projects: [
+    {
+      id: "project-1",
+      name: "Project 1",
+      rows: [
+        {
+          id: "project-1-row-1",
+          baseUrl: "",
+          source: "",
+          medium: "",
+          campaign: "",
+          generatedUrl: "",
+        },
+      ],
+    },
+  ],
+  activeProjectId: "project-1",
+};
+
+export function useBulkProjects() {
+  return useStoredState<BulkProjectsState>(
+    STORAGE_KEYS.bulkProjects,
+    DEFAULT_BULK_PROJECTS_STATE
+  );
 }
 
 export function useGa4PropertyId() {
