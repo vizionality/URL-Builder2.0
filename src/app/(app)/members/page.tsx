@@ -29,11 +29,12 @@ function roleLabel(role: WorkspaceRole): string {
 }
 
 export default function MembersPage() {
-  const { activeWorkspace, loading: workspaceLoading } = useWorkspace();
+  const { activeWorkspace, loading: workspaceLoading, error: workspaceError } = useWorkspace();
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [invites, setInvites] = useState<WorkspaceInvite[]>([]);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [membersError, setMembersError] = useState<string | null>(null);
 
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<WorkspaceRole>("editor");
@@ -45,39 +46,63 @@ export default function MembersPage() {
   const ownerCount = members.filter((m) => m.role === "owner").length;
 
   useEffect(() => {
-    if (!activeWorkspace) return;
+    if (workspaceLoading) return;
+    let cancelled = false;
+
+    if (!activeWorkspace) {
+      Promise.resolve().then(() => {
+        if (cancelled) return;
+        setMembers([]);
+        setInvites([]);
+        setLoading(false);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
     const workspaceId = activeWorkspace.id;
     const workspaceRole = activeWorkspace.role;
-    let cancelled = false;
 
     async function load() {
       setLoading(true);
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (cancelled) return;
-      setCurrentUserEmail(user?.email ?? null);
+      setMembersError(null);
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (cancelled) return;
+        setCurrentUserEmail(user?.email ?? null);
 
-      const memberList = await listWorkspaceMembers(supabase, workspaceId);
-      if (cancelled) return;
-      setMembers(memberList);
+        const memberList = await listWorkspaceMembers(supabase, workspaceId);
+        if (cancelled) return;
+        setMembers(memberList);
 
-      if (workspaceRole === "owner" || workspaceRole === "admin") {
-        const inviteList = await listPendingInvites(supabase, workspaceId);
-        if (!cancelled) setInvites(inviteList);
-      } else {
-        setInvites([]);
+        if (workspaceRole === "owner" || workspaceRole === "admin") {
+          const inviteList = await listPendingInvites(supabase, workspaceId);
+          if (!cancelled) setInvites(inviteList);
+        } else {
+          setInvites([]);
+        }
+      } catch (err) {
+        console.error("Failed to load members", err);
+        if (!cancelled) {
+          setMembers([]);
+          setInvites([]);
+          setMembersError(
+            err instanceof Error ? err.message : "Failed to load members."
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-
-      if (!cancelled) setLoading(false);
     }
 
     load();
     return () => {
       cancelled = true;
     };
-  }, [activeWorkspace]);
+  }, [activeWorkspace, workspaceLoading]);
 
   async function handleInvite() {
     if (!activeWorkspace || !canManage) return;
@@ -136,6 +161,7 @@ export default function MembersPage() {
   }
 
   const isLoading = workspaceLoading || loading;
+  const loadError = workspaceError || membersError;
 
   return (
     <>
@@ -146,6 +172,21 @@ export default function MembersPage() {
             <div className="flex flex-col items-center justify-center gap-3 py-16 text-zinc-400">
               <Loader2 size={24} className="animate-spin" />
               <p className="text-sm">Loading members…</p>
+            </div>
+          </Card>
+        ) : loadError ? (
+          <Card>
+            <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
+              <p className="text-sm font-medium text-red-600">{loadError}</p>
+              <p className="text-xs text-zinc-400">
+                Try refreshing the page. If this keeps happening, contact support.
+              </p>
+            </div>
+          </Card>
+        ) : !activeWorkspace ? (
+          <Card>
+            <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-zinc-400">
+              <p className="text-sm">No workspace available.</p>
             </div>
           </Card>
         ) : (
