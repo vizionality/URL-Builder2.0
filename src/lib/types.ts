@@ -34,12 +34,15 @@ export type BulkProjectsState = {
   activeProjectId: string;
 };
 
+import type { WorkspacePlan } from "@/lib/billing";
+
 export type WorkspaceRole = "owner" | "admin" | "editor" | "viewer";
 
 export type Workspace = {
   id: string;
   name: string;
   isPersonal: boolean;
+  plan: WorkspacePlan;
 };
 
 export type WorkspaceWithRole = Workspace & {

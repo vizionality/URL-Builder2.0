@@ -16,6 +16,7 @@ import {
   type WorkspaceInvite,
   type WorkspaceMember,
 } from "@/lib/supabase/members";
+import { PLAN_MEMBER_LIMITS } from "@/lib/billing";
 import type { WorkspaceRole } from "@/lib/types";
 
 const INVITABLE_ROLES: WorkspaceRole[] = ["admin", "editor", "viewer"];
@@ -44,6 +45,10 @@ export default function MembersPage() {
   const canManage =
     activeWorkspace?.role === "owner" || activeWorkspace?.role === "admin";
   const ownerCount = members.filter((m) => m.role === "owner").length;
+  const plan = activeWorkspace?.plan ?? "free";
+  const memberLimit = PLAN_MEMBER_LIMITS[plan];
+  const seatsUsed = members.length + invites.length;
+  const atSeatLimit = Number.isFinite(memberLimit) && seatsUsed >= memberLimit;
 
   useEffect(() => {
     if (workspaceLoading) return;
@@ -225,15 +230,26 @@ export default function MembersPage() {
                   <button
                     type="button"
                     onClick={handleInvite}
-                    disabled={inviting}
+                    disabled={inviting || atSeatLimit}
                     className="flex items-center gap-1.5 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
                   >
                     <UserPlus size={16} />
                     {inviting ? "Sending…" : "Send Invite"}
                   </button>
                 </div>
-                {inviteError && (
-                  <p className="mt-2 text-sm text-red-600">{inviteError}</p>
+                {atSeatLimit ? (
+                  <p className="mt-2 text-sm text-amber-600">
+                    This workspace is at its {plan} plan limit of {memberLimit} member
+                    {memberLimit === 1 ? "" : "s"}.{" "}
+                    <a href="/billing" className="font-medium underline">
+                      Upgrade
+                    </a>{" "}
+                    to invite more.
+                  </p>
+                ) : (
+                  inviteError && (
+                    <p className="mt-2 text-sm text-red-600">{inviteError}</p>
+                  )
                 )}
                 <p className="mt-2 text-xs text-zinc-400">
                   No email is sent — the invite appears in-app for that address.

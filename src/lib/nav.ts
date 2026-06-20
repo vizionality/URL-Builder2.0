@@ -6,6 +6,7 @@ import {
   Plug,
   SlidersHorizontal,
   Users,
+  CreditCard,
 } from "lucide-react";
 
 export type NavItem = {
@@ -21,6 +22,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/campaigns", label: "Campaign Creator", icon: Sparkles },
   { href: "/options", label: "UTM Options", icon: SlidersHorizontal },
   { href: "/members", label: "Members", icon: Users },
+  { href: "/billing", label: "Billing", icon: CreditCard },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, comingSoon: true },
   { href: "/integrations", label: "Integrations", icon: Plug, comingSoon: true },
 ];

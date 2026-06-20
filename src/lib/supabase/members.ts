@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { PLAN_MEMBER_LIMITS, type WorkspacePlan } from "@/lib/billing";
 import type { WorkspaceRole } from "@/lib/types";
 
 export type WorkspaceMember = {
@@ -92,6 +93,42 @@ export async function createInvite(
   email: string,
   role: WorkspaceRole
 ): Promise<void> {
+  const { data: workspace, error: workspaceError } = await supabase
+    .from("workspaces")
+    .select("plan")
+    .eq("id", workspaceId)
+    .single();
+
+  if (workspaceError) throw workspaceError;
+
+  const plan = (workspace?.plan ?? "free") as WorkspacePlan;
+  const limit = PLAN_MEMBER_LIMITS[plan];
+
+  if (Number.isFinite(limit)) {
+    const [{ count: memberCount, error: memberCountError }, { count: inviteCount, error: inviteCountError }] =
+      await Promise.all([
+        supabase
+          .from("workspace_members")
+          .select("id", { count: "exact", head: true })
+          .eq("workspace_id", workspaceId),
+        supabase
+          .from("workspace_invites")
+          .select("id", { count: "exact", head: true })
+          .eq("workspace_id", workspaceId)
+          .eq("accepted", false),
+      ]);
+
+    if (memberCountError) throw memberCountError;
+    if (inviteCountError) throw inviteCountError;
+
+    const used = (memberCount ?? 0) + (inviteCount ?? 0);
+    if (used >= limit) {
+      throw new Error(
+        `This workspace is at its ${plan} plan limit of ${limit} member${limit === 1 ? "" : "s"}. Upgrade to invite more.`
+      );
+    }
+  }
+
   const { error } = await supabase
     .from("workspace_invites")
     .insert({ workspace_id: workspaceId, email, role });

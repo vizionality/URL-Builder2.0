@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { WorkspacePlan } from "@/lib/billing";
 import type { WorkspaceRole, WorkspaceWithRole } from "@/lib/types";
 
 type WorkspaceMemberRow = {
@@ -7,6 +8,7 @@ type WorkspaceMemberRow = {
     id: string;
     name: string;
     is_personal: boolean;
+    plan: WorkspacePlan | null;
   } | null;
 };
 
@@ -16,7 +18,7 @@ export async function listMyWorkspaces(
 ): Promise<WorkspaceWithRole[]> {
   const { data, error } = await supabase
     .from("workspace_members")
-    .select("role, workspaces(id, name, is_personal)")
+    .select("role, workspaces(id, name, is_personal, plan)")
     .returns<WorkspaceMemberRow[]>();
 
   if (error) throw error;
@@ -29,6 +31,7 @@ export async function listMyWorkspaces(
       id: row.workspaces.id,
       name: row.workspaces.name,
       isPersonal: row.workspaces.is_personal,
+      plan: row.workspaces.plan ?? "free",
       role: row.role,
     }));
 }
