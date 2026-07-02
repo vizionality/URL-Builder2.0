@@ -5,6 +5,7 @@ import { Header } from "@/components/Header";
 import { StatCard } from "@/components/StatCard";
 import { Card } from "@/components/Card";
 import { buildUtmUrl } from "@/lib/utm";
+import { utmTemplates, templatePlatformOrder } from "@/lib/utmTemplates";
 import { downloadCsv } from "@/lib/csv";
 import {
   distinctCampaignCount,
@@ -29,6 +30,8 @@ export default function Home() {
   const [source, setSource] = useState("");
   const [medium, setMedium] = useState("");
   const [campaign, setCampaign] = useState("");
+  const [content, setContent] = useState("");
+  const [templateId, setTemplateId] = useState("");
   const [copied, setCopied] = useState(false);
 
   const [savedUrls, setSavedUrls] = useSavedUrls();
@@ -38,12 +41,16 @@ export default function Home() {
   const ga4 = useGa4Summary(propertyId, startDate, endDate);
 
   const result = useMemo(
-    () => buildUtmUrl({ baseUrl, source, medium, campaign }),
-    [baseUrl, source, medium, campaign]
+    () => buildUtmUrl({ baseUrl, source, medium, campaign, content }),
+    [baseUrl, source, medium, campaign, content]
   );
 
   const hasInput =
-    baseUrl.trim() || source.trim() || medium.trim() || campaign.trim();
+    baseUrl.trim() ||
+    source.trim() ||
+    medium.trim() ||
+    campaign.trim() ||
+    content.trim();
 
   const activeCampaigns = distinctCampaignCount(savedUrls, bulkRows);
   const clicksValue = propertyId
@@ -61,11 +68,26 @@ export default function Home() {
         : "0%"
     : `${SAMPLE_ENGAGEMENT_RATE.toFixed(1)}%`;
 
+  function handleTemplateChange(id: string) {
+    setTemplateId(id);
+    const template = utmTemplates.find((t) => t.id === id);
+    if (!template) return;
+    // Only overwrite utm_* fields; preserve any Website URL already typed.
+    setSource(template.source);
+    setMedium(template.medium);
+    setContent(template.content ?? "");
+    if (template.campaign) {
+      setCampaign(template.campaign);
+    }
+  }
+
   function handleClear() {
     setBaseUrl("");
     setSource("");
     setMedium("");
     setCampaign("");
+    setContent("");
+    setTemplateId("");
   }
 
   async function handleCopy() {
@@ -141,6 +163,31 @@ export default function Home() {
           >
             <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
               <div>
+                <label className={labelClass} htmlFor="template">
+                  Quick Template
+                </label>
+                <select
+                  id="template"
+                  className={inputClass}
+                  value={templateId}
+                  onChange={(e) => handleTemplateChange(e.target.value)}
+                >
+                  <option value="">Select a template…</option>
+                  {templatePlatformOrder.map((platform) => (
+                    <optgroup key={platform} label={platform}>
+                      {utmTemplates
+                        .filter((t) => t.platform === platform)
+                        .map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}
+                          </option>
+                        ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+
+              <div>
                 <label className={labelClass} htmlFor="baseUrl">
                   Website URL <span className="text-green-600">*</span>
                 </label>
@@ -197,6 +244,20 @@ export default function Home() {
                 <p className="mt-1 text-xs text-zinc-400">
                   Use lowercase letters, numbers, and underscores, e.g. spring_sale.
                 </p>
+              </div>
+
+              <div>
+                <label className={labelClass} htmlFor="content">
+                  UTM Content
+                </label>
+                <input
+                  id="content"
+                  className={inputClass}
+                  type="text"
+                  placeholder="reel"
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                />
               </div>
 
               <button

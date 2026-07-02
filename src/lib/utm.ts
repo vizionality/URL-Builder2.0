@@ -3,6 +3,7 @@ export type UtmFields = {
   source: string;
   medium: string;
   campaign: string;
+  content?: string;
 };
 
 export type BuildUtmUrlResult =
@@ -23,6 +24,7 @@ export function buildUtmUrl(fields: UtmFields): BuildUtmUrlResult {
   const source = fields.source.trim();
   const medium = fields.medium.trim();
   const campaign = fields.campaign.trim();
+  const content = fields.content?.trim() ?? "";
 
   if (!baseUrl) {
     return { ok: false, error: "Enter a website URL." };
@@ -42,6 +44,10 @@ export function buildUtmUrl(fields: UtmFields): BuildUtmUrlResult {
     ["utm_medium", medium],
     ["utm_campaign", campaign],
   ];
+
+  if (content) {
+    params.push(["utm_content", content]);
+  }
 
   const queryString = params
     .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
