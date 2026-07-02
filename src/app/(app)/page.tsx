@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { FolderPlus, ChevronDown, Check } from "lucide-react";
 import { Header } from "@/components/Header";
 import { StatCard } from "@/components/StatCard";
 import { Card } from "@/components/Card";
@@ -9,10 +10,12 @@ import { utmTemplates, templatePlatformOrder } from "@/lib/utmTemplates";
 import { downloadCsv } from "@/lib/csv";
 import {
   distinctCampaignCount,
+  useBulkProjects,
   useBulkRows,
   useGa4PropertyId,
   useSavedUrls,
 } from "@/lib/storage";
+import type { BulkRow } from "@/lib/types";
 import {
   SAMPLE_CLICKS,
   SAMPLE_ENGAGEMENT_RATE,
@@ -34,7 +37,12 @@ export default function Home() {
   const [templateId, setTemplateId] = useState("");
   const [copied, setCopied] = useState(false);
 
+  const [projectMenuOpen, setProjectMenuOpen] = useState(false);
+  const [addedTo, setAddedTo] = useState<string | null>(null);
+  const projectMenuRef = useRef<HTMLDivElement>(null);
+
   const [savedUrls, setSavedUrls] = useSavedUrls();
+  const [projectsState, setProjectsState] = useBulkProjects();
   const [bulkRows] = useBulkRows();
   const [propertyId] = useGa4PropertyId();
   const { startDate, endDate } = useMemo(() => defaultDateRange(), []);
@@ -97,6 +105,29 @@ export default function Home() {
     setTimeout(() => setCopied(false), 1500);
   }
 
+  function addToProject(projectId: string, projectName: string) {
+    if (!result.ok) return;
+    const newRow: BulkRow = {
+      id: crypto.randomUUID(),
+      baseUrl: baseUrl.trim(),
+      source: source.trim(),
+      medium: medium.trim(),
+      campaign: campaign.trim(),
+      generatedUrl: result.url,
+    };
+    setProjectsState((prev) => ({
+      ...prev,
+      projects: prev.projects.map((project) =>
+        project.id === projectId
+          ? { ...project, rows: [...project.rows, newRow] }
+          : project
+      ),
+    }));
+    setProjectMenuOpen(false);
+    setAddedTo(projectName);
+    setTimeout(() => setAddedTo((name) => (name === projectName ? null : name)), 2000);
+  }
+
   function handleSave() {
     if (!result.ok) return;
     setSavedUrls((prev) => [
@@ -126,6 +157,27 @@ export default function Home() {
       }))
     );
   }
+
+  useEffect(() => {
+    if (!projectMenuOpen) return;
+    function handlePointerDown(e: MouseEvent) {
+      if (
+        projectMenuRef.current &&
+        !projectMenuRef.current.contains(e.target as Node)
+      ) {
+        setProjectMenuOpen(false);
+      }
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setProjectMenuOpen(false);
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [projectMenuOpen]);
 
   return (
     <>
@@ -286,6 +338,54 @@ export default function Home() {
                 >
                   {copied ? "Copied!" : "Copy URL"}
                 </button>
+
+                <div className="relative" ref={projectMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setProjectMenuOpen((open) => !open)}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                  >
+                    <FolderPlus size={16} />
+                    Add to Project
+                    <ChevronDown
+                      size={16}
+                      className={`transition-transform ${
+                        projectMenuOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                  {projectMenuOpen && (
+                    <div className="absolute left-0 right-0 top-full z-20 mt-2 rounded-md border border-zinc-200 bg-white p-1 shadow-lg">
+                      <p className="px-2 py-1.5 text-xs font-medium text-zinc-400">
+                        Add this URL as a row in…
+                      </p>
+                      <ul className="max-h-64 overflow-y-auto">
+                        {projectsState.projects.map((project) => (
+                          <li key={project.id}>
+                            <button
+                              type="button"
+                              onClick={() => addToProject(project.id, project.name)}
+                              className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm text-zinc-700 hover:bg-green-50 hover:text-green-700"
+                            >
+                              <span className="truncate">{project.name}</span>
+                              <span className="shrink-0 text-xs text-zinc-400">
+                                {project.rows.length} row
+                                {project.rows.length === 1 ? "" : "s"}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+
+                {addedTo && (
+                  <p className="flex items-center justify-center gap-1.5 text-sm font-medium text-green-600">
+                    <Check size={14} />
+                    Added to {addedTo}
+                  </p>
+                )}
               </div>
             ) : (
               <div className="flex min-h-32 items-center justify-center rounded-md border border-dashed border-zinc-200 px-4 py-8 text-center text-sm text-zinc-400">
