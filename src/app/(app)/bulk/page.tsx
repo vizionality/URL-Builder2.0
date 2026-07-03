@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
+import { StatCard } from "@/components/StatCard";
 import { buildUtmUrl } from "@/lib/utm";
 import { downloadCsv } from "@/lib/csv";
 import { useBulkProjects, useUtmOptions } from "@/lib/storage";
@@ -70,6 +71,16 @@ export default function BulkBuilderPage() {
       (p) => p.id === projectsState.activeProjectId
     ) ?? projectsState.projects[0];
   const rows = activeProject.rows;
+
+  // A row counts as a UTM once it produces a valid generated URL.
+  const countUtms = (projectRows: BulkRow[]) =>
+    projectRows.filter((row) => generatedUrlFor(row) !== "").length;
+  const projectCount = projectsState.projects.length;
+  const utmsInProject = countUtms(rows);
+  const totalUtms = projectsState.projects.reduce(
+    (sum, project) => sum + countUtms(project.rows),
+    0
+  );
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -235,6 +246,23 @@ export default function BulkBuilderPage() {
         onSave={markSaved}
       />
       <main className="flex-1 px-4 py-6 sm:px-6">
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <StatCard
+            label="Projects"
+            value={String(projectCount)}
+            sublabel={`Up to ${MAX_PROJECTS}`}
+          />
+          <StatCard
+            label="UTMs in This Project"
+            value={String(utmsInProject)}
+            sublabel={activeProject.name}
+          />
+          <StatCard
+            label="Total UTMs"
+            value={String(totalUtms)}
+            sublabel="Across all projects"
+          />
+        </div>
         <Card>
           <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
             <div>
