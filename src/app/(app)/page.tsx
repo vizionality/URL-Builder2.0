@@ -14,6 +14,7 @@ import {
   useBulkRows,
   useGa4PropertyId,
   useSavedUrls,
+  useUtmOptions,
 } from "@/lib/storage";
 import type { BulkRow } from "@/lib/types";
 import {
@@ -43,6 +44,7 @@ export default function Home() {
 
   const [savedUrls, setSavedUrls] = useSavedUrls();
   const [projectsState, setProjectsState] = useBulkProjects();
+  const [, setOptions] = useUtmOptions();
   const [bulkRows] = useBulkRows();
   const [propertyId] = useGa4PropertyId();
   const { startDate, endDate } = useMemo(() => defaultDateRange(), []);
@@ -76,6 +78,32 @@ export default function Home() {
         : "0%"
     : `${SAMPLE_ENGAGEMENT_RATE.toFixed(1)}%`;
 
+  // Add any chosen source/medium/campaign values to UTM Options so they
+  // populate (and prefill) the Bulk Builder dropdowns instead of showing blank.
+  function ensureOptions(
+    nextSource: string,
+    nextMedium: string,
+    nextCampaign: string
+  ) {
+    const s = nextSource.trim();
+    const m = nextMedium.trim();
+    const c = nextCampaign.trim();
+    setOptions((prev) => {
+      const sources = s && !prev.sources.includes(s) ? [...prev.sources, s] : prev.sources;
+      const mediums = m && !prev.mediums.includes(m) ? [...prev.mediums, m] : prev.mediums;
+      const campaigns =
+        c && !prev.campaigns.includes(c) ? [...prev.campaigns, c] : prev.campaigns;
+      if (
+        sources === prev.sources &&
+        mediums === prev.mediums &&
+        campaigns === prev.campaigns
+      ) {
+        return prev;
+      }
+      return { sources, mediums, campaigns };
+    });
+  }
+
   function handleTemplateChange(id: string) {
     setTemplateId(id);
     const template = utmTemplates.find((t) => t.id === id);
@@ -87,6 +115,8 @@ export default function Home() {
     if (template.campaign) {
       setCampaign(template.campaign);
     }
+    // Auto-add the template's values so the Bulk Builder dropdowns include them.
+    ensureOptions(template.source, template.medium, template.campaign ?? "");
   }
 
   function handleClear() {
@@ -107,6 +137,9 @@ export default function Home() {
 
   function addToProject(projectId: string, projectName: string) {
     if (!result.ok) return;
+    // Ensure the row's values exist in UTM Options so its Bulk Builder
+    // dropdowns prefill instead of rendering blank.
+    ensureOptions(source, medium, campaign);
     const newRow: BulkRow = {
       id: crypto.randomUUID(),
       baseUrl: baseUrl.trim(),
