@@ -17,12 +17,7 @@ import {
   useUtmOptions,
 } from "@/lib/storage";
 import type { BulkRow } from "@/lib/types";
-import {
-  SAMPLE_CLICKS,
-  SAMPLE_ENGAGEMENT_RATE,
-  defaultDateRange,
-  useGa4Summary,
-} from "@/lib/ga4";
+import { defaultDateRange, useGa4Summary } from "@/lib/ga4";
 
 const inputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500";
@@ -63,20 +58,23 @@ export default function Home() {
     content.trim();
 
   const activeCampaigns = distinctCampaignCount(savedUrls, bulkRows);
+  // Clicks and Engagement Rate come from GA4. Until a GA4 Property ID is
+  // connected we have no real numbers, so leave these blank rather than
+  // showing sample data.
   const clicksValue = propertyId
     ? ga4.data
       ? ga4.data.totalSessions.toLocaleString()
       : ga4.loading
         ? "…"
         : "0"
-    : SAMPLE_CLICKS.toLocaleString();
+    : "";
   const engagementValue = propertyId
     ? ga4.data
       ? `${ga4.data.avgEngagementRate.toFixed(1)}%`
       : ga4.loading
         ? "…"
         : "0%"
-    : `${SAMPLE_ENGAGEMENT_RATE.toFixed(1)}%`;
+    : "";
 
   // Add any chosen source/medium/campaign values to UTM Options so they
   // populate (and prefill) the Bulk Builder dropdowns instead of showing blank.
@@ -230,14 +228,12 @@ export default function Home() {
           <StatCard
             label="Clicks"
             value={clicksValue}
-            sublabel={propertyId ? "From GA4" : "Sample data"}
-            sample={!propertyId}
+            sublabel={propertyId ? "From GA4" : undefined}
           />
           <StatCard
             label="Engagement Rate"
             value={engagementValue}
-            sublabel={propertyId ? "From GA4" : "Sample data"}
-            sample={!propertyId}
+            sublabel={propertyId ? "From GA4" : undefined}
           />
         </div>
 
