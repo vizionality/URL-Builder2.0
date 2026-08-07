@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 export type Ga4ReportType =
   | "campaigns"
+  | "campaign-sessions"
   | "daily-sessions"
   | "engagement-by-source"
   | "summary";
@@ -137,6 +138,54 @@ export function useGa4Summary(
           loading: false,
           error: err instanceof Error ? err.message : "Failed to load GA4 data.",
           data: null,
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [propertyId, startDate, endDate]);
+
+  return state;
+}
+
+export type CampaignSessions = { campaign: string; sessions: number };
+
+// GA4 sessions grouped by campaign name (case-insensitive keys), for checking
+// whether a given campaign is actually receiving sessions.
+export function useGa4CampaignSessions(
+  propertyId: string,
+  startDate: string,
+  endDate: string
+) {
+  const [state, setState] = useState<{
+    loading: boolean;
+    error: string | null;
+    sessionsByCampaign: Map<string, number> | null;
+  }>({ loading: false, error: null, sessionsByCampaign: null });
+
+  useEffect(() => {
+    if (!propertyId) return;
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mark loading before the async fetch starts
+    setState((s) => ({ ...s, loading: true, error: null }));
+    fetchGa4Report({ propertyId, startDate, endDate, reportType: "campaign-sessions" })
+      .then((res) => {
+        if (cancelled) return;
+        const map = new Map<string, number>();
+        for (const row of res.rows) {
+          const name = (row.dimensions[0] ?? "").trim();
+          if (!name) continue;
+          const sessions = Math.round(Number(row.metrics[0] ?? 0));
+          map.set(name.toLowerCase(), (map.get(name.toLowerCase()) ?? 0) + sessions);
+        }
+        setState({ loading: false, error: null, sessionsByCampaign: map });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setState({
+          loading: false,
+          error: err instanceof Error ? err.message : "Failed to load GA4 data.",
+          sessionsByCampaign: null,
         });
       });
     return () => {

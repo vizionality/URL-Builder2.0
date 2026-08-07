@@ -3,13 +3,23 @@ import { BetaAnalyticsDataClient, protos } from "@google-analytics/data";
 
 const { MetricAggregation } = protos.google.analytics.data.v1beta;
 
-type ReportType = "campaigns" | "daily-sessions" | "engagement-by-source" | "summary";
+type ReportType =
+  | "campaigns"
+  | "campaign-sessions"
+  | "daily-sessions"
+  | "engagement-by-source"
+  | "summary";
 
 function dimensionsAndMetrics(reportType: ReportType) {
   switch (reportType) {
     case "campaigns":
       return {
         dimensions: [{ name: "date" }, { name: "sessionCampaignName" }],
+        metrics: [{ name: "sessions" }],
+      };
+    case "campaign-sessions":
+      return {
+        dimensions: [{ name: "sessionCampaignName" }],
         metrics: [{ name: "sessions" }],
       };
     case "daily-sessions":
