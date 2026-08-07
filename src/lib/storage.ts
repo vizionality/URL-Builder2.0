@@ -125,6 +125,11 @@ export function useGa4PropertyId() {
   return useStoredState<string>(STORAGE_KEYS.ga4PropertyId, "");
 }
 
+// All rows across every bulk project, for stats that summarize bulk data.
+export function allBulkProjectRows(state: BulkProjectsState): BulkRow[] {
+  return state.projects.flatMap((project) => project.rows);
+}
+
 export function distinctCampaignCount(
   savedUrls: SavedUrl[],
   bulkRows: BulkRow[]
