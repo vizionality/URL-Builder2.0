@@ -5,7 +5,13 @@ import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
 import { StatCard } from "@/components/StatCard";
 import { downloadCsv } from "@/lib/csv";
-import { distinctCampaignCount, useBulkRows, useSavedUrls, useUtmOptions } from "@/lib/storage";
+import {
+  allBulkProjectRows,
+  distinctCampaignCount,
+  useBulkProjects,
+  useSavedUrls,
+  useUtmOptions,
+} from "@/lib/storage";
 
 const inputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500";
@@ -40,7 +46,8 @@ export default function CampaignCreatorPage() {
   const [copied, setCopied] = useState(false);
 
   const [savedUrls] = useSavedUrls();
-  const [bulkRows] = useBulkRows();
+  const [projectsState] = useBulkProjects();
+  const bulkRows = allBulkProjectRows(projectsState);
   const [options, setOptions] = useUtmOptions();
 
   const activeCampaigns = distinctCampaignCount(savedUrls, bulkRows);

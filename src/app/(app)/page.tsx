@@ -9,9 +9,9 @@ import { buildUtmUrl } from "@/lib/utm";
 import { utmTemplates, templatePlatformOrder } from "@/lib/utmTemplates";
 import { downloadCsv } from "@/lib/csv";
 import {
+  allBulkProjectRows,
   distinctCampaignCount,
   useBulkProjects,
-  useBulkRows,
   useGa4PropertyId,
   useSavedUrls,
   useUtmOptions,
@@ -40,7 +40,7 @@ export default function Home() {
   const [savedUrls, setSavedUrls] = useSavedUrls();
   const [projectsState, setProjectsState] = useBulkProjects();
   const [, setOptions] = useUtmOptions();
-  const [bulkRows] = useBulkRows();
+  const bulkRows = allBulkProjectRows(projectsState);
   const [propertyId] = useGa4PropertyId();
   const { startDate, endDate } = useMemo(() => defaultDateRange(), []);
   const ga4 = useGa4Summary(propertyId, startDate, endDate);
