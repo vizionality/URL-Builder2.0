@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Plug,
   SlidersHorizontal,
+  Activity,
 } from "lucide-react";
 
 export type NavItem = {
@@ -18,7 +19,8 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "UTM Builder", icon: Link2 },
   { href: "/bulk", label: "Bulk Builder", icon: Table2 },
   { href: "/campaigns", label: "Campaign Creator", icon: Sparkles },
+  { href: "/campaign-sessions", label: "Campaign Sessions", icon: Activity },
   { href: "/options", label: "UTM Options", icon: SlidersHorizontal },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, comingSoon: true },
-  { href: "/integrations", label: "Integrations", icon: Plug, comingSoon: true },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/integrations", label: "Integrations", icon: Plug },
 ];
