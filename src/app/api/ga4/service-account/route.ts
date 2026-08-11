@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { parseServiceAccountKey } from "@/lib/ga4-credentials";
 
 export async function GET() {
   const saKey = process.env.GA4_SA_KEY;
@@ -10,7 +11,7 @@ export async function GET() {
   }
 
   try {
-    const parsed = JSON.parse(saKey);
+    const parsed = parseServiceAccountKey(saKey);
     if (!parsed.client_email) {
       return NextResponse.json(
         { email: null, error: "GA4_SA_KEY is missing a client_email field." },
@@ -20,7 +21,7 @@ export async function GET() {
     return NextResponse.json({ email: parsed.client_email });
   } catch {
     return NextResponse.json(
-      { email: null, error: "GA4_SA_KEY is not valid JSON." },
+      { email: null, error: "GA4_SA_KEY is not valid JSON or base64." },
       { status: 200 }
     );
   }

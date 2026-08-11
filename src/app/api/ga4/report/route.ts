@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { BetaAnalyticsDataClient, protos } from "@google-analytics/data";
+import { parseServiceAccountKey } from "@/lib/ga4-credentials";
 
 const { MetricAggregation } = protos.google.analytics.data.v1beta;
 
@@ -60,10 +61,10 @@ export async function POST(req: NextRequest) {
 
   let credentials;
   try {
-    credentials = JSON.parse(saKey);
+    credentials = parseServiceAccountKey(saKey);
   } catch {
     return NextResponse.json(
-      { error: "GA4_SA_KEY is not valid JSON." },
+      { error: "GA4_SA_KEY is not valid JSON or base64." },
       { status: 500 }
     );
   }
