@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { X, Download, Loader2 } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
 import { downloadCsv } from "@/lib/csv";
-import { DEFAULT_UTM_OPTIONS, useUtmOptions } from "@/lib/storage";
+import { DEFAULT_UTM_OPTIONS, useGa4PropertyId, useUtmOptions } from "@/lib/storage";
+import { defaultDateRange, fetchUtmBreakdown, isRealUtmValue } from "@/lib/ga4";
 import type { UtmOptions } from "@/lib/types";
 
 type OptionKey = keyof UtmOptions;
@@ -92,6 +93,58 @@ function OptionListCard({
 
 export default function UtmOptionsPage() {
   const [options, setOptions] = useUtmOptions();
+  const [propertyId] = useGa4PropertyId();
+  const range = useMemo(() => defaultDateRange(), []);
+  const [importing, setImporting] = useState(false);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+
+  async function handleImportFromGa4() {
+    if (!propertyId) return;
+    setImporting(true);
+    setImportMessage(null);
+    try {
+      const rows = await fetchUtmBreakdown(propertyId, range.startDate, range.endDate);
+      const sources = new Set<string>();
+      const mediums = new Set<string>();
+      const campaigns = new Set<string>();
+      for (const row of rows) {
+        if (isRealUtmValue(row.source)) sources.add(row.source);
+        if (isRealUtmValue(row.medium)) mediums.add(row.medium);
+        if (isRealUtmValue(row.campaign)) campaigns.add(row.campaign);
+      }
+      let added = 0;
+      setOptions((prev) => {
+        const merge = (existing: string[], incoming: Set<string>) => {
+          const lower = new Set(existing.map((v) => v.toLowerCase()));
+          const next = [...existing];
+          for (const value of incoming) {
+            if (!lower.has(value.toLowerCase())) {
+              next.push(value);
+              lower.add(value.toLowerCase());
+              added += 1;
+            }
+          }
+          return next;
+        };
+        return {
+          sources: merge(prev.sources, sources),
+          mediums: merge(prev.mediums, mediums),
+          campaigns: merge(prev.campaigns, campaigns),
+        };
+      });
+      setImportMessage(
+        added > 0
+          ? `Added ${added} new value${added === 1 ? "" : "s"} from GA4.`
+          : "No new values — everything GA4 reported is already in your options."
+      );
+    } catch (err) {
+      setImportMessage(
+        err instanceof Error ? err.message : "Failed to import from GA4."
+      );
+    } finally {
+      setImporting(false);
+    }
+  }
 
   function addValue(key: OptionKey, value: string) {
     setOptions((prev) =>
@@ -129,6 +182,26 @@ export default function UtmOptionsPage() {
         onSave={() => {}}
       />
       <main className="flex-1 px-4 py-6 sm:px-6">
+        {propertyId && (
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleImportFromGa4}
+              disabled={importing}
+              className="flex items-center gap-1.5 rounded-md border border-green-600 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-50 disabled:opacity-60"
+            >
+              {importing ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Download size={16} />
+              )}
+              {importing ? "Importing…" : "Import from GA4"}
+            </button>
+            {importMessage && (
+              <span className="text-sm text-zinc-500">{importMessage}</span>
+            )}
+          </div>
+        )}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <OptionListCard
             title="Sources"
