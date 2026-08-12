@@ -11,6 +11,11 @@ export const SITE_URL: string =
     ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
     : "http://localhost:3000");
 
+// Feature flag: the blog is built and ready but hidden for now. Flip to
+// `true` to reveal it — this restores the nav links, sitemap entries, and
+// public /blog pages, and drops the robots.txt disallow.
+export const BLOG_ENABLED = false;
+
 export const SITE_NAME = "UTMBuilder";
 
 export const SITE_TAGLINE = "Campaign Tracker";
