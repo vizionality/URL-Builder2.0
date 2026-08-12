@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Trash2,
   Plus,
@@ -10,14 +10,19 @@ import {
   ChevronDown,
   Pencil,
   X,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
 import { StatCard } from "@/components/StatCard";
 import { buildUtmUrl } from "@/lib/utm";
 import { downloadCsv } from "@/lib/csv";
-import { useBulkProjects, useUtmOptions } from "@/lib/storage";
+import { useBulkProjects, useGa4PropertyId, useUtmOptions } from "@/lib/storage";
+import { defaultDateRange, fetchUtmBreakdown, isRealUtmValue } from "@/lib/ga4";
 import type { BulkProject, BulkRow } from "@/lib/types";
+
+const MAX_GA4_IMPORT_ROWS = 100;
 
 const MAX_PROJECTS = 5;
 const MAX_PROJECT_NAME_LENGTH = 30;
@@ -56,7 +61,10 @@ function nowLabel(): string {
 
 export default function BulkBuilderPage() {
   const [projectsState, setProjectsState] = useBulkProjects();
-  const [options] = useUtmOptions();
+  const [options, setOptions] = useUtmOptions();
+  const [propertyId] = useGa4PropertyId();
+  const range = useMemo(() => defaultDateRange(), []);
+  const [importing, setImporting] = useState(false);
   const [copiedAll, setCopiedAll] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
@@ -132,6 +140,106 @@ export default function BulkBuilderPage() {
 
   function addRow() {
     updateActiveProjectRows((prevRows) => [...prevRows, emptyRow()]);
+  }
+
+  // Ensure imported source/medium/campaign values exist in UTM Options so the
+  // row dropdowns can display them.
+  function mergeOptionValues(
+    sources: Set<string>,
+    mediums: Set<string>,
+    campaigns: Set<string>
+  ) {
+    setOptions((prev) => {
+      const merge = (existing: string[], incoming: Set<string>) => {
+        const lower = new Set(existing.map((v) => v.toLowerCase()));
+        const next = [...existing];
+        for (const value of incoming) {
+          if (!lower.has(value.toLowerCase())) {
+            next.push(value);
+            lower.add(value.toLowerCase());
+          }
+        }
+        return next;
+      };
+      return {
+        sources: merge(prev.sources, sources),
+        mediums: merge(prev.mediums, mediums),
+        campaigns: merge(prev.campaigns, campaigns),
+      };
+    });
+  }
+
+  async function importFromGa4() {
+    if (!propertyId || importing) return;
+    setImporting(true);
+    try {
+      const breakdown = await fetchUtmBreakdown(
+        propertyId,
+        range.startDate,
+        range.endDate
+      );
+
+      const baseUrl = (
+        window.prompt(
+          "Optional: website URL to apply to all imported rows (leave blank to fill in later)."
+        ) ?? ""
+      ).trim();
+
+      const existingKeys = new Set(
+        activeProject.rows.map(
+          (r) => `${r.baseUrl}|${r.source}|${r.medium}|${r.campaign}`
+        )
+      );
+      const seen = new Set<string>();
+      const sources = new Set<string>();
+      const mediums = new Set<string>();
+      const campaigns = new Set<string>();
+      const newRows: BulkRow[] = [];
+
+      for (const combo of breakdown) {
+        // A useful row needs at least a tagged source and medium.
+        if (!isRealUtmValue(combo.source) || !isRealUtmValue(combo.medium)) {
+          continue;
+        }
+        const campaign = isRealUtmValue(combo.campaign) ? combo.campaign : "";
+        const dedupeKey = `${combo.source}|${combo.medium}|${campaign}`;
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+
+        const rowKey = `${baseUrl}|${combo.source}|${combo.medium}|${campaign}`;
+        if (existingKeys.has(rowKey)) continue;
+
+        sources.add(combo.source);
+        mediums.add(combo.medium);
+        if (campaign) campaigns.add(campaign);
+
+        const row: BulkRow = {
+          id: crypto.randomUUID(),
+          baseUrl,
+          source: combo.source,
+          medium: combo.medium,
+          campaign,
+          generatedUrl: "",
+        };
+        newRows.push({ ...row, generatedUrl: generatedUrlFor(row) });
+        if (newRows.length >= MAX_GA4_IMPORT_ROWS) break;
+      }
+
+      if (newRows.length === 0) {
+        window.alert("No new campaigns to import from GA4.");
+        return;
+      }
+
+      mergeOptionValues(sources, mediums, campaigns);
+      updateActiveProjectRows((prevRows) => [...prevRows, ...newRows]);
+      window.alert(`Imported ${newRows.length} row(s) from GA4.`);
+    } catch (err) {
+      window.alert(
+        err instanceof Error ? err.message : "Failed to import from GA4."
+      );
+    } finally {
+      setImporting(false);
+    }
   }
 
   function deleteRow(id: string) {
@@ -390,6 +498,21 @@ export default function BulkBuilderPage() {
                 <Plus size={16} />
                 Add Row
               </button>
+              {propertyId && (
+                <button
+                  type="button"
+                  onClick={importFromGa4}
+                  disabled={importing}
+                  className="flex items-center gap-1.5 rounded-md border border-green-600 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-50 disabled:opacity-60"
+                >
+                  {importing ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Download size={16} />
+                  )}
+                  {importing ? "Importing…" : "Import from GA4"}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={clearAll}

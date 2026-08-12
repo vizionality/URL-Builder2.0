@@ -7,6 +7,7 @@ const { MetricAggregation } = protos.google.analytics.data.v1beta;
 type ReportType =
   | "campaigns"
   | "campaign-sessions"
+  | "utm-breakdown"
   | "daily-sessions"
   | "engagement-by-source"
   | "summary";
@@ -21,6 +22,15 @@ function dimensionsAndMetrics(reportType: ReportType) {
     case "campaign-sessions":
       return {
         dimensions: [{ name: "sessionCampaignName" }],
+        metrics: [{ name: "sessions" }],
+      };
+    case "utm-breakdown":
+      return {
+        dimensions: [
+          { name: "sessionCampaignName" },
+          { name: "sessionSource" },
+          { name: "sessionMedium" },
+        ],
         metrics: [{ name: "sessions" }],
       };
     case "daily-sessions":
