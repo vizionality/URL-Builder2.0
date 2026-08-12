@@ -135,7 +135,7 @@ export default function CampaignCreatorPage() {
 
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card title="Create Campaign Name">
-            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+            <form data-tour="campaign-form" className="space-y-4" onSubmit={(e) => e.preventDefault()}>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass} htmlFor="year">
@@ -190,7 +190,7 @@ export default function CampaignCreatorPage() {
                 </p>
               </div>
 
-              <div>
+              <div data-tour="campaign-ai">
                 <label className={labelClass} htmlFor="description">
                   AI Initiative Suggestions
                 </label>
@@ -239,7 +239,7 @@ export default function CampaignCreatorPage() {
             </form>
           </Card>
 
-          <Card title="Generated Campaign Name">
+          <Card title="Generated Campaign Name" dataTour="campaign-output">
             {generatedName ? (
               <div className="space-y-3">
                 <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-3 font-mono text-sm text-zinc-900">

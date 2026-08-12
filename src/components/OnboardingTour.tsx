@@ -62,29 +62,58 @@ const STEPS: Step[] = [
     body: "Save links to reuse them later, and Export your saved URLs to CSV any time.",
     placement: "bottom",
   },
+  // Bulk Builder
   {
     path: "/bulk",
-    title: "Bulk Builder",
-    body: "Build many tracking URLs at once in a spreadsheet-style table, grouped into Projects. The Source and Medium dropdowns pull from your UTM Options, and each row's URL is generated live.",
+    selector: '[data-tour="bulk-toolbar"]',
+    title: "Projects & actions",
+    body: "Group your URLs into Projects — switch, rename or create them here (up to five). Add Row, Clear All, or Copy All URLs at once.",
     placement: "bottom",
+  },
+  {
+    path: "/bulk",
+    selector: '[data-tour="bulk-table"]',
+    title: "Fill the grid",
+    body: "Enter URLs spreadsheet-style. UTM Source and Medium are dropdowns from your UTM Options, and the Generated URL for each row updates live as you type.",
+    placement: "top",
+  },
+  // Campaign Creator
+  {
+    path: "/campaigns",
+    selector: '[data-tour="campaign-form"]',
+    title: "Name your campaign",
+    body: "Pick a year and quarter and type an initiative, and we assemble a standardized name like 2026_q1_summer_sale.",
+    placement: "right",
   },
   {
     path: "/campaigns",
-    title: "Campaign Creator",
-    body: "Generate standardized campaign names in the format year_quarter_initiative — e.g. 2026_q1_summer_sale — with optional AI-generated initiative suggestions.",
-    placement: "bottom",
+    selector: '[data-tour="campaign-ai"]',
+    title: "Need ideas?",
+    body: "Describe the campaign and let AI suggest snake_case initiatives — click a suggestion to use it.",
+    placement: "right",
   },
+  {
+    path: "/campaigns",
+    selector: '[data-tour="campaign-output"]',
+    title: "Copy the result",
+    body: "Your standardized campaign name appears here, ready to copy and reuse.",
+    placement: "left",
+  },
+  // Campaign Sessions
   {
     path: "/campaign-sessions",
-    title: "Campaign Sessions",
-    body: "Once you connect Google Analytics, check here to see which of your campaigns are actually showing sessions in GA4.",
-    placement: "bottom",
+    selector: '[data-tour="sessions-table"]',
+    title: "See real sessions",
+    body: "Every campaign you've built is listed here. Connect Google Analytics and each one shows its live GA4 session count, so you can tell which campaigns are actually getting traffic.",
+    placement: "top",
   },
+  // UTM Options
   {
     path: "/options",
-    title: "UTM Options",
-    body: "Manage the Sources, Mediums and Campaigns lists that power the dropdowns in the Bulk Builder. That's the tour — happy tracking!",
-    placement: "bottom",
+    selector: '[data-tour="options-lists"]',
+    title: "Manage your values",
+    body: "Add or remove Sources, Mediums and Campaigns. These populate the dropdowns in the Bulk Builder, keeping your tracking consistent. That's the tour — happy tracking!",
+    placement: "top",
   },
 ];
 

@@ -129,7 +129,7 @@ export default function UtmOptionsPage() {
         onSave={() => {}}
       />
       <main className="flex-1 px-4 py-6 sm:px-6">
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div data-tour="options-lists" className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <OptionListCard
             title="Sources"
             values={options.sources}
