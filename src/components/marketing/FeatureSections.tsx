@@ -263,7 +263,7 @@ function Ga4Mock() {
         <div className="flex items-start justify-between">
           <div>
             <p className="text-xs font-medium text-zinc-500">
-              Sessions · last 30 days
+              Campaign Sessions · last 30 days
             </p>
             <p className="mt-1 text-2xl font-bold text-zinc-900">4,218</p>
           </div>
@@ -277,7 +277,7 @@ function Ga4Mock() {
           viewBox="0 0 320 120"
           className="mt-3 h-32 w-full"
           role="img"
-          aria-label="Sessions trending upward over the last 30 days"
+          aria-label="Campaign sessions trending upward over the last 30 days"
           preserveAspectRatio="none"
         >
           <defs>
