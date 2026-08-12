@@ -123,7 +123,7 @@ export default async function BlogPostPage({
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
       <script
         type="application/ld+json"
-        // Our own trusted, static content — safe to inline.
+        // Our own trusted, static content, safe to inline.
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <SiteHeader />
@@ -167,7 +167,7 @@ export default async function BlogPostPage({
             </h2>
             <p className="mx-auto mt-2 max-w-md text-sm text-zinc-600">
               Set your sources, mediums, and campaign names once, then generate
-              consistent, correctly encoded links — one at a time or in bulk.
+              consistent, correctly encoded links, one at a time or in bulk.
             </p>
             <Link
               href="/sign-up"
@@ -178,7 +178,7 @@ export default async function BlogPostPage({
             </Link>
           </div>
 
-          {/* FAQ — mirrors the FAQPage structured data above. */}
+          {/* FAQ mirrors the FAQPage structured data above. */}
           {post.faqs.length > 0 && (
             <section className="mt-12" aria-labelledby="faq-heading">
               <h2
