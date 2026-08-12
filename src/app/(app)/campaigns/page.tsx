@@ -62,9 +62,13 @@ export default function CampaignCreatorPage() {
 
   async function handleCopy() {
     if (!generatedName) return;
-    await navigator.clipboard.writeText(generatedName);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    try {
+      await navigator.clipboard.writeText(generatedName);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      window.prompt("Copy this campaign name:", generatedName);
+    }
   }
 
   async function handleGenerateSuggestions() {
@@ -81,7 +85,11 @@ export default function CampaignCreatorPage() {
       if (!res.ok) {
         throw new Error(data.error ?? "Failed to generate suggestions.");
       }
-      setSuggestions(data.suggestions ?? []);
+      const next: string[] = data.suggestions ?? [];
+      setSuggestions(next);
+      if (next.length === 0) {
+        setAiError("No suggestions — try a more detailed description.");
+      }
     } catch (err) {
       setAiError(
         err instanceof Error ? err.message : "Failed to generate suggestions."
