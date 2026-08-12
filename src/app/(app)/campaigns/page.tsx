@@ -3,13 +3,6 @@
 import { useMemo, useState } from "react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
-import { StatCard } from "@/components/StatCard";
-import {
-  allBulkProjectRows,
-  distinctCampaignCount,
-  useBulkProjects,
-  useSavedUrls,
-} from "@/lib/storage";
 
 const inputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500";
@@ -43,11 +36,6 @@ export default function CampaignCreatorPage() {
   const [aiError, setAiError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const [savedUrls] = useSavedUrls();
-  const [projectsState] = useBulkProjects();
-  const bulkRows = allBulkProjectRows(projectsState);
-
-  const activeCampaigns = distinctCampaignCount(savedUrls, bulkRows);
   const generatedName = useMemo(() => {
     if (!initiative.trim()) return "";
     return `${year}_${quarter}_${initiative}`;
@@ -106,21 +94,7 @@ export default function CampaignCreatorPage() {
         subtitle="Generate standardized campaign names"
       />
       <main className="flex-1 px-4 py-6 sm:px-6">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <StatCard
-            label="Active Campaigns"
-            value={String(activeCampaigns)}
-            sublabel="From bulk builder"
-          />
-          <StatCard label="Campaign Types" value="4" sublabel="Quarterly" />
-          <StatCard
-            label="Name Format"
-            value="Standard"
-            sublabel="year_quarter_initiative"
-          />
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card title="Create Campaign Name">
             <form data-tour="campaign-form" className="space-y-4" onSubmit={(e) => e.preventDefault()}>
               <div className="grid grid-cols-2 gap-4">
