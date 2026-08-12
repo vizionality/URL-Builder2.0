@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-// Paths that an unauthenticated visitor is allowed to reach.
-const PUBLIC_PATHS = ["/welcome", "/sign-in", "/sign-up", "/auth"];
+// Paths that an unauthenticated visitor is allowed to reach. "/" is the
+// public marketing landing page (the ad destination).
+const PUBLIC_PATHS = ["/", "/sign-in", "/sign-up", "/auth"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(
@@ -41,24 +42,25 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Logged-out visitor trying to reach a protected page -> send to the
-  // public marketing landing page as the front door.
+  // Logged-out visitor trying to reach a protected app page -> send to
+  // sign-in, preserving where they were headed. (The public landing at "/"
+  // is reached directly, with no redirect, so ad params stay intact.)
   if (!user && !isPublicPath(pathname)) {
     const url = request.nextUrl.clone();
-    url.pathname = "/welcome";
-    url.search = "";
+    url.pathname = "/sign-in";
+    url.searchParams.set("redirectedFrom", pathname);
     return NextResponse.redirect(url);
   }
 
-  // Logged-in user on an auth or marketing page -> send to the app.
+  // Logged-in user on the landing or auth pages -> send into the app.
   if (
     user &&
-    (pathname === "/welcome" ||
+    (pathname === "/" ||
       pathname === "/sign-in" ||
       pathname === "/sign-up")
   ) {
     const url = request.nextUrl.clone();
-    url.pathname = "/";
+    url.pathname = "/app";
     url.search = "";
     return NextResponse.redirect(url);
   }

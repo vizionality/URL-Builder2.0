@@ -23,7 +23,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
   const [message, setMessage] = useState<string | null>(null);
 
   const isSignUp = mode === "sign-up";
-  const redirectedFrom = searchParams.get("redirectedFrom") ?? "/";
+  const redirectedFrom = searchParams.get("redirectedFrom") ?? "/app";
 
   async function handleEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
