@@ -2,8 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 // Paths that an unauthenticated visitor is allowed to reach. "/" is the
-// public marketing landing page (the ad destination).
-const PUBLIC_PATHS = ["/", "/sign-in", "/sign-up", "/auth"];
+// public marketing landing page (the ad destination); "/blog" is the public,
+// SEO-indexed blog.
+const PUBLIC_PATHS = ["/", "/blog", "/sign-in", "/sign-up", "/auth"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(
