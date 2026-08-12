@@ -5,7 +5,10 @@ import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
-const TOUR_FLAG = "utm.tour.v1";
+export const TOUR_FLAG = "utm.tour.v1";
+// Set by the "Replay tour" button on the Account page. When present, the tour
+// starts on the next visit to /app regardless of the completed flags.
+export const TOUR_REPLAY_FLAG = "utm.tour.replay";
 
 type Placement = "top" | "bottom" | "right" | "left";
 
@@ -69,14 +72,26 @@ export function OnboardingTour({ completed = false }: { completed?: boolean }) {
   // localStorage is a fast local guard for the same browser.
   useEffect(() => {
     if (pathname !== "/app") return;
-    if (completed) return;
-    let done = true;
+
+    // An explicit replay request overrides the completed flags.
+    let replay = false;
     try {
-      done = localStorage.getItem(TOUR_FLAG) === "1";
+      replay = localStorage.getItem(TOUR_REPLAY_FLAG) === "1";
+      if (replay) localStorage.removeItem(TOUR_REPLAY_FLAG);
     } catch {
-      done = true;
+      replay = false;
     }
-    if (done) return;
+
+    if (!replay) {
+      if (completed) return;
+      let done = true;
+      try {
+        done = localStorage.getItem(TOUR_FLAG) === "1";
+      } catch {
+        done = true;
+      }
+      if (done) return;
+    }
     let cancelled = false;
     Promise.resolve().then(() => {
       if (cancelled) return;
