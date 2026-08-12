@@ -3,21 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FolderPlus, ChevronDown, Check } from "lucide-react";
 import { Header } from "@/components/Header";
-import { StatCard } from "@/components/StatCard";
 import { Card } from "@/components/Card";
 import { buildUtmUrl } from "@/lib/utm";
 import { utmTemplates, templatePlatformOrder } from "@/lib/utmTemplates";
 import { downloadCsv } from "@/lib/csv";
-import {
-  allBulkProjectRows,
-  distinctCampaignCount,
-  useBulkProjects,
-  useGa4PropertyId,
-  useSavedUrls,
-  useUtmOptions,
-} from "@/lib/storage";
+import { useBulkProjects, useSavedUrls, useUtmOptions } from "@/lib/storage";
 import type { BulkRow } from "@/lib/types";
-import { defaultDateRange, useGa4Summary } from "@/lib/ga4";
 
 const inputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500";
@@ -40,10 +31,6 @@ export default function Home() {
   const [savedUrls, setSavedUrls] = useSavedUrls();
   const [projectsState, setProjectsState] = useBulkProjects();
   const [, setOptions] = useUtmOptions();
-  const bulkRows = allBulkProjectRows(projectsState);
-  const [propertyId] = useGa4PropertyId();
-  const { startDate, endDate } = useMemo(() => defaultDateRange(), []);
-  const ga4 = useGa4Summary(propertyId, startDate, endDate);
 
   const result = useMemo(
     () => buildUtmUrl({ baseUrl, source, medium, campaign, content }),
@@ -56,25 +43,6 @@ export default function Home() {
     medium.trim() ||
     campaign.trim() ||
     content.trim();
-
-  const activeCampaigns = distinctCampaignCount(savedUrls, bulkRows);
-  // Clicks and Engagement Rate come from GA4. Until a GA4 Property ID is
-  // connected we have no real numbers, so leave these blank rather than
-  // showing sample data.
-  const clicksValue = propertyId
-    ? ga4.data
-      ? ga4.data.totalSessions.toLocaleString()
-      : ga4.loading
-        ? "…"
-        : "0"
-    : "";
-  const engagementValue = propertyId
-    ? ga4.data
-      ? `${ga4.data.avgEngagementRate.toFixed(1)}%`
-      : ga4.loading
-        ? "…"
-        : "0%"
-    : "";
 
   // Add any chosen source/medium/campaign values to UTM Options so they
   // populate (and prefill) the Bulk Builder dropdowns instead of showing blank.
@@ -219,25 +187,7 @@ export default function Home() {
         onSave={handleSave}
       />
       <main className="flex-1 px-4 py-6 sm:px-6">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <StatCard
-            label="Active Campaigns"
-            value={String(activeCampaigns)}
-            sublabel="From bulk builder"
-          />
-          <StatCard
-            label="Clicks"
-            value={clicksValue}
-            sublabel={propertyId ? "From GA4" : undefined}
-          />
-          <StatCard
-            label="Engagement Rate"
-            value={engagementValue}
-            sublabel={propertyId ? "From GA4" : undefined}
-          />
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card
             title="Build Your UTM URL"
             description="Fill in the required fields to generate a tagged URL."
