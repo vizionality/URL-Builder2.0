@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { BetaAnalyticsDataClient, protos } from "@google-analytics/data";
-import { parseServiceAccountKey } from "@/lib/ga4-credentials";
-
-const { MetricAggregation } = protos.google.analytics.data.v1beta;
+import { createClient } from "@/lib/supabase/server";
+import { getGa4Connection } from "@/lib/ga4-connection";
+import { getAccessToken } from "@/lib/google-oauth";
 
 type ReportType =
   | "campaigns"
   | "campaign-sessions"
+  | "utm-breakdown"
   | "daily-sessions"
   | "engagement-by-source"
   | "summary";
@@ -21,6 +21,15 @@ function dimensionsAndMetrics(reportType: ReportType) {
     case "campaign-sessions":
       return {
         dimensions: [{ name: "sessionCampaignName" }],
+        metrics: [{ name: "sessions" }],
+      };
+    case "utm-breakdown":
+      return {
+        dimensions: [
+          { name: "sessionCampaignName" },
+          { name: "sessionSource" },
+          { name: "sessionMedium" },
+        ],
         metrics: [{ name: "sessions" }],
       };
     case "daily-sessions":
@@ -41,31 +50,38 @@ function dimensionsAndMetrics(reportType: ReportType) {
   }
 }
 
-export async function POST(req: NextRequest) {
-  const { propertyId, startDate, endDate, reportType } = await req.json();
+type GaValue = { value?: string };
+type GaRow = { dimensionValues?: GaValue[]; metricValues?: GaValue[] };
 
-  if (!propertyId || !startDate || !endDate || !reportType) {
+export async function POST(req: NextRequest) {
+  const { startDate, endDate, reportType } = await req.json();
+
+  if (!startDate || !endDate || !reportType) {
     return NextResponse.json(
-      { error: "propertyId, startDate, endDate, and reportType are required." },
+      { error: "startDate, endDate, and reportType are required." },
       { status: 400 }
     );
   }
 
-  const saKey = process.env.GA4_SA_KEY;
-  if (!saKey) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  }
+
+  const conn = await getGa4Connection(user.id);
+  if (!conn) {
     return NextResponse.json(
-      { error: "GA4 is not configured on the server." },
+      { error: "Google Analytics is not connected." },
       { status: 501 }
     );
   }
-
-  let credentials;
-  try {
-    credentials = parseServiceAccountKey(saKey);
-  } catch {
+  if (!conn.property_id) {
     return NextResponse.json(
-      { error: "GA4_SA_KEY is not valid JSON or base64." },
-      { status: 500 }
+      { error: "No GA4 property selected." },
+      { status: 400 }
     );
   }
 
@@ -74,31 +90,50 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unknown reportType." }, { status: 400 });
   }
 
+  let accessToken: string;
   try {
-    const client = new BetaAnalyticsDataClient({ credentials });
-    const [response] = await client.runReport({
-      property: `properties/${propertyId}`,
-      dateRanges: [{ startDate, endDate }],
-      dimensions: config.dimensions,
-      metrics: config.metrics,
-      metricAggregations:
-        reportType === "summary" ? [MetricAggregation.TOTAL] : undefined,
-    });
-
-    const rows = (response.rows ?? []).map((row) => ({
-      dimensions: (row.dimensionValues ?? []).map((d) => d.value ?? ""),
-      metrics: (row.metricValues ?? []).map((m) => m.value ?? ""),
-    }));
-
-    const totals = (response.totals?.[0]?.metricValues ?? []).map(
-      (m) => m.value ?? ""
-    );
-
-    return NextResponse.json({ rows, totals });
-  } catch (err) {
+    accessToken = await getAccessToken(conn.refresh_token);
+  } catch {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Failed to fetch GA4 report." },
+      { error: "Google auth expired. Reconnect Google Analytics." },
+      { status: 401 }
+    );
+  }
+
+  const body = {
+    dateRanges: [{ startDate, endDate }],
+    dimensions: config.dimensions,
+    metrics: config.metrics,
+    ...(reportType === "summary" ? { metricAggregations: ["TOTAL"] } : {}),
+  };
+
+  const res = await fetch(
+    `https://analyticsdata.googleapis.com/v1beta/properties/${conn.property_id}:runReport`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    }
+  );
+
+  if (!res.ok) {
+    return NextResponse.json(
+      { error: `GA4 report failed: ${await res.text()}` },
       { status: 500 }
     );
   }
+
+  const data = await res.json();
+  const rows = ((data.rows ?? []) as GaRow[]).map((row) => ({
+    dimensions: (row.dimensionValues ?? []).map((d) => d.value ?? ""),
+    metrics: (row.metricValues ?? []).map((m) => m.value ?? ""),
+  }));
+  const totals = ((data.totals?.[0]?.metricValues ?? []) as GaValue[]).map(
+    (m) => m.value ?? ""
+  );
+
+  return NextResponse.json({ rows, totals });
 }

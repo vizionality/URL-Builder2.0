@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 export type Ga4ReportType =
   | "campaigns"
   | "campaign-sessions"
+  | "utm-breakdown"
   | "daily-sessions"
   | "engagement-by-source"
   | "summary";
@@ -35,6 +36,42 @@ export async function fetchGa4Report(params: {
     throw new Error(data.error ?? "Failed to fetch GA4 report.");
   }
   return data;
+}
+
+export type UtmBreakdownRow = {
+  campaign: string;
+  source: string;
+  medium: string;
+  sessions: number;
+};
+
+// GA4's default (non-UTM) dimension values are wrapped in parentheses, e.g.
+// "(direct)", "(organic)", "(not set)". These aren't real UTM tags.
+export function isRealUtmValue(value: string): boolean {
+  const v = value.trim();
+  return v.length > 0 && !v.startsWith("(");
+}
+
+// Source/medium/campaign combinations GA4 has recorded, highest sessions first.
+export async function fetchUtmBreakdown(
+  propertyId: string,
+  startDate: string,
+  endDate: string
+): Promise<UtmBreakdownRow[]> {
+  const res = await fetchGa4Report({
+    propertyId,
+    startDate,
+    endDate,
+    reportType: "utm-breakdown",
+  });
+  return res.rows
+    .map((row) => ({
+      campaign: (row.dimensions[0] ?? "").trim(),
+      source: (row.dimensions[1] ?? "").trim(),
+      medium: (row.dimensions[2] ?? "").trim(),
+      sessions: Math.round(Number(row.metrics[0] ?? 0)),
+    }))
+    .sort((a, b) => b.sessions - a.sessions);
 }
 
 export function monthKey(yyyymmdd: string): string {
