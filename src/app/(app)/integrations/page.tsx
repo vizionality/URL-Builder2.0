@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
-import { downloadCsv } from "@/lib/csv";
 import { useGa4PropertyId } from "@/lib/storage";
 
 const inputClass =
@@ -110,19 +109,11 @@ export default function IntegrationsPage() {
       .catch(() => setEmailError("Failed to load service account details."));
   }, []);
 
-  function handleExport() {
-    downloadCsv("ga4-integration.csv", [
-      { propertyId, serviceAccountEmail: serviceAccountEmail ?? "" },
-    ]);
-  }
-
   return (
     <>
       <Header
         title="Integrations"
         subtitle="Connect external data sources"
-        onExport={handleExport}
-        onSave={() => {}}
       />
       <main className="flex-1 px-4 py-6 sm:px-6">
         <Card

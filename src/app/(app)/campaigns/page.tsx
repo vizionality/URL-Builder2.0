@@ -4,13 +4,11 @@ import { useMemo, useState } from "react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
 import { StatCard } from "@/components/StatCard";
-import { downloadCsv } from "@/lib/csv";
 import {
   allBulkProjectRows,
   distinctCampaignCount,
   useBulkProjects,
   useSavedUrls,
-  useUtmOptions,
 } from "@/lib/storage";
 
 const inputClass =
@@ -48,7 +46,6 @@ export default function CampaignCreatorPage() {
   const [savedUrls] = useSavedUrls();
   const [projectsState] = useBulkProjects();
   const bulkRows = allBulkProjectRows(projectsState);
-  const [options, setOptions] = useUtmOptions();
 
   const activeCampaigns = distinctCampaignCount(savedUrls, bulkRows);
   const generatedName = useMemo(() => {
@@ -94,29 +91,11 @@ export default function CampaignCreatorPage() {
     }
   }
 
-  function handleSave() {
-    if (!generatedName) return;
-    setOptions((prev) =>
-      prev.campaigns.includes(generatedName)
-        ? prev
-        : { ...prev, campaigns: [...prev.campaigns, generatedName] }
-    );
-  }
-
-  function handleExport() {
-    downloadCsv(
-      "campaign-names.csv",
-      options.campaigns.map((name) => ({ campaign: name }))
-    );
-  }
-
   return (
     <>
       <Header
         title="Campaign Creator"
         subtitle="Generate standardized campaign names"
-        onExport={handleExport}
-        onSave={handleSave}
       />
       <main className="flex-1 px-4 py-6 sm:px-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
-import { downloadCsv } from "@/lib/csv";
 import {
   allBulkProjectRows,
   useBulkProjects,
@@ -65,22 +64,11 @@ export default function CampaignSessionsPage() {
       .sort((a, b) => b[1] - a[1]);
   }, [sessions, myCampaigns]);
 
-  function handleExport() {
-    downloadCsv(
-      "campaign-sessions.csv",
-      rows.map((r) => ({
-        campaign: r.campaign,
-        sessions: r.sessions === null ? "" : String(r.sessions),
-      }))
-    );
-  }
-
   return (
     <>
       <Header
         title="Campaign Sessions"
         subtitle="Check whether your campaigns are showing sessions in GA4"
-        onExport={handleExport}
       />
       <main className="flex-1 px-4 py-6 sm:px-6">
         {!connected && (

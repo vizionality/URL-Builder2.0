@@ -19,7 +19,6 @@ import {
 import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
 import { StatCard } from "@/components/StatCard";
-import { downloadCsv } from "@/lib/csv";
 import { useGa4PropertyId } from "@/lib/storage";
 import {
   SAMPLE_ACTIVE_CAMPAIGNS,
@@ -53,20 +52,11 @@ export default function DashboardPage() {
     : charts.engagementBySource ?? [];
   const summaryData = isSample ? SAMPLE_SUMMARY : summary.data ?? SAMPLE_SUMMARY;
 
-  function handleExport() {
-    downloadCsv(
-      "dashboard-clicks.csv",
-      dailyClicksData.map((row) => ({ date: row.date, clicks: String(row.clicks) }))
-    );
-  }
-
   return (
     <>
       <Header
         title="Dashboard"
         subtitle="Campaign performance overview"
-        onExport={handleExport}
-        onSave={() => {}}
       />
       <main className="flex-1 px-4 py-6 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
