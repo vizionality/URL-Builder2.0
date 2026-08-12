@@ -13,6 +13,7 @@ import {
 import { SiteHeader } from "@/components/marketing/SiteHeader";
 import { SiteFooter } from "@/components/marketing/SiteFooter";
 import { HeroBuilder } from "@/components/marketing/HeroBuilder";
+import { BulkBuilderSpotlight } from "@/components/marketing/BulkBuilderSpotlight";
 import { Testimonials } from "@/components/marketing/Testimonials";
 
 export const metadata: Metadata = {
@@ -207,6 +208,9 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Bulk Builder spotlight — projects + saved UTMs. */}
+      <BulkBuilderSpotlight />
 
       {/* Testimonials — renders only once real quotes are added. */}
       <Testimonials />
