@@ -8,6 +8,7 @@ import {
   Check,
   Copy,
   ChevronDown,
+  TrendingUp,
   X,
 } from "lucide-react";
 import { FeatureSection, type FeatureSectionProps } from "./FeatureSection";
@@ -250,29 +251,76 @@ function DashboardMock() {
 }
 
 function Ga4Mock() {
+  // Illustrative sessions trend (not real data), drawn as an inline SVG so the
+  // section stays static and dependency-free.
+  const line =
+    "M6,92 L34,82 L62,86 L90,66 L118,72 L146,52 L174,58 L202,40 L230,46 L258,28 L286,34 L314,16";
+  const area = `${line} L314,120 L6,120 Z`;
+
   return (
     <MockCard>
-      <div>
-        <p className="mb-1 text-xs font-medium text-zinc-600">GA4 Property ID</p>
-        <div className="flex items-center justify-between rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800">
-          123456789
+      <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-xs font-medium text-zinc-500">
+              Sessions · last 30 days
+            </p>
+            <p className="mt-1 text-2xl font-bold text-zinc-900">4,218</p>
+          </div>
           <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">
-            <Check size={11} />
-            Connected
+            <TrendingUp size={12} />
+            +12.4%
           </span>
         </div>
+
+        <svg
+          viewBox="0 0 320 120"
+          className="mt-3 h-32 w-full"
+          role="img"
+          aria-label="Sessions trending upward over the last 30 days"
+          preserveAspectRatio="none"
+        >
+          <defs>
+            <linearGradient id="ga4Area" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#16a34a" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="#16a34a" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          {[30, 60, 90].map((y) => (
+            <line
+              key={y}
+              x1="0"
+              y1={y}
+              x2="320"
+              y2={y}
+              stroke="#f4f4f5"
+              strokeWidth="1"
+            />
+          ))}
+          <path d={area} fill="url(#ga4Area)" />
+          <path
+            d={line}
+            fill="none"
+            stroke="#16a34a"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <circle cx="314" cy="16" r="3.5" fill="#16a34a" />
+        </svg>
+
+        <div className="mt-2 flex justify-between text-[10px] text-zinc-400">
+          <span>Jul 1</span>
+          <span>Jul 8</span>
+          <span>Jul 15</span>
+          <span>Jul 22</span>
+          <span>Jul 29</span>
+        </div>
       </div>
-      <div className="mt-4 rounded-lg border border-zinc-200 bg-white p-3">
-        <p className="text-xs text-zinc-500">
-          Add this email as a Viewer in GA4 Admin, Property Access Management:
-        </p>
-        <code className="mt-2 block break-all font-mono text-[11px] text-zinc-700">
-          utm-builder@your-project.iam.gserviceaccount.com
-        </code>
-      </div>
+
       <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-green-700">
         <Check size={13} />
-        Pulling real sessions and engagement
+        Real sessions and engagement, via the GA4 Data API
       </div>
     </MockCard>
   );
