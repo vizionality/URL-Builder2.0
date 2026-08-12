@@ -7,7 +7,7 @@ import {
   META_PIXEL_ID,
 } from "@/lib/analytics";
 
-// Injects the Google (gtag.js) and/or Meta Pixel tags — but only the ones
+// Injects the Google (gtag.js) and/or Meta Pixel tags, but only the ones
 // whose env vars are set. With nothing configured, this renders nothing and
 // the app loads no third-party scripts and sets no tracking cookies.
 export function SiteAnalytics() {

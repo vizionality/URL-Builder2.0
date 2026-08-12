@@ -1,6 +1,6 @@
 import { TESTIMONIALS } from "@/lib/marketing/testimonials";
 
-// Renders nothing until real testimonials exist — see the note in
+// Renders nothing until real testimonials exist. See the note in
 // src/lib/marketing/testimonials.ts.
 export function Testimonials() {
   if (TESTIMONIALS.length === 0) return null;

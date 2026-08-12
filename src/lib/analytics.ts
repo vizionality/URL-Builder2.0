@@ -3,8 +3,8 @@
 // are set) until you actually configure a platform.
 //
 // Supported:
-//   - Google (gtag.js) — covers GA4 analytics and Google Ads conversions
-//   - Meta Pixel — Facebook/Instagram ads
+//   - Google (gtag.js): covers GA4 analytics and Google Ads conversions
+//   - Meta Pixel: Facebook/Instagram ads
 //
 // Env vars:
 //   NEXT_PUBLIC_GA_MEASUREMENT_ID     e.g. G-XXXXXXXXXX   (GA4)

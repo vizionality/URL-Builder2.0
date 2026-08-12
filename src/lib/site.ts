@@ -1,10 +1,10 @@
 // Central site metadata used for SEO, sitemaps, and structured data.
 //
 // SITE_URL resolves in this order:
-//   1. NEXT_PUBLIC_SITE_URL — set this once you point a custom domain at the app.
-//   2. VERCEL_PROJECT_PRODUCTION_URL — Vercel injects this automatically so the
+//   1. NEXT_PUBLIC_SITE_URL, set this once you point a custom domain at the app.
+//   2. VERCEL_PROJECT_PRODUCTION_URL, injected by Vercel automatically so the
 //      production build always has a correct absolute URL.
-//   3. localhost — for local development.
+//   3. localhost, for local development.
 export const SITE_URL: string =
   process.env.NEXT_PUBLIC_SITE_URL ??
   (process.env.VERCEL_PROJECT_PRODUCTION_URL
@@ -12,7 +12,7 @@ export const SITE_URL: string =
     : "http://localhost:3000");
 
 // Feature flag: the blog is built and ready but hidden for now. Flip to
-// `true` to reveal it — this restores the nav links, sitemap entries, and
+// `true` to reveal it. This restores the nav links, sitemap entries, and
 // public /blog pages, and drops the robots.txt disallow.
 export const BLOG_ENABLED = false;
 

@@ -7,9 +7,9 @@ import { SiteFooter } from "@/components/marketing/SiteFooter";
 import { getAllPosts } from "@/lib/blog";
 import { absoluteUrl, BLOG_ENABLED, SITE_NAME } from "@/lib/site";
 
-const TITLE = "Blog — UTM tracking, campaign naming & analytics";
+const TITLE = "Blog: UTM tracking, campaign naming & analytics";
 const DESCRIPTION =
-  "Practical guides on UTM parameters, campaign naming, and measuring marketing traffic — written for people who actually run campaigns.";
+  "Practical guides on UTM parameters, campaign naming, and measuring marketing traffic, written for people who actually run campaigns.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -39,7 +39,7 @@ function formatDate(iso: string): string {
 }
 
 export default function BlogIndexPage() {
-  // Hidden for now — keep the code, return 404 until re-enabled.
+  // Hidden for now: keep the code, return 404 until re-enabled.
   if (!BLOG_ENABLED) notFound();
 
   const posts = getAllPosts();

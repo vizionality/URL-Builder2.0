@@ -1,25 +1,15 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import {
-  Link2,
-  Table2,
-  Sparkles,
-  SlidersHorizontal,
-  LayoutDashboard,
-  Plug,
-  Check,
-  ArrowRight,
-} from "lucide-react";
+import { Sparkles, Check, ArrowRight } from "lucide-react";
 import { SiteHeader } from "@/components/marketing/SiteHeader";
 import { SiteFooter } from "@/components/marketing/SiteFooter";
 import { HeroBuilder } from "@/components/marketing/HeroBuilder";
-import { TemplatesSpotlight } from "@/components/marketing/TemplatesSpotlight";
-import { BulkBuilderSpotlight } from "@/components/marketing/BulkBuilderSpotlight";
+import { FeatureSections } from "@/components/marketing/FeatureSections";
 import { Testimonials } from "@/components/marketing/Testimonials";
 
 export const metadata: Metadata = {
   title: {
-    absolute: "UTMBuilder — Build, standardize & track campaign URLs",
+    absolute: "UTMBuilder: Build, standardize & track campaign URLs",
   },
   description:
     "Create consistent UTM campaign URLs in seconds, build them in bulk, standardize naming, and track performance with real GA4 reporting.",
@@ -27,45 +17,12 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     url: "/",
-    title: "UTMBuilder — Build, standardize & track campaign URLs",
+    title: "UTMBuilder: Build, standardize & track campaign URLs",
     description:
       "Create consistent UTM campaign URLs in seconds, build them in bulk, standardize naming, and track performance with real GA4 reporting.",
     siteName: "UTMBuilder",
   },
 };
-
-const FEATURES = [
-  {
-    icon: Link2,
-    title: "UTM Builder",
-    body: "Assemble clean, correctly-encoded tracking URLs with a guided form and one-click copy.",
-  },
-  {
-    icon: Table2,
-    title: "Bulk Builder",
-    body: "Generate dozens of URLs at once in a spreadsheet-style table with dropdowns for every parameter.",
-  },
-  {
-    icon: Sparkles,
-    title: "Campaign Creator",
-    body: "Standardize campaign names with a year_quarter_initiative format and AI-assisted suggestions.",
-  },
-  {
-    icon: SlidersHorizontal,
-    title: "UTM Options",
-    body: "Curate the sources, mediums, and campaigns your whole team reuses to keep naming consistent.",
-  },
-  {
-    icon: LayoutDashboard,
-    title: "Dashboard",
-    body: "Visualize clicks, active campaigns, and engagement over any date range you choose.",
-  },
-  {
-    icon: Plug,
-    title: "GA4 Integration",
-    body: "Connect a GA4 property to pull real reporting data — never fake numbers presented as real.",
-  },
-];
 
 const STEPS = [
   {
@@ -86,7 +43,7 @@ const BENEFITS = [
   "Correctly encoded, standards-compliant URLs every time",
   "Consistent campaign naming across your whole team",
   "One-click copy and CSV export everywhere",
-  "Real GA4 data — or clearly labeled samples until you connect",
+  "Real GA4 data, or clearly labeled samples until you connect",
 ];
 
 export default function LandingPage() {
@@ -125,14 +82,14 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Live mini builder — visitors get value with no signup. */}
+          {/* Live mini builder so visitors get value with no signup. */}
           <div className="relative">
             <HeroBuilder />
           </div>
         </div>
       </section>
 
-      {/* Trust bar — factual product statements, not fabricated social proof. */}
+      {/* Trust bar: factual product statements, not fabricated social proof. */}
       <section className="border-t border-zinc-200 bg-white">
         <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
           <ul className="grid gap-3 text-sm text-zinc-600 sm:grid-cols-2 lg:grid-cols-4">
@@ -140,7 +97,7 @@ export default function LandingPage() {
               "Correct URL encoding, every time",
               "Consistent naming across your team",
               "Real GA4 data when you connect it",
-              "Free to start — no credit card",
+              "Free to start, no credit card",
             ].map((item) => (
               <li key={item} className="flex items-center gap-2">
                 <Check size={16} className="shrink-0 text-green-600" />
@@ -148,40 +105,6 @@ export default function LandingPage() {
               </li>
             ))}
           </ul>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="border-t border-zinc-200 bg-white">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
-          <div className="max-w-2xl">
-            <h2 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
-              Everything you need for clean campaign tracking
-            </h2>
-            <p className="mt-3 text-zinc-600">
-              A focused toolkit for marketers who care about consistent,
-              measurable UTM data.
-            </p>
-          </div>
-          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {FEATURES.map((f) => {
-              const Icon = f.icon;
-              return (
-                <div
-                  key={f.title}
-                  className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50 text-green-600">
-                    <Icon size={20} />
-                  </div>
-                  <h3 className="mt-4 text-base font-semibold text-zinc-900">
-                    {f.title}
-                  </h3>
-                  <p className="mt-2 text-sm text-zinc-600">{f.body}</p>
-                </div>
-              );
-            })}
-          </div>
         </div>
       </section>
 
@@ -210,13 +133,10 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* UTM Builder spotlight — start from a template. */}
-      <TemplatesSpotlight />
+      {/* Detailed feature sections, one per product area. */}
+      <FeatureSections />
 
-      {/* Bulk Builder spotlight — projects + saved UTMs. */}
-      <BulkBuilderSpotlight />
-
-      {/* Testimonials — renders only once real quotes are added. */}
+      {/* Testimonials render only once real quotes are added. */}
       <Testimonials />
 
       {/* Benefits + CTA */}

@@ -8,7 +8,7 @@ function Content() {
         A UTM is a short piece of text you tag onto the end of a URL to tell
         your analytics where a visitor came from. When someone clicks a tagged
         link, those tags travel with them and show up in reports like Google
-        Analytics — so instead of a vague lump of &quot;traffic,&quot; you see
+        Analytics, so instead of a vague lump of &quot;traffic,&quot; you see
         exactly which email, ad, or social post sent that person to your site.
       </p>
       <p>
@@ -115,7 +115,7 @@ function Content() {
         Instagram ad, a link in your newsletter, and an organic LinkedIn post.
         Untagged, all three can land in your reports as one undifferentiated
         pile. Tagged, you can see that the newsletter drove 40 sign-ups at zero
-        cost while the Instagram ad drove 12 for $300 — and move your budget
+        cost while the Instagram ad drove 12 for $300, and move your budget
         accordingly.
       </p>
       <p>
@@ -132,7 +132,7 @@ function Content() {
         <li>
           <strong>Be consistent with casing.</strong> Analytics treats{" "}
           <code>Email</code> and <code>email</code> as two separate mediums.
-          Pick lowercase and never deviate — one stray capital letter splits
+          Pick lowercase and never deviate. One stray capital letter splits
           your reporting in half.
         </li>
         <li>
@@ -142,8 +142,8 @@ function Content() {
         </li>
         <li>
           <strong>Only tag links you control from outside your site.</strong>{" "}
-          Ads, emails, social posts, partner links — yes. Links between your own
-          pages — no. Internal UTMs overwrite the original source and make it
+          Ads, emails, social posts, partner links: yes. Links between your own
+          pages: no. Internal UTMs overwrite the original source and make it
           look like everyone arrived from your own website.
         </li>
         <li>
@@ -169,7 +169,7 @@ function Content() {
       <h2>A naming convention that scales</h2>
       <p>
         The goal is that anyone on your team can look at a link and know what
-        it&apos;s for — and that two people tagging the same channel produce the
+        it&apos;s for, and that two people tagging the same channel produce the
         same tags. A simple, durable pattern:
       </p>
       <ul>
@@ -193,7 +193,7 @@ function Content() {
       </p>
       <blockquote>
         The single most valuable thing you can do for your analytics is agree on
-        a short list of allowed sources and mediums — and then never type them
+        a short list of allowed sources and mediums, and then never type them
         by hand again.
       </blockquote>
 
@@ -223,7 +223,7 @@ function Content() {
 
       <h2>Building UTMs without the busywork</h2>
       <p>
-        You can absolutely write UTMs by hand — they&apos;re just text. But once
+        You can absolutely write UTMs by hand. They&apos;re just text. But once
         you&apos;re running more than a handful of campaigns, doing it manually
         gets error-prone fast, and a single typo can hide a channel&apos;s real
         performance for a month.
@@ -232,7 +232,7 @@ function Content() {
         That&apos;s what we built{" "}
         <Link href="/app">UTMBuilder</Link> for. You set your approved sources,
         mediums, and campaign names once, then generate consistent, correctly
-        encoded links — one at a time or dozens in bulk — so your reports stay
+        encoded links, one at a time or dozens in bulk, so your reports stay
         clean no matter who on the team is making the links.
       </p>
     </>
@@ -269,7 +269,7 @@ export const post: BlogPost = {
     {
       question: "Are UTM parameters case-sensitive?",
       answer:
-        "Yes. Google Analytics treats utm_source=Google and utm_source=google as two different sources. Pick one casing — lowercase is the common standard — and use it everywhere so your reporting doesn't split.",
+        "Yes. Google Analytics treats utm_source=Google and utm_source=google as two different sources. Pick one casing (lowercase is the common standard) and use it everywhere so your reporting doesn't split.",
     },
     {
       question: "Which UTM parameters are required?",
