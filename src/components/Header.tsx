@@ -41,6 +41,7 @@ export function Header({
           <button
             type="button"
             onClick={handleSave}
+            data-tour="save"
             className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
           >
             {saved ? "Saved!" : "Save"}

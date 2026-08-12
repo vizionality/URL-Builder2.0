@@ -6,6 +6,7 @@ import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { createClient } from "@/lib/supabase/client";
+import { TOUR_FLAG, TOUR_REPLAY_FLAG } from "@/components/OnboardingTour";
 
 const inputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500";
@@ -95,6 +96,24 @@ export function AccountClient({ profile }: { profile: Profile }) {
       setConfirm("");
     }
     setPwSaving(false);
+  }
+
+  // Product tour replay
+  const [replaying, setReplaying] = useState(false);
+
+  async function handleReplayTour() {
+    setReplaying(true);
+    try {
+      localStorage.removeItem(TOUR_FLAG);
+      localStorage.setItem(TOUR_REPLAY_FLAG, "1");
+    } catch {
+      // ignore storage failures; the replay flag below still triggers via nav.
+    }
+    // Clear the account-level flag so it doesn't suppress the tour elsewhere.
+    await supabase.auth
+      .updateUser({ data: { tour_completed_v1: false } })
+      .catch(() => {});
+    router.push("/app");
   }
 
   return (
@@ -238,6 +257,20 @@ export function AccountClient({ profile }: { profile: Profile }) {
             </form>
           </Card>
         )}
+
+        <Card
+          title="Product tour"
+          description="Replay the guided walkthrough of the app's features."
+        >
+          <button
+            type="button"
+            onClick={handleReplayTour}
+            disabled={replaying}
+            className="inline-flex items-center gap-2 rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+          >
+            {replaying ? "Starting…" : "Replay tour"}
+          </button>
+        </Card>
 
         <Card
           title="Sign out"

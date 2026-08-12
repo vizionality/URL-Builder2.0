@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { Sidebar, MobileTabBar } from "@/components/Navigation";
+import { OnboardingTour } from "@/components/OnboardingTour";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function AppLayout({
@@ -33,6 +34,7 @@ export default async function AppLayout({
         <MobileTabBar />
         {children}
       </div>
+      <OnboardingTour completed={Boolean(meta.tour_completed_v1)} />
     </div>
   );
 }
