@@ -75,7 +75,7 @@ export function Sidebar({ profile }: { profile?: SidebarProfile }) {
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r border-zinc-200 bg-white md:flex">
       <Logo />
-      <nav className="flex-1 space-y-1 px-3">
+      <nav data-tour="nav" className="flex-1 space-y-1 px-3">
         {NAV_ITEMS.map((item) => {
           const active = pathname === item.href;
           const Icon = item.icon;

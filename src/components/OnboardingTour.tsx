@@ -1,0 +1,291 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
+import { X } from "lucide-react";
+
+const TOUR_FLAG = "utm.tour.v1";
+
+type Placement = "top" | "bottom" | "right" | "left";
+
+type Step = {
+  selector: string;
+  title: string;
+  body: string;
+  placement: Placement;
+};
+
+// The guided walkthrough shown to a user the first time they land on the
+// UTM Builder. Each step spotlights a feature and floats a comment bubble
+// next to it. Completing or skipping sets a localStorage flag so it never
+// auto-runs again in that browser.
+const STEPS: Step[] = [
+  {
+    selector: '[data-tour="nav"]',
+    title: "Your toolkit",
+    body: "Switch between the UTM Builder, Bulk Builder, Campaign Creator and more from this sidebar. Greyed-out items are coming soon.",
+    placement: "right",
+  },
+  {
+    selector: '[data-tour="template"]',
+    title: "Start from a template",
+    body: "Pick a Quick Template (Instagram, Google Ads, Email…) and we'll prefill the UTM source, medium and content for you.",
+    placement: "bottom",
+  },
+  {
+    selector: '[data-tour="build-form"]',
+    title: "Build your URL",
+    body: "Enter your website URL and campaign details. Anything you type is validated and assembled into a properly-encoded tracking link.",
+    placement: "right",
+  },
+  {
+    selector: '[data-tour="generated"]',
+    title: "Copy or organize",
+    body: "Your finished UTM URL appears here. Copy it with one click, or use “Add to Project” to drop it straight into the Bulk Builder.",
+    placement: "left",
+  },
+  {
+    selector: '[data-tour="save"]',
+    title: "Save & export",
+    body: "Save links to reuse them later, and Export your saved URLs to CSV any time. That's the tour — happy tracking!",
+    placement: "bottom",
+  },
+];
+
+const BUBBLE_WIDTH = 320;
+const GAP = 14;
+
+export function OnboardingTour() {
+  const pathname = usePathname();
+  const [active, setActive] = useState(false);
+  const [step, setStep] = useState(0);
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  // Auto-start once, only on the UTM Builder home page. The state update is
+  // deferred to a microtask so it doesn't run synchronously in the effect.
+  useEffect(() => {
+    if (pathname !== "/app") return;
+    let done = true;
+    try {
+      done = localStorage.getItem(TOUR_FLAG) === "1";
+    } catch {
+      done = true;
+    }
+    if (done) return;
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      setStep(0);
+      setActive(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
+
+  const finish = useCallback(() => {
+    try {
+      localStorage.setItem(TOUR_FLAG, "1");
+    } catch {
+      // ignore storage failures; worst case the tour shows again.
+    }
+    setActive(false);
+  }, []);
+
+  // Measure the current step's target (scheduled via rAF so we never call
+  // setState synchronously inside the effect body).
+  useEffect(() => {
+    if (!active) return;
+
+    function measure() {
+      const el = document.querySelector(STEPS[step]?.selector ?? "");
+      const r = el?.getBoundingClientRect();
+      // Ignore hidden/zero-size targets (e.g. the desktop sidebar on mobile)
+      // so the bubble falls back to a centered position instead of pinning
+      // to the top-left corner.
+      setRect(r && r.width > 0 && r.height > 0 ? r : null);
+    }
+
+    const el = document.querySelector(STEPS[step]?.selector ?? "");
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+
+    rafRef.current = requestAnimationFrame(() => {
+      // Second frame lets a smooth scroll settle before measuring.
+      rafRef.current = requestAnimationFrame(measure);
+    });
+
+    window.addEventListener("resize", measure);
+    window.addEventListener("scroll", measure, true);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure, true);
+    };
+  }, [active, step]);
+
+  // Keyboard: Escape skips, arrows move.
+  useEffect(() => {
+    if (!active) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") finish();
+      if (e.key === "ArrowRight") setStep((s) => Math.min(s + 1, STEPS.length - 1));
+      if (e.key === "ArrowLeft") setStep((s) => Math.max(s - 1, 0));
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [active, finish]);
+
+  if (!active) return null;
+
+  const current = STEPS[step];
+  const isLast = step === STEPS.length - 1;
+
+  // Highlight box around the target (falls back to a centered bubble).
+  const pad = 6;
+  const highlight = rect
+    ? {
+        top: rect.top - pad,
+        left: rect.left - pad,
+        width: rect.width + pad * 2,
+        height: rect.height + pad * 2,
+      }
+    : null;
+
+  const bubblePos = computeBubblePosition(rect, current.placement);
+
+  return (
+    <div className="fixed inset-0 z-[100]">
+      {/* Dimmed backdrop with a spotlight cut-out over the target. */}
+      {highlight ? (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute rounded-lg transition-all duration-200"
+          style={{
+            top: highlight.top,
+            left: highlight.left,
+            width: highlight.width,
+            height: highlight.height,
+            boxShadow: "0 0 0 9999px rgba(15, 23, 42, 0.55)",
+            outline: "2px solid #22c55e",
+          }}
+        />
+      ) : (
+        <div aria-hidden className="absolute inset-0 bg-slate-900/55" />
+      )}
+
+      {/* Click-catcher so the page underneath isn't interactive mid-tour. */}
+      <button
+        type="button"
+        aria-label="Skip tour"
+        onClick={finish}
+        className="absolute inset-0 h-full w-full cursor-default"
+      />
+
+      {/* Comment bubble */}
+      <div
+        role="dialog"
+        aria-label={current.title}
+        className="absolute rounded-xl border border-zinc-200 bg-white p-4 shadow-xl"
+        style={{ width: BUBBLE_WIDTH, ...bubblePos }}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="text-sm font-semibold text-zinc-900">{current.title}</h3>
+          <button
+            type="button"
+            onClick={finish}
+            aria-label="Skip tour"
+            className="-mr-1 -mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+          >
+            <X size={15} />
+          </button>
+        </div>
+        <p className="mt-1.5 text-sm leading-relaxed text-zinc-600">{current.body}</p>
+
+        <div className="mt-4 flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            {STEPS.map((_, i) => (
+              <span
+                key={i}
+                className={`h-1.5 rounded-full transition-all ${
+                  i === step ? "w-4 bg-green-600" : "w-1.5 bg-zinc-200"
+                }`}
+              />
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            {step > 0 && (
+              <button
+                type="button"
+                onClick={() => setStep((s) => Math.max(s - 1, 0))}
+                className="rounded-md px-2.5 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-100"
+              >
+                Back
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() =>
+                isLast ? finish() : setStep((s) => Math.min(s + 1, STEPS.length - 1))
+              }
+              className="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+            >
+              {isLast ? "Got it" : "Next"}
+            </button>
+          </div>
+        </div>
+
+        {step === 0 && (
+          <button
+            type="button"
+            onClick={finish}
+            className="mt-2 text-xs font-medium text-zinc-400 hover:text-zinc-600"
+          >
+            Skip tour
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Positions the bubble beside the target rect, clamped to the viewport.
+function computeBubblePosition(
+  rect: DOMRect | null,
+  placement: Placement
+): { top: number; left: number } {
+  const vw = typeof window !== "undefined" ? window.innerWidth : 1024;
+  const vh = typeof window !== "undefined" ? window.innerHeight : 768;
+  const estHeight = 180;
+
+  if (!rect) {
+    return { top: vh / 2 - estHeight / 2, left: vw / 2 - BUBBLE_WIDTH / 2 };
+  }
+
+  let top: number;
+  let left: number;
+  switch (placement) {
+    case "right":
+      top = rect.top;
+      left = rect.right + GAP;
+      break;
+    case "left":
+      top = rect.top;
+      left = rect.left - BUBBLE_WIDTH - GAP;
+      break;
+    case "top":
+      top = rect.top - estHeight - GAP;
+      left = rect.left + rect.width / 2 - BUBBLE_WIDTH / 2;
+      break;
+    case "bottom":
+    default:
+      top = rect.bottom + GAP;
+      left = rect.left + rect.width / 2 - BUBBLE_WIDTH / 2;
+      break;
+  }
+
+  // Clamp inside the viewport with an 8px margin.
+  left = Math.max(8, Math.min(left, vw - BUBBLE_WIDTH - 8));
+  top = Math.max(8, Math.min(top, vh - estHeight - 8));
+  return { top, left };
+}

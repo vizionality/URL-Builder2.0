@@ -193,8 +193,8 @@ export default function Home() {
             title="Build Your UTM URL"
             description="Fill in the required fields to generate a tagged URL."
           >
-            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
-              <div>
+            <form data-tour="build-form" className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+              <div data-tour="template">
                 <label className={labelClass} htmlFor="template">
                   Quick Template
                 </label>
@@ -289,7 +289,7 @@ export default function Home() {
             </form>
           </Card>
 
-          <Card title="Generated UTM URL">
+          <Card title="Generated UTM URL" dataTour="generated">
             {result.ok ? (
               <div className="space-y-3">
                 <textarea
