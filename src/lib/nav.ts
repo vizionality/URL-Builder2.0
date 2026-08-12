@@ -16,7 +16,7 @@ export type NavItem = {
 };
 
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "UTM Builder", icon: Link2 },
+  { href: "/app", label: "UTM Builder", icon: Link2 },
   { href: "/bulk", label: "Bulk Builder", icon: Table2 },
   { href: "/campaigns", label: "Campaign Creator", icon: Sparkles },
   { href: "/campaign-sessions", label: "Campaign Sessions", icon: Activity },
