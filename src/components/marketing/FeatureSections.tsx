@@ -57,7 +57,7 @@ function Chip({ value }: { value: string }) {
 
 /* ---------- Per-feature visuals ---------- */
 
-function UtmBuilderMock() {
+export function UtmBuilderMock() {
   return (
     <MockCard>
       <MockField label="Website URL" value="https://example.com/sale" />
@@ -85,7 +85,7 @@ function UtmBuilderMock() {
   );
 }
 
-function BulkBuilderMock() {
+export function BulkBuilderMock() {
   const rows = [
     { source: "google", medium: "cpc", campaign: "2026_q1_launch" },
     { source: "newsletter", medium: "email", campaign: "2026_q1_launch" },
@@ -144,7 +144,7 @@ function BulkBuilderMock() {
   );
 }
 
-function CampaignCreatorMock() {
+export function CampaignCreatorMock() {
   return (
     <MockCard>
       <div className="grid grid-cols-2 gap-3">
@@ -182,7 +182,7 @@ function CampaignCreatorMock() {
   );
 }
 
-function UtmOptionsMock() {
+export function UtmOptionsMock() {
   const groups = [
     { title: "Sources", values: ["google", "facebook", "newsletter"] },
     { title: "Mediums", values: ["cpc", "email", "social"] },
@@ -214,7 +214,7 @@ function UtmOptionsMock() {
   );
 }
 
-function DashboardMock() {
+export function DashboardMock() {
   const bars = [40, 65, 50, 80, 60, 95, 72];
   return (
     <MockCard>
@@ -250,7 +250,7 @@ function DashboardMock() {
   );
 }
 
-function Ga4Mock() {
+export function Ga4Mock() {
   // Illustrative sessions trend (not real data), drawn as an inline SVG so the
   // section stays static and dependency-free.
   const line =

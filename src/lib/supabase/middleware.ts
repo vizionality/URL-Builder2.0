@@ -3,8 +3,8 @@ import { createServerClient } from "@supabase/ssr";
 
 // Paths that an unauthenticated visitor is allowed to reach. "/" is the
 // public marketing landing page (the ad destination); "/blog" is the public,
-// SEO-indexed blog.
-const PUBLIC_PATHS = ["/", "/blog", "/sign-in", "/sign-up", "/auth"];
+// SEO-indexed blog; "/lp" holds the per-campaign ad landing pages.
+const PUBLIC_PATHS = ["/", "/blog", "/lp", "/sign-in", "/sign-up", "/auth"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(

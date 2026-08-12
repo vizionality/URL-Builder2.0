@@ -11,6 +11,20 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
   ];
 
+  // Per-campaign landing pages.
+  for (const slug of [
+    "utm-spreadsheet",
+    "utm-for-teams",
+    "utm-naming-convention",
+    "best-utm-builder",
+  ]) {
+    entries.push({
+      url: absoluteUrl(`/lp/${slug}`),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    });
+  }
+
   // Only advertise the blog to search engines once it's enabled.
   if (BLOG_ENABLED) {
     entries.push({
