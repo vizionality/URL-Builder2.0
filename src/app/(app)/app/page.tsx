@@ -95,9 +95,14 @@ export default function Home() {
 
   async function handleCopy() {
     if (!result.ok) return;
-    await navigator.clipboard.writeText(result.url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    try {
+      await navigator.clipboard.writeText(result.url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard can be unavailable (insecure context / denied permission).
+      window.prompt("Copy this URL:", result.url);
+    }
   }
 
   function addToProject(projectId: string, projectName: string) {

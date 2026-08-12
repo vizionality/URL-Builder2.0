@@ -42,11 +42,26 @@ function dimensionsAndMetrics(reportType: ReportType) {
 }
 
 export async function POST(req: NextRequest) {
-  const { propertyId, startDate, endDate, reportType } = await req.json();
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
+  const { propertyId, startDate, endDate, reportType } = body ?? {};
 
   if (!propertyId || !startDate || !endDate || !reportType) {
     return NextResponse.json(
       { error: "propertyId, startDate, endDate, and reportType are required." },
+      { status: 400 }
+    );
+  }
+
+  // GA4 property IDs are numeric. Validate to avoid injecting arbitrary values
+  // into the property path.
+  if (!/^\d+$/.test(String(propertyId))) {
+    return NextResponse.json(
+      { error: "propertyId must be a numeric GA4 property ID." },
       { status: 400 }
     );
   }
@@ -96,8 +111,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ rows, totals });
   } catch (err) {
+    // Log the upstream detail server-side; return a generic message so we don't
+    // leak service-account emails, project IDs, or gRPC internals to the client.
+    console.error("GA4 report request failed:", err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Failed to fetch GA4 report." },
+      { error: "Failed to fetch GA4 report." },
       { status: 500 }
     );
   }

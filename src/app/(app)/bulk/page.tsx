@@ -149,16 +149,24 @@ export default function BulkBuilderPage() {
   async function copyAll() {
     const urls = rows.map((row) => row.generatedUrl).filter(Boolean);
     if (urls.length === 0) return;
-    await navigator.clipboard.writeText(urls.join("\n"));
-    setCopiedAll(true);
-    setTimeout(() => setCopiedAll(false), 1500);
+    try {
+      await navigator.clipboard.writeText(urls.join("\n"));
+      setCopiedAll(true);
+      setTimeout(() => setCopiedAll(false), 1500);
+    } catch {
+      window.prompt("Copy these URLs:", urls.join("\n"));
+    }
   }
 
   async function copyRow(row: BulkRow) {
     if (!row.generatedUrl) return;
-    await navigator.clipboard.writeText(row.generatedUrl);
-    setCopiedId(row.id);
-    setTimeout(() => setCopiedId((id) => (id === row.id ? null : id)), 1500);
+    try {
+      await navigator.clipboard.writeText(row.generatedUrl);
+      setCopiedId(row.id);
+      setTimeout(() => setCopiedId((id) => (id === row.id ? null : id)), 1500);
+    } catch {
+      window.prompt("Copy this URL:", row.generatedUrl);
+    }
   }
 
   function handleExport() {
@@ -448,6 +456,9 @@ export default function BulkBuilderPage() {
                         }
                       >
                         <option value="">Select…</option>
+                        {row.source && !options.sources.includes(row.source) && (
+                          <option value={row.source}>{row.source} (removed)</option>
+                        )}
                         {options.sources.map((value) => (
                           <option key={value} value={value}>
                             {value}
@@ -464,6 +475,9 @@ export default function BulkBuilderPage() {
                         }
                       >
                         <option value="">Select…</option>
+                        {row.medium && !options.mediums.includes(row.medium) && (
+                          <option value={row.medium}>{row.medium} (removed)</option>
+                        )}
                         {options.mediums.map((value) => (
                           <option key={value} value={value}>
                             {value}
@@ -480,6 +494,9 @@ export default function BulkBuilderPage() {
                         }
                       >
                         <option value="">Select…</option>
+                        {row.campaign && !options.campaigns.includes(row.campaign) && (
+                          <option value={row.campaign}>{row.campaign} (removed)</option>
+                        )}
                         {options.campaigns.map((value) => (
                           <option key={value} value={value}>
                             {value}

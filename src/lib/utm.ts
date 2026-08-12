@@ -29,6 +29,12 @@ export function buildUtmUrl(fields: UtmFields): BuildUtmUrlResult {
   if (!baseUrl) {
     return { ok: false, error: "Enter a website URL." };
   }
+  // new URL() silently percent-encodes interior spaces during validation, but
+  // we assemble the output from the raw string — so a space would survive into
+  // the final URL and break it. Reject it with a clear message instead.
+  if (/\s/.test(baseUrl)) {
+    return { ok: false, error: "Remove spaces from the website URL." };
+  }
   if (!isValidHttpUrl(baseUrl)) {
     return { ok: false, error: "Enter a valid http(s) URL." };
   }
@@ -57,7 +63,18 @@ export function buildUtmUrl(fields: UtmFields): BuildUtmUrlResult {
   const fragment = hashIndex === -1 ? "" : baseUrl.slice(hashIndex);
   const beforeFragment = hashIndex === -1 ? baseUrl : baseUrl.slice(0, hashIndex);
 
-  const separator = beforeFragment.includes("?") ? "&" : "?";
+  // Choose the separator: "?" when there's no query yet, "&" when a non-empty
+  // query already exists, and "" when the base ends in a bare "?" (empty query)
+  // so we don't emit a stray leading "&".
+  const qIndex = beforeFragment.indexOf("?");
+  let separator: string;
+  if (qIndex === -1) {
+    separator = "?";
+  } else if (qIndex === beforeFragment.length - 1) {
+    separator = "";
+  } else {
+    separator = "&";
+  }
   const url = `${beforeFragment}${separator}${queryString}${fragment}`;
 
   return { ok: true, url };

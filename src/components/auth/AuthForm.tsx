@@ -10,6 +10,16 @@ const inputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500";
 const labelClass = "block text-sm font-medium text-zinc-700 mb-1";
 
+// Only allow same-origin, relative redirect targets — reject absolute URLs and
+// protocol-relative "//host" values so a crafted ?redirectedFrom can't bounce a
+// just-authenticated user off-site.
+function safeRedirect(value: string | null): string {
+  if (value && value.startsWith("/") && !value.startsWith("//")) {
+    return value;
+  }
+  return "/app";
+}
+
 export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -24,7 +34,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
   const [message, setMessage] = useState<string | null>(null);
 
   const isSignUp = mode === "sign-up";
-  const redirectedFrom = searchParams.get("redirectedFrom") ?? "/app";
+  const redirectedFrom = safeRedirect(searchParams.get("redirectedFrom"));
 
   async function handleEmailSubmit(e: React.FormEvent) {
     e.preventDefault();

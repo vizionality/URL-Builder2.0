@@ -2,10 +2,19 @@ export function toCsv(rows: Record<string, string>[]): string {
   if (rows.length === 0) return "";
   const headers = Object.keys(rows[0]);
   const escape = (value: string) => {
-    if (/[",\n]/.test(value)) {
-      return `"${value.replace(/"/g, '""')}"`;
+    // Neutralize spreadsheet formula injection: a cell starting with any of
+    // these is executed as a formula by Excel/Sheets. Prefix with a single
+    // quote so the value is treated as text.
+    let safe = value;
+    if (/^[=+\-@\t\r]/.test(safe)) {
+      safe = `'${safe}`;
     }
-    return value;
+    // Quote when the value contains a delimiter, quote, or line break
+    // (including a lone carriage return, which parsers treat as a row break).
+    if (/[",\n\r]/.test(safe)) {
+      return `"${safe.replace(/"/g, '""')}"`;
+    }
+    return safe;
   };
   const lines = [headers.join(",")];
   for (const row of rows) {

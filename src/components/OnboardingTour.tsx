@@ -52,15 +52,8 @@ const STEPS: Step[] = [
     path: "/app",
     selector: '[data-tour="generated"]',
     title: "Copy or organize",
-    body: "Your finished UTM URL appears here. Copy it with one click, or use “Add to Project” to drop it straight into the Bulk Builder.",
+    body: "As you fill in the form, your finished UTM URL appears here — ready to copy in one click, or add straight to a Bulk Builder project.",
     placement: "left",
-  },
-  {
-    path: "/app",
-    selector: '[data-tour="save"]',
-    title: "Save & export",
-    body: "Save links to reuse them later, and Export your saved URLs to CSV any time.",
-    placement: "bottom",
   },
   // Bulk Builder
   {
@@ -98,14 +91,6 @@ const STEPS: Step[] = [
     title: "Copy the result",
     body: "Your standardized campaign name appears here, ready to copy and reuse.",
     placement: "left",
-  },
-  // Campaign Sessions
-  {
-    path: "/campaign-sessions",
-    selector: '[data-tour="sessions-table"]',
-    title: "See real sessions",
-    body: "Every campaign you've built is listed here. Connect Google Analytics and each one shows its live GA4 session count, so you can tell which campaigns are actually getting traffic.",
-    placement: "top",
   },
   // UTM Options
   {
@@ -302,6 +287,7 @@ export function OnboardingTour({ completed = false }: { completed?: boolean }) {
       {/* Comment bubble */}
       <div
         role="dialog"
+        aria-modal="true"
         aria-label={current.title}
         className="absolute rounded-xl border border-zinc-200 bg-white p-4 shadow-xl"
         style={{ width: BUBBLE_WIDTH, ...bubblePos }}

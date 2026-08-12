@@ -184,7 +184,7 @@ export function MobileTabBar() {
             onClick={() => setOpen(false)}
             className="fixed inset-0 z-30 bg-black/30"
           />
-          <nav className="fixed inset-x-0 top-0 z-40 max-h-[85vh] overflow-y-auto rounded-b-xl border-b border-zinc-200 bg-white shadow-lg">
+          <nav aria-modal="true" role="dialog" aria-label="Main menu" className="fixed inset-x-0 top-0 z-40 max-h-[85vh] overflow-y-auto rounded-b-xl border-b border-zinc-200 bg-white shadow-lg">
             <div className="flex items-center justify-between border-b border-zinc-100 px-3 py-2">
               <div className="flex items-center gap-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-600 text-sm font-bold text-white">
