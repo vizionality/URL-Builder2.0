@@ -125,6 +125,7 @@ export default function CampaignSessionsPage() {
         )}
 
         <Card
+          dataTour="sessions-table"
           title="Your campaigns"
           description={
             connected

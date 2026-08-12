@@ -279,7 +279,7 @@ export default function BulkBuilderPage() {
                 </p>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div data-tour="bulk-toolbar" className="flex flex-wrap items-center gap-2">
               <div className="relative" ref={menuRef}>
                 <button
                   type="button"
@@ -410,7 +410,7 @@ export default function BulkBuilderPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div data-tour="bulk-table" className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-zinc-200 text-left text-xs font-medium text-zinc-500">
