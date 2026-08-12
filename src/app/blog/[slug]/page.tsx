@@ -5,9 +5,11 @@ import { ArrowRight, ChevronRight } from "lucide-react";
 import { SiteHeader } from "@/components/marketing/SiteHeader";
 import { SiteFooter } from "@/components/marketing/SiteFooter";
 import { getAllSlugs, getPost } from "@/lib/blog";
-import { absoluteUrl, SITE_NAME } from "@/lib/site";
+import { absoluteUrl, BLOG_ENABLED, SITE_NAME } from "@/lib/site";
 
 export function generateStaticParams() {
+  // Hidden for now: prerender nothing so no post pages are published.
+  if (!BLOG_ENABLED) return [];
   return getAllSlugs().map((slug) => ({ slug }));
 }
 
@@ -60,6 +62,7 @@ export default async function BlogPostPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  if (!BLOG_ENABLED) notFound();
   const post = getPost(slug);
   if (!post) notFound();
 

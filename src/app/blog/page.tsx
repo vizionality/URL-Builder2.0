@@ -1,10 +1,11 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { SiteHeader } from "@/components/marketing/SiteHeader";
 import { SiteFooter } from "@/components/marketing/SiteFooter";
 import { getAllPosts } from "@/lib/blog";
-import { absoluteUrl, SITE_NAME } from "@/lib/site";
+import { absoluteUrl, BLOG_ENABLED, SITE_NAME } from "@/lib/site";
 
 const TITLE = "Blog — UTM tracking, campaign naming & analytics";
 const DESCRIPTION =
@@ -38,6 +39,9 @@ function formatDate(iso: string): string {
 }
 
 export default function BlogIndexPage() {
+  // Hidden for now — keep the code, return 404 until re-enabled.
+  if (!BLOG_ENABLED) notFound();
+
   const posts = getAllPosts();
 
   return (

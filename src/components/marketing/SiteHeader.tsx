@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SITE_NAME, SITE_TAGLINE } from "@/lib/site";
+import { BLOG_ENABLED, SITE_NAME, SITE_TAGLINE } from "@/lib/site";
 
 export function SiteLogo() {
   return (
@@ -23,12 +23,14 @@ export function SiteHeader() {
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
         <SiteLogo />
         <nav className="flex items-center gap-1 sm:gap-3">
-          <Link
-            href="/blog"
-            className="rounded-md px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100"
-          >
-            Blog
-          </Link>
+          {BLOG_ENABLED && (
+            <Link
+              href="/blog"
+              className="rounded-md px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100"
+            >
+              Blog
+            </Link>
+          )}
           <Link
             href="/sign-in"
             className="hidden rounded-md px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100 sm:block"
