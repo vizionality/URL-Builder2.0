@@ -6,6 +6,7 @@ import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
 import { buildUtmUrl } from "@/lib/utm";
 import { utmTemplates, templatePlatformOrder } from "@/lib/utmTemplates";
+import { TemplatePicker } from "@/components/TemplatePicker";
 import { downloadCsv } from "@/lib/csv";
 import { useBulkProjects, useSavedUrls, useUtmOptions } from "@/lib/storage";
 import type { BulkRow } from "@/lib/types";
@@ -197,25 +198,12 @@ export default function Home() {
                 <label className={labelClass} htmlFor="template">
                   Quick Template
                 </label>
-                <select
-                  id="template"
-                  className={inputClass}
+                <TemplatePicker
+                  templates={utmTemplates}
+                  platformOrder={templatePlatformOrder}
                   value={templateId}
-                  onChange={(e) => handleTemplateChange(e.target.value)}
-                >
-                  <option value="">Select a template…</option>
-                  {templatePlatformOrder.map((platform) => (
-                    <optgroup key={platform} label={platform}>
-                      {utmTemplates
-                        .filter((t) => t.platform === platform)
-                        .map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.name}
-                          </option>
-                        ))}
-                    </optgroup>
-                  ))}
-                </select>
+                  onSelect={handleTemplateChange}
+                />
               </div>
 
               <div>
