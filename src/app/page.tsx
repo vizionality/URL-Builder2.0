@@ -13,6 +13,7 @@ import {
 import { SiteHeader } from "@/components/marketing/SiteHeader";
 import { SiteFooter } from "@/components/marketing/SiteFooter";
 import { HeroBuilder } from "@/components/marketing/HeroBuilder";
+import { TemplatesSpotlight } from "@/components/marketing/TemplatesSpotlight";
 import { BulkBuilderSpotlight } from "@/components/marketing/BulkBuilderSpotlight";
 import { Testimonials } from "@/components/marketing/Testimonials";
 
@@ -208,6 +209,9 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* UTM Builder spotlight — start from a template. */}
+      <TemplatesSpotlight />
 
       {/* Bulk Builder spotlight — projects + saved UTMs. */}
       <BulkBuilderSpotlight />
