@@ -84,7 +84,7 @@ export function Sidebar({ profile }: { profile?: SidebarProfile }) {
               <div
                 key={item.href}
                 aria-disabled="true"
-                title="Coming soon"
+                title="Coming Soon"
                 className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-300"
               >
                 <Icon size={18} />
@@ -210,7 +210,7 @@ export function MobileTabBar() {
                     <div
                       key={item.href}
                       aria-disabled="true"
-                      title="Coming soon"
+                      title="Coming Soon"
                       className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-300"
                     >
                       <Icon size={18} />
