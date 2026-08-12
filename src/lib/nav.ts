@@ -21,6 +21,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/campaigns", label: "Campaign Creator", icon: Sparkles },
   { href: "/campaign-sessions", label: "Campaign Sessions", icon: Activity },
   { href: "/options", label: "UTM Options", icon: SlidersHorizontal },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/integrations", label: "Integrations", icon: Plug },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, comingSoon: true },
+  { href: "/integrations", label: "Integrations", icon: Plug, comingSoon: true },
 ];
