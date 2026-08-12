@@ -10,11 +10,24 @@ import {
   Check,
   ArrowRight,
 } from "lucide-react";
+import { SiteHeader } from "@/components/marketing/SiteHeader";
+import { SiteFooter } from "@/components/marketing/SiteFooter";
 
 export const metadata: Metadata = {
-  title: "UTM Builder — Build, standardize & track campaign URLs",
+  title: {
+    absolute: "UTMBuilder — Build, standardize & track campaign URLs",
+  },
   description:
     "Create consistent UTM campaign URLs in seconds, build them in bulk, standardize naming, and track performance with real GA4 reporting.",
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    url: "/",
+    title: "UTMBuilder — Build, standardize & track campaign URLs",
+    description:
+      "Create consistent UTM campaign URLs in seconds, build them in bulk, standardize naming, and track performance with real GA4 reporting.",
+    siteName: "UTMBuilder",
+  },
 };
 
 const FEATURES = [
@@ -72,45 +85,10 @@ const BENEFITS = [
   "Real GA4 data — or clearly labeled samples until you connect",
 ];
 
-function Logo() {
-  return (
-    <div className="flex items-center gap-3">
-      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-600 font-bold text-white">
-        U
-      </div>
-      <div>
-        <p className="text-sm font-semibold leading-tight text-zinc-900">
-          UTMBuilder
-        </p>
-        <p className="text-xs leading-tight text-zinc-500">Campaign Tracker</p>
-      </div>
-    </div>
-  );
-}
-
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
-      {/* Top nav */}
-      <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-          <Logo />
-          <nav className="flex items-center gap-2 sm:gap-3">
-            <Link
-              href="/sign-in"
-              className="rounded-md px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100"
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/sign-up"
-              className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
-            >
-              Get started
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <SiteHeader />
 
       {/* Hero */}
       <section className="mx-auto max-w-6xl px-4 pb-16 pt-16 sm:px-6 sm:pt-24">
@@ -292,16 +270,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-zinc-200 bg-white">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 sm:flex-row sm:px-6">
-          <Logo />
-          <p className="text-xs text-zinc-500">
-            © {new Date().getFullYear()} UTMBuilder. Build, standardize &amp;
-            track campaign URLs.
-          </p>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
