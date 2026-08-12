@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -13,45 +13,77 @@ export const TOUR_REPLAY_FLAG = "utm.tour.replay";
 type Placement = "top" | "bottom" | "right" | "left";
 
 type Step = {
-  selector: string;
+  path: string;
+  // Optional: a CSS selector to spotlight. Steps without one are shown as a
+  // centered "page intro" card over the live (dimmed) page.
+  selector?: string;
   title: string;
   body: string;
   placement: Placement;
 };
 
-// The guided walkthrough shown to a user the first time they land on the
-// UTM Builder. Each step spotlights a feature and floats a comment bubble
-// next to it. Completing or skipping sets a localStorage flag so it never
-// auto-runs again in that browser.
+// The guided walkthrough shown to a user the first time they sign in. It
+// starts on the UTM Builder, spotlighting its features, then navigates
+// through the app's other pages to introduce each one. Completing or skipping
+// records the flag (localStorage + Supabase) so it never auto-runs again.
 const STEPS: Step[] = [
   {
+    path: "/app",
     selector: '[data-tour="nav"]',
     title: "Your toolkit",
     body: "Switch between the UTM Builder, Bulk Builder, Campaign Creator and more from this sidebar. Greyed-out items are coming soon.",
     placement: "right",
   },
   {
+    path: "/app",
     selector: '[data-tour="template"]',
     title: "Start from a template",
     body: "Pick a Quick Template (Instagram, Google Ads, Email…) and we'll prefill the UTM source, medium and content for you.",
     placement: "bottom",
   },
   {
+    path: "/app",
     selector: '[data-tour="build-form"]',
     title: "Build your URL",
     body: "Enter your website URL and campaign details. Anything you type is validated and assembled into a properly-encoded tracking link.",
     placement: "right",
   },
   {
+    path: "/app",
     selector: '[data-tour="generated"]',
     title: "Copy or organize",
     body: "Your finished UTM URL appears here. Copy it with one click, or use “Add to Project” to drop it straight into the Bulk Builder.",
     placement: "left",
   },
   {
+    path: "/app",
     selector: '[data-tour="save"]',
     title: "Save & export",
-    body: "Save links to reuse them later, and Export your saved URLs to CSV any time. That's the tour — happy tracking!",
+    body: "Save links to reuse them later, and Export your saved URLs to CSV any time.",
+    placement: "bottom",
+  },
+  {
+    path: "/bulk",
+    title: "Bulk Builder",
+    body: "Build many tracking URLs at once in a spreadsheet-style table, grouped into Projects. The Source and Medium dropdowns pull from your UTM Options, and each row's URL is generated live.",
+    placement: "bottom",
+  },
+  {
+    path: "/campaigns",
+    title: "Campaign Creator",
+    body: "Generate standardized campaign names in the format year_quarter_initiative — e.g. 2026_q1_summer_sale — with optional AI-generated initiative suggestions.",
+    placement: "bottom",
+  },
+  {
+    path: "/campaign-sessions",
+    title: "Campaign Sessions",
+    body: "Once you connect Google Analytics, check here to see which of your campaigns are actually showing sessions in GA4.",
+    placement: "bottom",
+  },
+  {
+    path: "/options",
+    title: "UTM Options",
+    body: "Manage the Sources, Mediums and Campaigns lists that power the dropdowns in the Bulk Builder. That's the tour — happy tracking!",
     placement: "bottom",
   },
 ];
@@ -61,6 +93,7 @@ const GAP = 14;
 
 export function OnboardingTour({ completed = false }: { completed?: boolean }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [active, setActive] = useState(false);
   const [step, setStep] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
@@ -117,13 +150,32 @@ export function OnboardingTour({ completed = false }: { completed?: boolean }) {
     setActive(false);
   }, []);
 
-  // Measure the current step's target (scheduled via rAF so we never call
-  // setState synchronously inside the effect body).
+  // Drive the current step: navigate to its page if needed, then locate and
+  // measure its target. All setState happens in async callbacks (rAF / timers)
+  // so nothing runs synchronously in the effect body.
   useEffect(() => {
     if (!active) return;
+    const s = STEPS[step];
+    if (!s) return;
 
+    // If the step lives on another page, navigate there. The layout — and this
+    // component — persist across the client navigation, so when `pathname`
+    // updates this effect re-runs and proceeds to measure.
+    if (pathname !== s.path) {
+      const id = requestAnimationFrame(() => setRect(null));
+      router.push(s.path);
+      return () => cancelAnimationFrame(id);
+    }
+
+    // A page-intro step (no selector) is shown centered over the dimmed page.
+    if (!s.selector) {
+      const id = requestAnimationFrame(() => setRect(null));
+      return () => cancelAnimationFrame(id);
+    }
+
+    const selector = s.selector;
     function measure() {
-      const el = document.querySelector(STEPS[step]?.selector ?? "");
+      const el = document.querySelector(selector);
       const r = el?.getBoundingClientRect();
       // Ignore hidden/zero-size targets (e.g. the desktop sidebar on mobile)
       // so the bubble falls back to a centered position instead of pinning
@@ -131,22 +183,34 @@ export function OnboardingTour({ completed = false }: { completed?: boolean }) {
       setRect(r && r.width > 0 && r.height > 0 ? r : null);
     }
 
-    const el = document.querySelector(STEPS[step]?.selector ?? "");
-    el?.scrollIntoView({ block: "center", behavior: "smooth" });
-
-    rafRef.current = requestAnimationFrame(() => {
-      // Second frame lets a smooth scroll settle before measuring.
-      rafRef.current = requestAnimationFrame(measure);
-    });
+    // The target may not be in the DOM yet right after a navigation; poll
+    // briefly until it appears, then settle.
+    let tries = 0;
+    const poll = window.setInterval(() => {
+      const el = document.querySelector(selector);
+      tries += 1;
+      if (el) {
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+        rafRef.current = requestAnimationFrame(() => {
+          rafRef.current = requestAnimationFrame(measure);
+        });
+        window.clearInterval(poll);
+      } else if (tries > 40) {
+        // ~2s with no match: fall back to a centered bubble.
+        setRect(null);
+        window.clearInterval(poll);
+      }
+    }, 50);
 
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
     return () => {
+      window.clearInterval(poll);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", measure, true);
     };
-  }, [active, step]);
+  }, [active, step, pathname, router]);
 
   // Keyboard: Escape skips, arrows move.
   useEffect(() => {
