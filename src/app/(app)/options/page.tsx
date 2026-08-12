@@ -4,7 +4,6 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
-import { downloadCsv } from "@/lib/csv";
 import { DEFAULT_UTM_OPTIONS, useUtmOptions } from "@/lib/storage";
 import type { UtmOptions } from "@/lib/types";
 
@@ -112,21 +111,11 @@ export default function UtmOptionsPage() {
     setOptions((prev) => ({ ...prev, [key]: DEFAULT_UTM_OPTIONS[key] }));
   }
 
-  function handleExport() {
-    const rows: Record<string, string>[] = [];
-    options.sources.forEach((value) => rows.push({ type: "source", value }));
-    options.mediums.forEach((value) => rows.push({ type: "medium", value }));
-    options.campaigns.forEach((value) => rows.push({ type: "campaign", value }));
-    downloadCsv("utm-options.csv", rows);
-  }
-
   return (
     <>
       <Header
         title="UTM Options"
         subtitle="Manage the values available across the app"
-        onExport={handleExport}
-        onSave={() => {}}
       />
       <main className="flex-1 px-4 py-6 sm:px-6">
         <div data-tour="options-lists" className="grid grid-cols-1 gap-6 lg:grid-cols-3">

@@ -7,8 +7,7 @@ import { Card } from "@/components/Card";
 import { buildUtmUrl } from "@/lib/utm";
 import { utmTemplates, templatePlatformOrder } from "@/lib/utmTemplates";
 import { TemplatePicker } from "@/components/TemplatePicker";
-import { downloadCsv } from "@/lib/csv";
-import { useBulkProjects, useSavedUrls, useUtmOptions } from "@/lib/storage";
+import { useBulkProjects, useUtmOptions } from "@/lib/storage";
 import type { BulkRow } from "@/lib/types";
 
 const inputClass =
@@ -29,7 +28,6 @@ export default function Home() {
   const [addedTo, setAddedTo] = useState<string | null>(null);
   const projectMenuRef = useRef<HTMLDivElement>(null);
 
-  const [savedUrls, setSavedUrls] = useSavedUrls();
   const [projectsState, setProjectsState] = useBulkProjects();
   const [, setOptions] = useUtmOptions();
 
@@ -128,36 +126,6 @@ export default function Home() {
     setTimeout(() => setAddedTo((name) => (name === projectName ? null : name)), 2000);
   }
 
-  function handleSave() {
-    if (!result.ok) return;
-    setSavedUrls((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        baseUrl: baseUrl.trim(),
-        source: source.trim(),
-        medium: medium.trim(),
-        campaign: campaign.trim(),
-        generatedUrl: result.url,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
-  }
-
-  function handleExport() {
-    downloadCsv(
-      "utm-urls.csv",
-      savedUrls.map((row) => ({
-        baseUrl: row.baseUrl,
-        source: row.source,
-        medium: row.medium,
-        campaign: row.campaign,
-        generatedUrl: row.generatedUrl,
-        createdAt: row.createdAt,
-      }))
-    );
-  }
-
   useEffect(() => {
     if (!projectMenuOpen) return;
     function handlePointerDown(e: MouseEvent) {
@@ -184,8 +152,6 @@ export default function Home() {
       <Header
         title="UTM Builder"
         subtitle="Build and customize your campaign tracking URLs"
-        onExport={handleExport}
-        onSave={handleSave}
       />
       <main className="flex-1 px-4 py-6 sm:px-6">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
