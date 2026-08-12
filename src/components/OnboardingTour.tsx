@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 const TOUR_FLAG = "utm.tour.v1";
 
@@ -55,7 +56,7 @@ const STEPS: Step[] = [
 const BUBBLE_WIDTH = 320;
 const GAP = 14;
 
-export function OnboardingTour() {
+export function OnboardingTour({ completed = false }: { completed?: boolean }) {
   const pathname = usePathname();
   const [active, setActive] = useState(false);
   const [step, setStep] = useState(0);
@@ -64,8 +65,11 @@ export function OnboardingTour() {
 
   // Auto-start once, only on the UTM Builder home page. The state update is
   // deferred to a microtask so it doesn't run synchronously in the effect.
+  // The account-level flag (from Supabase user_metadata) wins across devices;
+  // localStorage is a fast local guard for the same browser.
   useEffect(() => {
     if (pathname !== "/app") return;
+    if (completed) return;
     let done = true;
     try {
       done = localStorage.getItem(TOUR_FLAG) === "1";
@@ -82,7 +86,7 @@ export function OnboardingTour() {
     return () => {
       cancelled = true;
     };
-  }, [pathname]);
+  }, [pathname, completed]);
 
   const finish = useCallback(() => {
     try {
@@ -90,6 +94,11 @@ export function OnboardingTour() {
     } catch {
       // ignore storage failures; worst case the tour shows again.
     }
+    // Persist to the account so the tour doesn't reappear on other devices.
+    // Fire-and-forget: a failed write just means it may show again elsewhere.
+    createClient()
+      .auth.updateUser({ data: { tour_completed_v1: true } })
+      .catch(() => {});
     setActive(false);
   }, []);
 

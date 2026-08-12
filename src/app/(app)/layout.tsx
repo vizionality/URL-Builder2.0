@@ -34,7 +34,7 @@ export default async function AppLayout({
         <MobileTabBar />
         {children}
       </div>
-      <OnboardingTour />
+      <OnboardingTour completed={Boolean(meta.tour_completed_v1)} />
     </div>
   );
 }
