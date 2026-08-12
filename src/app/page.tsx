@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { SiteHeader } from "@/components/marketing/SiteHeader";
 import { SiteFooter } from "@/components/marketing/SiteFooter";
+import { HeroBuilder } from "@/components/marketing/HeroBuilder";
+import { Testimonials } from "@/components/marketing/Testimonials";
 
 export const metadata: Metadata = {
   title: {
@@ -107,60 +109,43 @@ export default function LandingPage() {
               naming clean across your team, and measure results with real GA4
               reporting.
             </p>
-            <div className="mt-8 flex flex-wrap items-center gap-3">
+            <div className="mt-8">
               <Link
                 href="/sign-up"
-                className="inline-flex items-center gap-2 rounded-md bg-green-600 px-5 py-3 text-sm font-medium text-white hover:bg-green-700"
+                className="inline-flex items-center gap-2 rounded-md bg-green-600 px-6 py-3 text-sm font-medium text-white hover:bg-green-700"
               >
                 Start building free
                 <ArrowRight size={16} />
               </Link>
-              <Link
-                href="/sign-in"
-                className="inline-flex items-center gap-2 rounded-md border border-zinc-200 bg-white px-5 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-              >
-                Sign in
-              </Link>
+              <p className="mt-3 text-sm text-zinc-500">
+                Free to start · No credit card required
+              </p>
             </div>
           </div>
 
-          {/* URL preview mock */}
+          {/* Live mini builder — visitors get value with no signup. */}
           <div className="relative">
-            <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-              <p className="text-sm font-semibold text-zinc-900">
-                Generated UTM URL
-              </p>
-              <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-                <code className="block break-all font-mono text-sm text-zinc-700">
-                  https://example.com/sale
-                  <span className="text-green-600">?utm_source=google</span>
-                  <span className="text-green-600">&amp;utm_medium=cpc</span>
-                  <span className="text-green-600">
-                    &amp;utm_campaign=2026_q1_summer_sale
-                  </span>
-                </code>
-              </div>
-              <div className="mt-4 grid grid-cols-3 gap-3">
-                {[
-                  { label: "Source", value: "google" },
-                  { label: "Medium", value: "cpc" },
-                  { label: "Campaign", value: "summer_sale" },
-                ].map((f) => (
-                  <div
-                    key={f.label}
-                    className="rounded-lg border border-zinc-200 bg-white p-3"
-                  >
-                    <p className="text-[11px] uppercase tracking-wide text-zinc-400">
-                      {f.label}
-                    </p>
-                    <p className="mt-1 truncate text-sm font-medium text-zinc-800">
-                      {f.value}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <HeroBuilder />
           </div>
+        </div>
+      </section>
+
+      {/* Trust bar — factual product statements, not fabricated social proof. */}
+      <section className="border-t border-zinc-200 bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+          <ul className="grid gap-3 text-sm text-zinc-600 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              "Correct URL encoding, every time",
+              "Consistent naming across your team",
+              "Real GA4 data when you connect it",
+              "Free to start — no credit card",
+            ].map((item) => (
+              <li key={item} className="flex items-center gap-2">
+                <Check size={16} className="shrink-0 text-green-600" />
+                {item}
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 
@@ -222,6 +207,9 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Testimonials — renders only once real quotes are added. */}
+      <Testimonials />
 
       {/* Benefits + CTA */}
       <section className="border-t border-zinc-200 bg-white">

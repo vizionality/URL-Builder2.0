@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { trackSignup } from "@/lib/analytics";
 
 const inputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500";
@@ -42,6 +43,8 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
       if (error) {
         setError(error.message);
       } else {
+        // Primary conversion — a completed sign-up.
+        trackSignup("email");
         setMessage(
           "Check your email to confirm your account, then sign in."
         );
