@@ -5,9 +5,41 @@ import { useEffect, useState } from "react";
 export type Ga4ReportType =
   | "campaigns"
   | "campaign-sessions"
+  | "utm-breakdown"
   | "daily-sessions"
   | "engagement-by-source"
   | "summary";
+
+// GA4 uses parenthesized placeholders like "(direct)", "(not set)", "(organic)"
+// and "(none)" for traffic with no real UTM value. Those aren't UTM options.
+export function isRealUtmValue(value: string): boolean {
+  const v = value.trim();
+  return v !== "" && !v.startsWith("(");
+}
+
+// Pulls the campaign/source/medium breakdown from GA4 and returns the distinct
+// real UTM values, ready to merge into UTM Options.
+export async function fetchUtmBreakdown(params: {
+  propertyId: string;
+  startDate: string;
+  endDate: string;
+}): Promise<{ sources: string[]; mediums: string[]; campaigns: string[] }> {
+  const { rows } = await fetchGa4Report({ ...params, reportType: "utm-breakdown" });
+  const sources = new Set<string>();
+  const mediums = new Set<string>();
+  const campaigns = new Set<string>();
+  for (const row of rows) {
+    const [campaign, source, medium] = row.dimensions;
+    if (campaign && isRealUtmValue(campaign)) campaigns.add(campaign.trim());
+    if (source && isRealUtmValue(source)) sources.add(source.trim());
+    if (medium && isRealUtmValue(medium)) mediums.add(medium.trim());
+  }
+  return {
+    sources: [...sources],
+    mediums: [...mediums],
+    campaigns: [...campaigns],
+  };
+}
 
 export type Ga4ReportRow = {
   dimensions: string[];
