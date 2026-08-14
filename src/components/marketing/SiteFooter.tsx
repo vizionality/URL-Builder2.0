@@ -22,6 +22,12 @@ export function SiteFooter() {
           <Link href="/sign-up" className="text-zinc-600 hover:text-zinc-900">
             Get started
           </Link>
+          <Link href="/privacy" className="text-zinc-600 hover:text-zinc-900">
+            Privacy
+          </Link>
+          <Link href="/terms" className="text-zinc-600 hover:text-zinc-900">
+            Terms
+          </Link>
         </nav>
       </div>
       <div className="border-t border-zinc-100">
