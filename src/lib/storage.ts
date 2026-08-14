@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useRef, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type { BulkProjectsState, BulkRow, SavedUrl, UtmOptions } from "@/lib/types";
 
 const EVENT_PREFIX = "utm-builder:event:";
@@ -121,8 +127,26 @@ export function useBulkProjects() {
   );
 }
 
+// The selected GA4 property now lives server-side with the user's OAuth
+// connection. This hook reads it from /api/ga4/connection so existing pages
+// can keep gating "real vs sample" data on a property-id string.
 export function useGa4PropertyId() {
-  return useStoredState<string>(STORAGE_KEYS.ga4PropertyId, "");
+  const [propertyId, setPropertyId] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/ga4/connection")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled && d.connected && d.propertyId) {
+          setPropertyId(d.propertyId);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return [propertyId, setPropertyId] as const;
 }
 
 // All rows across every bulk project, for stats that summarize bulk data.
