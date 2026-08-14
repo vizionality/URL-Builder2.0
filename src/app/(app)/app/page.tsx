@@ -8,6 +8,7 @@ import { buildUtmUrl } from "@/lib/utm";
 import { utmTemplates, templatePlatformOrder } from "@/lib/utmTemplates";
 import { TemplatePicker } from "@/components/TemplatePicker";
 import { useBulkProjects, useUtmOptions } from "@/lib/storage";
+import { trackFirstUtmSavedOnce } from "@/lib/track-first-save";
 import type { BulkRow } from "@/lib/types";
 
 const inputClass =
@@ -129,6 +130,8 @@ export default function Home() {
     setProjectMenuOpen(false);
     setAddedTo(projectName);
     setTimeout(() => setAddedTo((name) => (name === projectName ? null : name)), 2000);
+    // Activation event: first time this user saves a link into a project.
+    void trackFirstUtmSavedOnce();
   }
 
   useEffect(() => {

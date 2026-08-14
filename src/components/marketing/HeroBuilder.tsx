@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, Copy } from "lucide-react";
 import { buildUtmUrl } from "@/lib/utm";
-import { trackEvent } from "@/lib/analytics";
+import { trackEvent, trackBuilderUsedNoSignup } from "@/lib/analytics";
 
 const inputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500";
@@ -27,7 +27,7 @@ export function HeroBuilder() {
   useEffect(() => {
     if (result.ok && !generatedOnce.current) {
       generatedOnce.current = true;
-      trackEvent("generate_utm", { source, medium });
+      trackBuilderUsedNoSignup();
     }
   }, [result.ok, source, medium]);
 

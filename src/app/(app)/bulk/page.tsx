@@ -17,6 +17,7 @@ import { StatCard } from "@/components/StatCard";
 import { buildUtmUrl } from "@/lib/utm";
 import { downloadCsv } from "@/lib/csv";
 import { useBulkProjects, useUtmOptions } from "@/lib/storage";
+import { trackBulkBuilderUsed } from "@/lib/analytics";
 import type { BulkProject, BulkRow } from "@/lib/types";
 
 const MAX_PROJECTS = 5;
@@ -106,6 +107,17 @@ export default function BulkBuilderPage() {
 
   function markSaved() {
     setSavedAt(nowLabel());
+  }
+
+  // Explicit header Save: stamp the timestamp and fire the secondary
+  // "bulk_builder_used" conversion (a strong team-tier predictor). Kept
+  // separate from markSaved() so the per-keystroke auto-save doesn't fire it.
+  function handleHeaderSave() {
+    markSaved();
+    trackBulkBuilderUsed({
+      projectId: activeProject.id,
+      rowCount: rows.length,
+    });
   }
 
   function updateActiveProjectRows(
@@ -251,7 +263,7 @@ export default function BulkBuilderPage() {
         title="Bulk Builder"
         subtitle="Build multiple UTM URLs at once"
         onExport={handleExport}
-        onSave={markSaved}
+        onSave={handleHeaderSave}
       />
       <main className="flex-1 px-4 py-6 sm:px-6">
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
