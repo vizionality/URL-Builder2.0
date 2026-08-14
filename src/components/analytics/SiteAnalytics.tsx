@@ -1,36 +1,23 @@
 import Script from "next/script";
-import {
-  GA_MEASUREMENT_ID,
-  GOOGLE_ADS_ID,
-  HAS_GTAG,
-  HAS_META_PIXEL,
-  META_PIXEL_ID,
-} from "@/lib/analytics";
+import { GTM_ID, HAS_GTM, HAS_META_PIXEL, META_PIXEL_ID } from "@/lib/analytics";
 
-// Injects the Google (gtag.js) and/or Meta Pixel tags, but only the ones
-// whose env vars are set. With nothing configured, this renders nothing and
-// the app loads no third-party scripts and sets no tracking cookies.
+// Loads Google Tag Manager (and optionally the Meta Pixel), but only when the
+// matching env vars are set. With nothing configured this renders nothing and
+// the app loads no third-party scripts and sets no tracking cookies. GA4 and
+// Google Ads are configured inside the GTM container, not here.
 export function SiteAnalytics() {
-  const gtagId = GA_MEASUREMENT_ID || GOOGLE_ADS_ID;
-
   return (
     <>
-      {HAS_GTAG && (
-        <>
-          <Script
-            src={`https://www.googletagmanager.com/gtag/js?id=${gtagId}`}
-            strategy="afterInteractive"
-          />
-          <Script id="gtag-init" strategy="afterInteractive">
-            {`
-              window.dataLayer = window.dataLayer || [];
-              function gtag(){dataLayer.push(arguments);}
-              gtag('js', new Date());
-              ${GA_MEASUREMENT_ID ? `gtag('config', '${GA_MEASUREMENT_ID}');` : ""}
-              ${GOOGLE_ADS_ID ? `gtag('config', '${GOOGLE_ADS_ID}');` : ""}
-            `}
-          </Script>
-        </>
+      {HAS_GTM && (
+        <Script id="gtm-init" strategy="afterInteractive">
+          {`
+            (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+            new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+            'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+            })(window,document,'script','dataLayer','${GTM_ID}');
+          `}
+        </Script>
       )}
 
       {HAS_META_PIXEL && (
@@ -50,5 +37,22 @@ export function SiteAnalytics() {
         </Script>
       )}
     </>
+  );
+}
+
+// The <noscript> GTM fallback iframe. Rendered at the top of <body> so it works
+// for visitors without JavaScript. No-op unless GTM is configured.
+export function GtmNoScript() {
+  if (!HAS_GTM) return null;
+  return (
+    <noscript>
+      <iframe
+        src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
+        height="0"
+        width="0"
+        style={{ display: "none", visibility: "hidden" }}
+        title="Google Tag Manager"
+      />
+    </noscript>
   );
 }

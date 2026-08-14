@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Sidebar, MobileTabBar } from "@/components/Navigation";
 import { OnboardingTour } from "@/components/OnboardingTour";
+import { SignupTracker } from "@/components/analytics/SignupTracker";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function AppLayout({
@@ -35,6 +36,11 @@ export default async function AppLayout({
         {children}
       </div>
       <OnboardingTour completed={Boolean(meta.tour_completed_v1)} />
+      <SignupTracker
+        tracked={Boolean(meta.signup_tracked)}
+        method={(user.app_metadata?.provider as string) || "email"}
+        userId={user.id}
+      />
     </div>
   );
 }
