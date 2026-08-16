@@ -6,6 +6,7 @@ import { SiteFooter } from "@/components/marketing/SiteFooter";
 import { HeroBuilder } from "@/components/marketing/HeroBuilder";
 import { FeatureSections } from "@/components/marketing/FeatureSections";
 import { Testimonials } from "@/components/marketing/Testimonials";
+import { BlogTeaser } from "@/components/marketing/BlogTeaser";
 
 export const metadata: Metadata = {
   title: {
@@ -138,6 +139,9 @@ export default function LandingPage() {
 
       {/* Testimonials render only once real quotes are added. */}
       <Testimonials />
+
+      {/* Latest blog posts. */}
+      <BlogTeaser />
 
       {/* Benefits + CTA */}
       <section className="border-t border-zinc-200 bg-white">
