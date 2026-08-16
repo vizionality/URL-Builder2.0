@@ -14,7 +14,7 @@ export const SITE_URL: string =
 // Feature flag: the blog is built and ready but hidden for now. Flip to
 // `true` to reveal it. This restores the nav links, sitemap entries, and
 // public /blog pages, and drops the robots.txt disallow.
-export const BLOG_ENABLED = false;
+export const BLOG_ENABLED = true;
 
 export const SITE_NAME = "UTMBuilder";
 
