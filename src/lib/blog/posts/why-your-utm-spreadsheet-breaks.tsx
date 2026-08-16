@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { BlogPost } from "@/lib/blog/types";
-import { BulkBuilderMock } from "@/components/marketing/FeatureSections";
+import { BlogImage } from "@/components/marketing/BlogImage";
 
 function Content() {
   return (
@@ -115,13 +115,13 @@ function Content() {
         frozen file and the broken formulas. Free to start, no credit card, no
         strings.
       </p>
-      <figure className="my-8">
-        <BulkBuilderMock />
-        <figcaption className="mt-3 text-center text-sm text-zinc-500">
-          The Bulk Builder: a spreadsheet-style grid with dropdowns, saved
-          projects, and one-click CSV export.
-        </figcaption>
-      </figure>
+      <BlogImage
+        src="/blog/bulk-builder.png"
+        alt="The Bulk Builder: a spreadsheet-style grid of rows with source and medium dropdowns, generated URLs, projects, and a Copy All URLs button"
+        width={2000}
+        height={1578}
+        caption="The Bulk Builder: a spreadsheet-style grid with dropdowns, saved projects, generated URLs, and one-click CSV export."
+      />
     </>
   );
 }

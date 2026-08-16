@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { BlogPost } from "@/lib/blog/types";
-import { UtmBuilderMock } from "@/components/marketing/FeatureSections";
+import { BlogImage } from "@/components/marketing/BlogImage";
 
 function Content() {
   return (
@@ -269,13 +269,13 @@ function Content() {
         sheet stops being another doc nobody opens and starts being the way the
         work actually gets done.
       </p>
-      <figure className="my-8">
-        <UtmBuilderMock />
-        <figcaption className="mt-3 text-center text-sm text-zinc-500">
-          Source and medium filled in for you in UTMBuilder, so the right{" "}
-          <code>cpc</code> or <code>paid_social</code> lands every time.
-        </figcaption>
-      </figure>
+      <BlogImage
+        src="/blog/utm-builder.png"
+        alt="The UTMBuilder form with utm_source set to google and utm_medium set to cpc, producing a tagged URL"
+        width={2000}
+        height={2162}
+        caption="Source and medium filled in for you in UTMBuilder, so the right cpc or paid_social lands every time."
+      />
     </>
   );
 }

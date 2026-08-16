@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { BlogPost } from "@/lib/blog/types";
-import { UtmBuilderMock } from "@/components/marketing/FeatureSections";
+import { BlogImage } from "@/components/marketing/BlogImage";
 
 function Content() {
   return (
@@ -242,13 +242,13 @@ function Content() {
         matter who on the crew is doing the tagging. Buy the ticket, take the ride,
         but at least tag the ride so you know where it went.
       </p>
-      <figure className="my-8">
-        <UtmBuilderMock />
-        <figcaption className="mt-3 text-center text-sm text-zinc-500">
-          The UTM Builder in UTMBuilder: fill a few fields, get a correctly
-          encoded link, copy it in one click.
-        </figcaption>
-      </figure>
+      <BlogImage
+        src="/blog/utm-builder.png"
+        alt="The UTM Builder in UTMBuilder showing a filled form and the generated, correctly encoded UTM URL with a Copy button"
+        width={2000}
+        height={2162}
+        caption="The UTM Builder in UTMBuilder: fill a few fields, get a correctly encoded link, copy it in one click."
+      />
     </>
   );
 }
