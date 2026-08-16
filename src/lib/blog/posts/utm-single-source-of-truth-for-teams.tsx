@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { BlogPost } from "@/lib/blog/types";
+import { UtmOptionsMock } from "@/components/marketing/FeatureSections";
 
 function Content() {
   return (
@@ -131,6 +132,13 @@ function Content() {
         becomes the path of least resistance, which is the only kind of standard
         anyone ever actually follows.
       </p>
+      <figure className="my-8">
+        <UtmOptionsMock />
+        <figcaption className="mt-3 text-center text-sm text-zinc-500">
+          UTM Options: one shared list of approved sources and mediums that
+          feeds every dropdown in the app.
+        </figcaption>
+      </figure>
     </>
   );
 }

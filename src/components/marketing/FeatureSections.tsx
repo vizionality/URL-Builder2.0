@@ -26,7 +26,7 @@ function MockCard({ children }: { children: React.ReactNode }) {
 function MockField({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="mb-1 text-xs font-medium text-zinc-600">{label}</p>
+      <div className="mb-1 text-xs font-medium text-zinc-600">{label}</div>
       <div className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800">
         {value}
       </div>
@@ -37,7 +37,7 @@ function MockField({ label, value }: { label: string; value: string }) {
 function MockSelect({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="mb-1 text-xs font-medium text-zinc-600">{label}</p>
+      <div className="mb-1 text-xs font-medium text-zinc-600">{label}</div>
       <div className="flex items-center justify-between rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800">
         {value}
         <ChevronDown size={15} className="text-zinc-400" />
@@ -67,14 +67,14 @@ export function UtmBuilderMock() {
         <MockField label="Campaign" value="2026_q1_sale" />
       </div>
       <div className="mt-4">
-        <p className="mb-1 text-xs font-medium text-zinc-600">Your UTM URL</p>
+        <div className="mb-1 text-xs font-medium text-zinc-600">Your UTM URL</div>
         <div className="rounded-lg border border-zinc-200 bg-white p-3">
-          <code className="block break-all font-mono text-xs leading-relaxed text-zinc-700">
+          <span className="block break-all font-mono text-xs leading-relaxed text-zinc-700">
             https://example.com/sale
             <span className="text-green-600">?utm_source=google</span>
             <span className="text-green-600">&amp;utm_medium=cpc</span>
             <span className="text-green-600">&amp;utm_campaign=2026_q1_sale</span>
-          </code>
+          </span>
         </div>
         <div className="mt-3 flex items-center justify-center gap-1.5 rounded-md bg-green-600 py-2 text-sm font-medium text-white">
           <Copy size={15} />
@@ -103,10 +103,10 @@ export function BulkBuilderMock() {
             key={s.label}
             className="rounded-lg border border-zinc-200 bg-white p-3"
           >
-            <p className="text-[11px] uppercase tracking-wide text-zinc-400">
+            <div className="text-[11px] uppercase tracking-wide text-zinc-400">
               {s.label}
-            </p>
-            <p className="mt-1 text-lg font-bold text-zinc-900">{s.value}</p>
+            </div>
+            <div className="mt-1 text-lg font-bold text-zinc-900">{s.value}</div>
           </div>
         ))}
       </div>
@@ -155,11 +155,11 @@ export function CampaignCreatorMock() {
         <MockField label="Initiative" value="summer_sale" />
       </div>
       <div className="mt-4">
-        <p className="mb-1 text-xs font-medium text-zinc-600">Campaign name</p>
+        <div className="mb-1 text-xs font-medium text-zinc-600">Campaign name</div>
         <div className="rounded-lg border border-zinc-200 bg-white p-3">
-          <code className="font-mono text-sm font-medium text-green-700">
+          <span className="font-mono text-sm font-medium text-green-700">
             2026_q1_summer_sale
-          </code>
+          </span>
         </div>
       </div>
       <div className="mt-4">
@@ -196,9 +196,9 @@ export function UtmOptionsMock() {
             key={g.title}
             className="rounded-lg border border-zinc-200 bg-white p-3"
           >
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
               {g.title}
-            </p>
+            </div>
             <div className="mt-2 flex flex-wrap gap-2">
               {g.values.map((v) => (
                 <Chip key={v} value={v} />
@@ -228,10 +228,10 @@ export function DashboardMock() {
             key={s.label}
             className="rounded-lg border border-zinc-200 bg-white p-3"
           >
-            <p className="text-[11px] uppercase tracking-wide text-zinc-400">
+            <div className="text-[11px] uppercase tracking-wide text-zinc-400">
               {s.label}
-            </p>
-            <p className="mt-1 text-lg font-bold text-zinc-900">{s.value}</p>
+            </div>
+            <div className="mt-1 text-lg font-bold text-zinc-900">{s.value}</div>
           </div>
         ))}
       </div>
@@ -262,10 +262,10 @@ export function Ga4Mock() {
       <div className="rounded-lg border border-zinc-200 bg-white p-4">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-xs font-medium text-zinc-500">
+            <div className="text-xs font-medium text-zinc-500">
               Campaign Sessions · last 30 days
-            </p>
-            <p className="mt-1 text-2xl font-bold text-zinc-900">4,218</p>
+            </div>
+            <div className="mt-1 text-2xl font-bold text-zinc-900">4,218</div>
           </div>
           <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">
             <TrendingUp size={12} />
