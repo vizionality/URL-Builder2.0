@@ -5,41 +5,45 @@ function Content() {
   return (
     <>
       <p>
-        Every marketer hits the same wall eventually. You are tagging a Facebook
-        ad and you pause: is Facebook the source or the medium? Is it{" "}
-        <code>social</code>, <code>paid_social</code>, or <code>cpc</code>? Do
-        Instagram ads count as a different source, or the same one? Get it wrong
-        and your paid traffic quietly lands in the wrong bucket in Google
-        Analytics, and your channel reports stop making sense.
+        Every marketer walks into the same ambush eventually. You are tagging a
+        Facebook ad at some ugly hour and your hand freezes over the keyboard. Is
+        Facebook the source or the medium? Is it <code>social</code>,{" "}
+        <code>paid_social</code>, or <code>cpc</code>? Do Instagram ads count as a
+        different beast or the same one? Guess wrong and your paid traffic slinks
+        off into the wrong bucket in Google Analytics, and by the time you notice,
+        your channel report reads like a ransom note written by three different
+        people.
       </p>
       <p>
-        The confusion is real, but the rule underneath it is simple. Here is how
-        to think about it, followed by a cheat sheet you can copy for every
-        platform.
+        The confusion is real. The rule underneath it is not complicated once
+        somebody says it out loud. So here it is, out loud, followed by a cheat
+        sheet you can nail to the wall for every platform you touch.
       </p>
 
       <h2>The one rule: source is where, medium is how</h2>
       <p>
-        <strong>utm_source</strong> is the specific place the click comes from:
-        the platform or product. Google, Facebook, LinkedIn, your newsletter.
+        <strong>utm_source</strong> is the specific place the click crawled out
+        of: the platform or product. Google, Facebook, LinkedIn, your newsletter.
       </p>
       <p>
         <strong>utm_medium</strong> is the <em>type</em> of traffic, not the
-        brand. Was it a paid search click, a paid social ad, an organic post, an
-        email? The medium is what Google Analytics uses to sort your traffic into
-        channel groups, so it matters more than most people realize.
+        brand name. Was it a paid search click, a paid social ad, an organic post,
+        an email? This is the one Google Analytics actually uses to sort your
+        world into channels, which means it matters more than the nervous part of
+        your brain is telling you.
       </p>
       <p>
         So Facebook is always the source. Whether the medium is{" "}
-        <code>paid_social</code> or <code>social</code> depends on whether you
-        paid for the placement. That single distinction, paid versus organic, is
-        the thing most teams get wrong.
+        <code>paid_social</code> or <code>social</code> comes down to one
+        question: did you pay for the placement or not? That single fork in the
+        road, paid versus organic, is where most teams drive straight into the
+        ditch.
       </p>
 
-      <h2>Why the medium decides your GA4 report</h2>
+      <h2>Why the medium runs your whole GA4 report</h2>
       <p>
-        Google Analytics 4 sorts traffic into default channel groups based mostly
-        on the medium you set. A few of the rules:
+        GA4 sorts traffic into default channel groups based mostly on the medium
+        you hand it. A few of the rules of the road:
       </p>
       <div className="overflow-x-auto">
         <table>
@@ -90,17 +94,19 @@ function Content() {
         </table>
       </div>
       <p>
-        This is why <code>paid_social</code> matters. Tag a Facebook ad as{" "}
-        <code>social</code> and GA4 mixes your paid budget in with your organic
-        posts, so you can no longer tell what your ad spend actually did. Tag it{" "}
-        <code>paid_social</code> and it lands cleanly in Paid Social, separate
-        from the free stuff.
+        This is the whole reason <code>paid_social</code> earns its keep. Tag a
+        Facebook ad as plain <code>social</code> and GA4 dumps your ad budget in
+        the same barrel as your free organic posts, and now you cannot tell what
+        the money did versus what the intern&apos;s meme did. Tag it{" "}
+        <code>paid_social</code> and it marches straight into Paid Social, clean
+        and accountable, exactly where a paid dollar belongs.
       </p>
 
       <h2>The cheat sheet: source and medium for every platform</h2>
       <p>
-        Copy this. The point is not that these values are the only correct ones,
-        it is that you and your whole team use the <em>same</em> ones every time.
+        Copy it. Steal it. The magic is not that these exact values were handed
+        down on stone tablets, it is that you and every last person on your team
+        use the <em>same</em> ones every single time.
       </p>
       <div className="overflow-x-auto">
         <table>
@@ -216,48 +222,51 @@ function Content() {
         </table>
       </div>
 
-      <h2>A note on Meta and cross-placement ads</h2>
+      <h2>A word on Meta and its cross-placement madness</h2>
       <p>
-        Meta ads often run across Facebook and Instagram at once, which is where
-        people freeze. You have two clean options. Split by platform if you want
-        to compare them (<code>facebook</code> vs <code>instagram</code> as the
-        source, both <code>paid_social</code>), or treat Meta as one paid channel
-        and use a single source. Either is fine. The mistake is doing both at
-        different times, so half your Meta spend says <code>facebook</code> and
-        half says <code>meta</code>.
+        Meta ads love to run across Facebook and Instagram at once, and that is
+        the exact spot where people seize up. You have two clean escape routes.
+        Split by platform if you want to compare the two (<code>facebook</code> vs{" "}
+        <code>instagram</code> as the source, both <code>paid_social</code>), or
+        treat Meta as one paid channel with a single source and be done. Either
+        works. The crime is doing both on different days, so half your Meta spend
+        swears it came from <code>facebook</code> and the other half insists on{" "}
+        <code>meta</code>, and neither will look you in the eye.
       </p>
 
-      <h2>The mistakes that cause most of the mess</h2>
+      <h2>The mistakes that cause most of the wreckage</h2>
       <ul>
         <li>
-          <strong>Putting the platform in the medium.</strong>{" "}
+          <strong>Shoving the platform into the medium.</strong>{" "}
           <code>utm_medium=facebook</code> tells GA4 nothing about the channel.
-          The medium is the type of traffic, not the brand.
+          The medium is the type of traffic, not the logo.
         </li>
         <li>
-          <strong>Using social for paid ads.</strong> It buries your ad spend in
-          with organic posts. Paid gets <code>paid_social</code>.
+          <strong>Using social for paid ads.</strong> It buries your ad money
+          under a pile of free posts. Paid gets <code>paid_social</code>.
         </li>
         <li>
-          <strong>Spelling the same medium three ways.</strong>{" "}
+          <strong>Spelling one medium three ways.</strong>{" "}
           <code>paidsocial</code>, <code>paid-social</code>, and{" "}
-          <code>paid_social</code> are three different channels to GA4. Pick one.
+          <code>paid_social</code> are three separate channels as far as GA4 is
+          concerned. Pick one and hold the line.
         </li>
         <li>
-          <strong>Letting each person decide.</strong> The fix is not a longer
-          document, it is a shared list everyone picks from.
+          <strong>Letting everyone freelance.</strong> The cure is not a longer
+          memo. It is a shared list people pick from instead of typing.
         </li>
       </ul>
 
-      <h2>How to make this automatic</h2>
+      <h2>How to make this run on autopilot</h2>
       <p>
-        The reason this stays confusing is that it lives in people&apos;s heads.
-        The fix is to stop relying on memory. In{" "}
-        <Link href="/app">UTMBuilder</Link>, you set your approved sources and
-        mediums once and start from a template for each platform, so the right{" "}
-        <code>paid_social</code> or <code>cpc</code> value is filled in for you
-        and nobody has to guess. That is how you keep this cheat sheet from
-        becoming another doc no one opens.
+        The reason this never stops being confusing is that it lives in the soft
+        tissue of human memory, which fails at the worst possible moment. So take
+        it out of your head. In <Link href="/app">UTMBuilder</Link> you set your
+        approved sources and mediums once and start from a template for each
+        platform, so the right <code>paid_social</code> or <code>cpc</code> is
+        already sitting in the box and nobody has to gamble. That is how a cheat
+        sheet stops being another doc nobody opens and starts being the way the
+        work actually gets done.
       </p>
     </>
   );
@@ -269,7 +278,7 @@ export const post: BlogPost = {
   description:
     "Confused whether Facebook is a source or medium, or when to use paid_social vs cpc? Here is a copy-and-keep cheat sheet of the right utm_source and utm_medium for every ad platform.",
   excerpt:
-    "Is Facebook a source or a medium? Should ads be social, paid_social, or cpc? A copy-and-keep cheat sheet of the right source and medium for every ad platform, and why the medium decides your GA4 report.",
+    "Is Facebook a source or a medium? Should ads be social, paid_social, or cpc? A cheat sheet you can nail to the wall for every platform, and why the medium quietly runs your whole GA4 report.",
   datePublished: "2026-08-14",
   author: "The UTMBuilder Team",
   readingTime: "7 min read",
