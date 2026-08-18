@@ -42,7 +42,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
     setMessage(null);
 
     if (isSignUp) {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -51,10 +51,15 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
       });
       if (error) {
         setError(error.message);
+      } else if (data.session) {
+        // Email confirmation is disabled: sign-up returns an active session, so
+        // send the user straight into the app. (account_created fires on first
+        // authenticated load via SignupTracker.)
+        router.push(redirectedFrom);
+        router.refresh();
+        return;
       } else {
-        // The account_created conversion fires on first authenticated load
-        // (SignupTracker), so it covers both email and Google uniformly and
-        // isn't lost to the email-confirmation round-trip.
+        // Email confirmation is enabled: no session yet — ask them to confirm.
         setMessage(
           "Check your email to confirm your account, then sign in."
         );
