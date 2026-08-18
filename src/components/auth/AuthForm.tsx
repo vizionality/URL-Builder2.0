@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -34,6 +34,17 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
 
   const isSignUp = mode === "sign-up";
   const redirectedFrom = safeRedirect(searchParams.get("redirectedFrom"));
+
+  // Strip a one-time `error` param from the URL after capturing it into state,
+  // so a stale error (e.g. from a replayed OAuth code) doesn't reappear on
+  // refresh or linger in the address bar.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!window.location.search.includes("error=")) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("error");
+    window.history.replaceState(null, "", url.pathname + url.search);
+  }, []);
 
   async function handleEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
