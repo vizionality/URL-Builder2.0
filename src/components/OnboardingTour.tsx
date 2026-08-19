@@ -92,14 +92,6 @@ const STEPS: Step[] = [
     body: "Your standardized campaign name appears here, ready to copy and reuse.",
     placement: "left",
   },
-  // Campaign Sessions
-  {
-    path: "/campaign-sessions",
-    selector: '[data-tour="sessions-table"]',
-    title: "See real sessions",
-    body: "Connect Google Analytics on the Integrations page, and each campaign you've built shows its live GA4 session count here — so you can tell which campaigns are actually getting traffic.",
-    placement: "top",
-  },
   // UTM Options
   {
     path: "/options",
