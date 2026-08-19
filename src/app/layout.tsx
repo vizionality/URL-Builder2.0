@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SITE_URL } from "@/lib/site";
 import { SiteAnalytics, GtmNoScript } from "@/components/analytics/SiteAnalytics";
+import { ClickTracker } from "@/components/analytics/ClickTracker";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -35,6 +36,7 @@ export default function RootLayout({
     >
       <body className="min-h-full bg-zinc-50 text-zinc-900">
         <GtmNoScript />
+        <ClickTracker />
         {children}
       </body>
       <SiteAnalytics />
