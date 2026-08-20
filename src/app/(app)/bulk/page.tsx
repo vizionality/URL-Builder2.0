@@ -10,6 +10,8 @@ import {
   ChevronDown,
   Pencil,
   X,
+  Share2,
+  Link as LinkIcon,
 } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
@@ -67,6 +69,11 @@ export default function BulkBuilderPage() {
   const [renameDraft, setRenameDraft] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
 
+  const [sharing, setSharing] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+
   const activeProject =
     projectsState.projects.find(
       (p) => p.id === projectsState.activeProjectId
@@ -107,6 +114,42 @@ export default function BulkBuilderPage() {
 
   function markSaved() {
     setSavedAt(nowLabel());
+  }
+
+  async function shareProject() {
+    setSharing(true);
+    setShareError(null);
+    setShareUrl(null);
+    try {
+      const res = await fetch("/api/projects/share", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: activeProject.name,
+          rows: activeProject.rows,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to create share link.");
+      setShareUrl(`${window.location.origin}/shared/${data.id}`);
+    } catch (err) {
+      setShareError(
+        err instanceof Error ? err.message : "Failed to create share link."
+      );
+    } finally {
+      setSharing(false);
+    }
+  }
+
+  async function copyShareUrl() {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 1500);
+    } catch {
+      window.prompt("Copy this share link:", shareUrl);
+    }
   }
 
   // Explicit header Save: stamp the timestamp and fire the secondary
@@ -427,8 +470,46 @@ export default function BulkBuilderPage() {
                 <Copy size={16} />
                 {copiedAll ? "Copied!" : "Copy All URLs"}
               </button>
+              <button
+                type="button"
+                onClick={shareProject}
+                disabled={sharing}
+                className="flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+              >
+                <Share2 size={16} />
+                {sharing ? "Creating…" : "Share"}
+              </button>
             </div>
           </div>
+
+          {shareError && (
+            <p className="mb-4 text-sm text-red-600">{shareError}</p>
+          )}
+          {shareUrl && (
+            <div className="mb-4 rounded-md border border-green-200 bg-green-50 p-3">
+              <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-green-800">
+                <LinkIcon size={14} />
+                Share link — anyone you send this to will sign in to view and
+                import a copy.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  readOnly
+                  value={shareUrl}
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="min-w-0 flex-1 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700"
+                />
+                <button
+                  type="button"
+                  onClick={copyShareUrl}
+                  className="flex shrink-0 items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+                >
+                  {shareCopied ? <Check size={15} /> : <Copy size={15} />}
+                  {shareCopied ? "Copied!" : "Copy link"}
+                </button>
+              </div>
+            </div>
+          )}
 
           <div data-tour="bulk-table" className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
