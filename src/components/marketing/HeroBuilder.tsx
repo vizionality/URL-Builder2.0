@@ -10,8 +10,10 @@ const inputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500";
 const labelClass = "mb-1 block text-xs font-medium text-zinc-600";
 
+const DEFAULT_URL = "https://example.com/sale";
+
 export function HeroBuilder() {
-  const [baseUrl, setBaseUrl] = useState("https://example.com/sale");
+  const [baseUrl, setBaseUrl] = useState(DEFAULT_URL);
   const [source, setSource] = useState("google");
   const [medium, setMedium] = useState("cpc");
   const [campaign, setCampaign] = useState("2026_q1_summer_sale");
@@ -35,7 +37,7 @@ export function HeroBuilder() {
     if (!result.ok) return;
     await navigator.clipboard.writeText(result.url);
     setCopied(true);
-    trackEvent("copy_utm", { source, medium });
+    trackEvent("copy_utm", { source, medium, website_url: baseUrl.trim() });
     setTimeout(() => setCopied(false), 1500);
   }
 
