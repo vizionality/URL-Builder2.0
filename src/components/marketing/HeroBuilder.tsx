@@ -37,7 +37,12 @@ export function HeroBuilder() {
     if (!result.ok) return;
     await navigator.clipboard.writeText(result.url);
     setCopied(true);
-    trackEvent("copy_utm", { source, medium, website_url: baseUrl.trim() });
+    trackEvent("copy_utm", {
+      source,
+      medium,
+      website_url: baseUrl.trim(),
+      generated_url: result.url,
+    });
     setTimeout(() => setCopied(false), 1500);
   }
 
