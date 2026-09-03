@@ -269,7 +269,7 @@ export function OnboardingTour({ completed = false }: { completed?: boolean }) {
             width: highlight.width,
             height: highlight.height,
             boxShadow: "0 0 0 9999px rgba(15, 23, 42, 0.55)",
-            outline: "2px solid #22c55e",
+            outline: "2px solid #12b795",
           }}
         />
       ) : (

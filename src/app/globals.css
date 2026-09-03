@@ -12,9 +12,22 @@
   --font-mono: var(--font-geist-mono);
 }
 
-/* Primary brand color: remap the green-600 accent used across the app. */
+/* Brand palette (Vizionality). Remap Tailwind's green-* ramp to the brand mint
+   so the entire app AND the marketing/landing page pick up the accent without
+   touching any class names. Anchored on brand mint-deep #12B795 — the accent
+   Vizionality uses on light surfaces — with lighter tints above and deeper
+   shades for hovers below. */
 @theme {
-  --color-green-600: #22c55e;
+  --color-green-50: #ecfdf7;
+  --color-green-100: #d0f6ec;
+  --color-green-200: #a4ecd9;
+  --color-green-300: #6ddfc4;
+  --color-green-400: #33cdad;
+  --color-green-500: #17bd9d;
+  --color-green-600: #12b795;
+  --color-green-700: #0f9a7f;
+  --color-green-800: #0c7a65;
+  --color-green-900: #0a5a4c;
 }
 
 body {
@@ -49,12 +62,12 @@ body {
   margin-bottom: 1.1rem;
 }
 .article a {
-  color: #15803d;
+  color: #0f9a7f;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 .article a:hover {
-  color: #166534;
+  color: #0c7a65;
 }
 .article strong {
   font-weight: 600;
@@ -80,7 +93,7 @@ body {
   background: #f4f4f5;
   font-family: var(--font-mono), ui-monospace, monospace;
   font-size: 0.85em;
-  color: #15803d;
+  color: #0f9a7f;
 }
 .article pre {
   margin: 1.25rem 0;
@@ -100,7 +113,7 @@ body {
 .article blockquote {
   margin: 1.5rem 0;
   padding: 0.25rem 0 0.25rem 1rem;
-  border-left: 3px solid #16a34a;
+  border-left: 3px solid #12b795;
   color: #52525b;
   font-style: italic;
 }

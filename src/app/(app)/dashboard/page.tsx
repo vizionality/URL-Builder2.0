@@ -30,7 +30,7 @@ import {
   useGa4Summary,
 } from "@/lib/ga4";
 
-const GREEN_PALETTE = ["#16a34a", "#4ade80", "#15803d", "#86efac", "#22c55e", "#bbf7d0"];
+const GREEN_PALETTE = ["#12b795", "#33cdad", "#0c7a65", "#6ddfc4", "#17bd9d", "#a4ecd9"];
 
 const inputClass =
   "rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-sm text-zinc-900 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500";
@@ -125,7 +125,7 @@ export default function DashboardPage() {
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                   <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
                   <Tooltip />
-                  <Bar dataKey="activeCampaigns" fill="#16a34a" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="activeCampaigns" fill="#12b795" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -142,7 +142,7 @@ export default function DashboardPage() {
                   <Line
                     type="monotone"
                     dataKey="clicks"
-                    stroke="#16a34a"
+                    stroke="#12b795"
                     strokeWidth={2}
                     dot={false}
                   />
