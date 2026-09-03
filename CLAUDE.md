@@ -101,3 +101,22 @@ with real GA4 reporting.
 - Change password for email/password users via supabase.auth.updateUser({ password }).
 - Sign out. Optional delete-account (needs a server route with the service_role key).
 - Reachable from a profile menu in the sidebar.
+
+## Measurement / Signals (indicator engine)
+A statistical indicator engine over the connected GA4 property's daily series,
+surfaced on `/measurement/signals` under the `(app)` shell.
+
+- Ownership is per-user + `property_id` (this repo has no workspaces / `site_id`).
+  Every server query filters on `user_id` and `property_id`.
+- `indicator_signals` (migration `20260904_indicator_signals.sql`) stores one
+  row per fired signal only. Indicator values are computed on read server-side
+  and never persisted, so alerts fire once instead of repeating. RLS is enabled
+  with no policies: server-only access via the service role.
+- Metrics: sessions, conversions (GA4 keyEvents), conversion rate
+  (keyEvents / sessions). Cost-based metrics are blocked on a future Google Ads
+  connector and shown disabled, not hidden.
+- `lib/indicators/` is pure TypeScript with unit tests. Count metrics use
+  classical multiplicative deseasonalization + two-sided CUSUM with a lagged
+  baseline and a count-volume guardrail; rate metrics use Wilson score
+  intervals. No RSI / MACD / oscillators. The two most recent days are excluded
+  from signal generation (GA4 restates recent days) and rendered as provisional.
