@@ -282,8 +282,8 @@ export function Ga4Mock() {
         >
           <defs>
             <linearGradient id="ga4Area" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#16a34a" stopOpacity="0.22" />
-              <stop offset="100%" stopColor="#16a34a" stopOpacity="0" />
+              <stop offset="0%" stopColor="#12b795" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="#12b795" stopOpacity="0" />
             </linearGradient>
           </defs>
           {[30, 60, 90].map((y) => (
@@ -301,12 +301,12 @@ export function Ga4Mock() {
           <path
             d={line}
             fill="none"
-            stroke="#16a34a"
+            stroke="#12b795"
             strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
-          <circle cx="314" cy="16" r="3.5" fill="#16a34a" />
+          <circle cx="314" cy="16" r="3.5" fill="#12b795" />
         </svg>
 
         <div className="mt-2 flex justify-between text-[10px] text-zinc-400">
