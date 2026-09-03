@@ -35,6 +35,25 @@ function todayUtcIso(): string {
 
 type RawRow = { dimensionValues?: { value: string }[]; metricValues?: { value: string }[] };
 
+// Pull a short, human-readable reason out of a thrown GA4 error. runReport
+// throws `GA4 runReport <status>: <body>`, where the body is GA4's JSON error
+// envelope; surface its status + message so a failure is diagnosable from the
+// UI instead of a generic "try again".
+function ga4Reason(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  const m = /GA4 runReport (\d+): ([\s\S]*)/.exec(msg);
+  if (!m) return msg.slice(0, 200);
+  const status = m[1];
+  let detail = m[2];
+  try {
+    const parsed = JSON.parse(m[2]);
+    detail = parsed?.error?.message ?? detail;
+  } catch {
+    // body was not JSON; keep the raw text
+  }
+  return `${status} ${detail}`.slice(0, 240);
+}
+
 async function runReport(
   propertyId: string,
   token: string,
@@ -183,7 +202,7 @@ export async function GET(request: Request) {
   } catch (err) {
     console.error("signals: GA4 report failed:", err);
     return NextResponse.json(
-      { error: "GA4 report failed. Try again shortly." },
+      { error: `GA4 report failed: ${ga4Reason(err)}` },
       { status: 502 }
     );
   }
