@@ -19,6 +19,7 @@ import {
 import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
 import { StatCard } from "@/components/StatCard";
+import { HealthPanel } from "@/components/HealthPanel";
 import { useGa4PropertyId } from "@/lib/storage";
 import {
   SAMPLE_ACTIVE_CAMPAIGNS,
@@ -114,6 +115,10 @@ export default function DashboardPage() {
             sublabel={isSample ? "Sample data" : "From GA4"}
             sample={isSample}
           />
+        </div>
+
+        <div className="mt-6">
+          <HealthPanel propertyId={propertyId} />
         </div>
 
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">

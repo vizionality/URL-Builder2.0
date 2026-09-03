@@ -321,3 +321,63 @@ export function useGa4Charts(
 
   return state;
 }
+
+// ---- GA4 Health Monitor -----------------------------------------------------
+export type HealthAlert = {
+  check: "tracking" | "traffic" | "quality" | "landing";
+  severity: "HIGH" | "MEDIUM";
+  subject: string;
+  detail: string;
+  observed?: number;
+  baseline?: number;
+  changePct?: number;
+};
+
+export type HealthResult = {
+  target: string;
+  ranAt: string;
+  keyMetric: string;
+  alerts: HealthAlert[];
+  summary: { total: number; high: number; medium: number };
+  notes: string[];
+};
+
+// Runs the daily-style health checks against the connected GA4 property. The
+// server does all fetching and runs the pure checks; this just surfaces the
+// result. Keyed on propertyId so it re-runs when a property is (dis)connected.
+export function useGa4Health(propertyId: string) {
+  const [state, setState] = useState<{
+    loading: boolean;
+    error: string | null;
+    data: HealthResult | null;
+  }>({ loading: false, error: null, data: null });
+
+  useEffect(() => {
+    if (!propertyId) return;
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mark loading before the async fetch starts
+    setState((s) => ({ ...s, loading: true, error: null }));
+    fetch("/api/ga4/health")
+      .then(async (r) => {
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error ?? "Failed to run health checks.");
+        return d as HealthResult;
+      })
+      .then((d) => {
+        if (!cancelled) setState({ loading: false, error: null, data: d });
+      })
+      .catch((err) => {
+        if (!cancelled)
+          setState({
+            loading: false,
+            error: err instanceof Error ? err.message : "Failed to run health checks.",
+            data: null,
+          });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [propertyId]);
+
+  return state;
+}
