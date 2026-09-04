@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { weeklyCandles } from "@/lib/indicators/candles";
+import { weeklyCandles, periodCandles } from "@/lib/indicators/candles";
 import { sma, ema, crossovers } from "@/lib/indicators/movingAverages";
 import type { Point } from "@/lib/indicators/types";
 import { addDays } from "@/lib/indicators/dates";
@@ -26,6 +26,46 @@ describe("weekly OHLC candles", () => {
     const values = [10, 20, 5, 15, 25, 8, 12, 30, 31, 32];
     const candles = weeklyCandles(seriesFrom("2026-03-16", values));
     expect(candles).toHaveLength(1);
+  });
+});
+
+describe("periodCandles", () => {
+  it("aggregates monthly OHLC and drops the in-progress final month", () => {
+    // All of January (complete) plus a few days of February (in progress).
+    const jan: Point[] = Array.from({ length: 31 }, (_, i) => ({
+      date: `2026-01-${String(i + 1).padStart(2, "0")}`,
+      value: i + 1, // 1..31
+    }));
+    const feb: Point[] = [
+      { date: "2026-02-01", value: 100 },
+      { date: "2026-02-02", value: 200 },
+    ];
+    const candles = periodCandles([...jan, ...feb], "month");
+    expect(candles).toHaveLength(1); // Feb dropped (month not finished)
+    expect(candles[0].time).toBe("2026-01-01");
+    expect(candles[0].open).toBe(1);
+    expect(candles[0].close).toBe(31);
+    expect(candles[0].high).toBe(31);
+    expect(candles[0].low).toBe(1);
+  });
+
+  it("keeps a completed final month", () => {
+    const jan: Point[] = Array.from({ length: 31 }, (_, i) => ({
+      date: `2026-01-${String(i + 1).padStart(2, "0")}`,
+      value: 10,
+    }));
+    // Data ends on Jan 31 (month complete), so the January candle is kept.
+    expect(periodCandles(jan, "month")).toHaveLength(1);
+  });
+
+  it("weekly period drops an unfinished trailing week", () => {
+    // Two full ISO weeks (Mon 2026-03-02 .. Sun 2026-03-15) plus one extra Monday.
+    const days: Point[] = Array.from({ length: 15 }, (_, i) => ({
+      date: `2026-03-${String(i + 2).padStart(2, "0")}`,
+      value: i,
+    }));
+    const candles = periodCandles(days, "week");
+    expect(candles).toHaveLength(2); // the lone Monday's week is in progress
   });
 });
 

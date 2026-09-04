@@ -104,6 +104,7 @@ export function runIndicators(input: RunInput): IndicatorPayload {
     metric,
     kind,
     flags: { insufficientHistory, insufficientVolume, noSignals },
+    daily: series,
     deseasonalized,
     controlBand,
     cusum: cusum.points,
