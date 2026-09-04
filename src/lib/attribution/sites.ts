@@ -29,6 +29,22 @@ export async function listSites(userId: string): Promise<AttributionSite[]> {
   return (data as AttributionSite[]) ?? [];
 }
 
+// Fetch one site the caller owns (ownership check for the report endpoint).
+export async function getSite(
+  userId: string,
+  siteId: string
+): Promise<AttributionSite | null> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("attribution_sites")
+    .select("id, user_id, name, site_key, collector_host, allowed_origins, created_at")
+    .eq("user_id", userId)
+    .eq("id", siteId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as AttributionSite) ?? null;
+}
+
 export async function createSite(
   userId: string,
   name: string,

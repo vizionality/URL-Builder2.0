@@ -1,5 +1,70 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { TouchRow, ConversionInput } from "./types";
+import type {
+  EngineTouch,
+  EngineConversion,
+  IdentityLink,
+} from "./engine";
+
+// Read side for the report: pull touches (over the lookback window), conversions
+// (in range), and identity links for one site, mapped into the engine's shapes.
+// Scoped by site_id, which the caller has already verified the user owns.
+export async function fetchReportRows(
+  siteId: string,
+  touchStartIso: string,
+  startIso: string,
+  endIso: string
+): Promise<{ touches: EngineTouch[]; conversions: EngineConversion[]; links: IdentityLink[] }> {
+  const admin = createAdminClient();
+  const [touchesRes, convRes, linksRes] = await Promise.all([
+    // Touches reach back a lookback window before the reporting start so a
+    // conversion inside the window still sees the touches that led to it.
+    admin
+      .from("attribution_touches")
+      .select("visitor_id, occurred_at, source, medium, campaign, click_ids, referrer")
+      .eq("site_id", siteId)
+      .gte("occurred_at", touchStartIso)
+      .lte("occurred_at", endIso)
+      .order("occurred_at", { ascending: true })
+      .limit(50000),
+    // Conversions are counted only inside the reporting range.
+    admin
+      .from("attribution_conversions")
+      .select("visitor_id, occurred_at, value")
+      .eq("site_id", siteId)
+      .gte("occurred_at", startIso)
+      .lte("occurred_at", endIso)
+      .limit(50000),
+    admin
+      .from("attribution_identity_links")
+      .select("visitor_id, identity_key")
+      .eq("site_id", siteId)
+      .limit(50000),
+  ]);
+  if (touchesRes.error) throw touchesRes.error;
+  if (convRes.error) throw convRes.error;
+  if (linksRes.error) throw linksRes.error;
+
+  const touches: EngineTouch[] = (touchesRes.data ?? []).map((t) => ({
+    visitorId: t.visitor_id as string,
+    occurredAt: t.occurred_at as string,
+    source: (t.source as string) ?? null,
+    medium: (t.medium as string) ?? null,
+    campaign: (t.campaign as string) ?? null,
+    clickIds: (t.click_ids as Record<string, string>) ?? {},
+    referrer: (t.referrer as string) ?? null,
+  }));
+  const conversions: EngineConversion[] = (convRes.data ?? []).map((c) => ({
+    visitorId: c.visitor_id as string,
+    occurredAt: c.occurred_at as string,
+    value: (c.value as number) ?? null,
+  }));
+  const links: IdentityLink[] = (linksRes.data ?? []).map((l) => ({
+    visitorId: l.visitor_id as string,
+    identityKey: l.identity_key as string,
+  }));
+  return { touches, conversions, links };
+}
 
 // Persistence for captured attribution data. Every write is scoped by site_id,
 // and the site was already resolved from an owner, so a visitor can only ever
