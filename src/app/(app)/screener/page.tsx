@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { Loader2, TrendingUp, TrendingDown, Search, GitBranch } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Loader2, TrendingUp, TrendingDown, Search, GitBranch, Bookmark, X } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
 import { useGa4PropertyId } from "@/lib/storage";
 import type { ScreenCondition } from "@/lib/indicators/screen";
+import { suggestScanName, type SavedScan } from "@/lib/screener";
 
 type Matched = { type: ScreenCondition; direction: "up" | "down"; date: string };
 type Hit = {
@@ -100,6 +101,19 @@ export default function ScreenerPage() {
   const [state, setState] = useState<{ loading: boolean; error: string | null; data: ScreenResponse | null }>(
     { loading: false, error: null, data: null }
   );
+  const [saved, setSaved] = useState<SavedScan[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  const loadSaved = useCallback(() => {
+    fetch("/api/screener/scans")
+      .then((r) => (r.ok ? r.json() : { scans: [] }))
+      .then((d) => setSaved((d.scans as SavedScan[]) ?? []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    loadSaved();
+  }, [loadSaved]);
 
   const run = useCallback(() => {
     if (!propertyId || conditions.length === 0) return;
@@ -124,6 +138,43 @@ export default function ScreenerPage() {
 
   function toggleCondition(id: ScreenCondition) {
     setConditions((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]));
+  }
+
+  async function saveScan() {
+    if (conditions.length === 0) return;
+    setSaving(true);
+    try {
+      await fetch("/api/screener/scans", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: suggestScanName({ dimension, metric, conditions }),
+          dimension,
+          metric,
+          conditions,
+          threshold_pct: thresholdPct,
+          within_days: withinDays,
+          min_volume: minVolume,
+        }),
+      });
+      loadSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function applyScan(scan: SavedScan) {
+    setDimension(scan.dimension);
+    setMetric(scan.metric);
+    setConditions(scan.conditions);
+    setThresholdPct(scan.threshold_pct);
+    setWithinDays(scan.within_days);
+    setMinVolume(scan.min_volume);
+  }
+
+  async function removeScan(id: string) {
+    await fetch(`/api/screener/scans?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    loadSaved();
   }
 
   return (
@@ -187,16 +238,56 @@ export default function ScreenerPage() {
                 Min volume
                 <input type="number" className={inputClass} value={minVolume} onChange={(e) => setMinVolume(Number(e.target.value))} />
               </label>
-              <button
-                type="button"
-                onClick={run}
-                disabled={!propertyId || state.loading || conditions.length === 0}
-                className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
-              >
-                <Search size={15} />
-                {state.loading ? "Scanning…" : "Run scan"}
-              </button>
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={saveScan}
+                  disabled={saving || conditions.length === 0}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                >
+                  <Bookmark size={15} />
+                  {saving ? "Saving…" : "Save scan"}
+                </button>
+                <button
+                  type="button"
+                  onClick={run}
+                  disabled={!propertyId || state.loading || conditions.length === 0}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                >
+                  <Search size={15} />
+                  {state.loading ? "Scanning…" : "Run scan"}
+                </button>
+              </div>
             </div>
+
+            {saved.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 border-t border-zinc-100 pt-3">
+                <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Saved</span>
+                {saved.map((s) => (
+                  <span
+                    key={s.id}
+                    className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white py-1 pl-3 pr-1 text-xs"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => applyScan(s)}
+                      className="font-medium text-zinc-700 hover:text-green-700"
+                      title="Load this scan"
+                    >
+                      {s.name}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeScan(s.id)}
+                      className="rounded-full p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+                      title="Delete"
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </Card>
 

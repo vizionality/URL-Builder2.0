@@ -120,3 +120,20 @@ surfaced on `/measurement/signals` under the `(app)` shell.
   baseline and a count-volume guardrail; rate metrics use Wilson score
   intervals. No RSI / MACD / oscillators. The two most recent days are excluded
   from signal generation (GA4 restates recent days) and rendered as provisional.
+
+## Screener (indicator scan)
+`/screener` runs the indicator engine across many GA4 dimension values (campaign,
+source, medium, landing page) and returns the ones triggering a condition (CUSUM
+break, percent off baseline, SMA crossover), ranked, with a volume floor.
+
+- `lib/indicators/screen.ts` is the pure scan engine (unit-tested).
+- `GET /api/ga4/screen` reports `[date, dimension] x metric` over a 400-day
+  lookback, caps to the top 100 values by metric, and runs the scan. Results are
+  computed on read and never persisted.
+- Clicking a result deep-links into `/measurement/signals?dimension=&value=&metric=`,
+  which applies a GA4 dimensionFilter and charts that one value (compute-only, not
+  persisted or acknowledgeable).
+- Saved scans persist only the CONFIG (migration `20260906_screener_scans.sql`,
+  `screener_scans`, RLS-no-policies, scoped by `user_id`); results are always
+  recomputed live, so a saved scan never goes stale. `GET/POST/DELETE
+  /api/screener/scans` manage them; names are auto-suggested from the config.
