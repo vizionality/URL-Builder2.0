@@ -1,4 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { rateLimit, sweepExpired } from "@/lib/rate-limit";
+
+// Per-user cap on this paid endpoint: at most 20 generations per minute. The
+// middleware already blocks logged-out callers, but this route checks the
+// session itself (defense in depth) and rate-limits so no single account can
+// run the Anthropic key up in a loop.
+const RATE_LIMIT = 20;
+const RATE_WINDOW_MS = 60_000;
 
 function toSnakeCase(line: string): string {
   return line
@@ -10,6 +19,26 @@ function toSnakeCase(line: string): string {
 }
 
 export async function POST(req: NextRequest) {
+  // Defense in depth: require a logged-in user in the route itself, not only in
+  // the middleware, so this paid endpoint is never reachable anonymously even
+  // if the middleware matcher or public-path list changes.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  }
+
+  sweepExpired();
+  const limit = rateLimit(`suggest-initiatives:${user.id}`, RATE_LIMIT, RATE_WINDOW_MS);
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Please wait a moment and try again." },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+    );
+  }
+
   let body;
   try {
     body = await req.json();
