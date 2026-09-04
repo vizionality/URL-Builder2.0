@@ -4,7 +4,7 @@ import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
 import { runIndicators, type RunInput } from "@/lib/indicators";
 import type { MetricKind, Point, RateSample, Signal } from "@/lib/indicators/types";
-import { parseGa4Date, toGa4Date, addDays } from "@/lib/indicators/dates";
+import { parseGa4Date, addDays } from "@/lib/indicators/dates";
 import { persistSignals, loadSignals } from "@/lib/indicators/store";
 
 const DATA_API = "https://analyticsdata.googleapis.com/v1beta";
@@ -154,7 +154,9 @@ export async function GET(request: Request) {
 
   const end = todayUtcIso();
   const start = addDays(end, -(LOOKBACK_DAYS - 1));
-  const dateRanges = [{ startDate: toGa4Date(start), endDate: toGa4Date(end) }];
+  // GA4 dateRanges want ISO "YYYY-MM-DD" (the `date` dimension in responses is
+  // "yyyymmdd", but the request side is not); pass the ISO dates directly.
+  const dateRanges = [{ startDate: start, endDate: end }];
 
   const keyMetric =
     metric === "sessions" ? "sessions" : await detectKeyMetric(propertyId, token);

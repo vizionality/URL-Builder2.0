@@ -6,7 +6,6 @@ import { parseConfig } from "@/lib/health/config";
 import {
   baselineDates,
   targetDate,
-  toGa4Date,
   windowStart,
 } from "@/lib/health/baseline";
 import {
@@ -109,8 +108,11 @@ export async function GET() {
   const config = parseConfig({ property_id: conn.property_id });
   const target = targetDate(todayUtcIso(), config.lagDays);
   const baseDates = baselineDates(target, config.baselineWeeks);
-  const start = toGa4Date(windowStart(target, config.baselineWeeks));
-  const end = toGa4Date(target);
+  // GA4 dateRanges want ISO "YYYY-MM-DD"; windowStart/target are already ISO, so
+  // pass them straight through (the `date` dimension in responses is "yyyymmdd",
+  // but the request side is not).
+  const start = windowStart(target, config.baselineWeeks);
+  const end = target;
   const windowRange = [{ startDate: start, endDate: end }];
   const targetRange = [{ startDate: end, endDate: end }];
 
