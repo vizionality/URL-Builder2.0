@@ -120,35 +120,3 @@ surfaced on `/measurement/signals` under the `(app)` shell.
   baseline and a count-volume guardrail; rate metrics use Wilson score
   intervals. No RSI / MACD / oscillators. The two most recent days are excluded
   from signal generation (GA4 restates recent days) and rendered as provisional.
-
-## Multi-touch attribution (client GTM capture)
-A per-client attribution pipeline: an agency account owns one or more tracked
-sites; each client installs a generated GTM Custom HTML tag that captures the
-ordered touch path and posts it to a keyed collect endpoint. A dashboard
-attributes conversions across touches with selectable credit models.
-
-- Migration `20260905_attribution.sql`: `attribution_sites`, `_visitors`,
-  `_touches`, `_conversions`, `_identity_links`. RLS enabled with no policies;
-  server-only access via the service role. An account (`user_id`) owns sites;
-  every other table is scoped by `site_id`, so reads filter by both.
-- Ingest is public but keyed: `POST /api/attribution/collect` resolves
-  `site_key` to a site and its owner, checks the request Origin against the
-  site's `allowed_origins`, caps and sanitizes the payload, derives coarse
-  country/region from the ingest IP and then discards the IP, upserts the
-  visitor, and inserts new touches (deduped). It never trusts a client
-  `user_id`, and is rate-limited per site_key + IP via `lib/rate-limit.ts`.
-- Identity is deterministic: `POST /api/attribution/identify` links a
-  `visitor_id` to a salted hash of an email, so touches merge across devices
-  once the same person identifies on each. No fingerprinting of anonymous users;
-  coarse geo only, never precise.
-- Collector is same-site (Option A): each client CNAMEs a first-party hostname
-  (for example metrics.clientsite.com, stored as the site's `collector_host`) to
-  this app as a custom domain, and the GTM tag beacons there. The collect
-  endpoint maps the Host header to a site, then sets an HttpOnly first-party
-  visitor cookie the server owns, which survives Safari ITP; the snippet keeps a
-  localStorage fallback for the first request. The snippet respects GTM Consent
-  Mode (`analytics_storage`) and a `dataLayer` `attr_consent` flag.
-- `lib/attribution/` is pure TypeScript with unit tests: channel grouping, the
-  five credit models (first-touch, last-touch, linear, time-decay, position-based
-  40/20/40, each summing to 1.0), and funnel aggregation. Explicit empty states
-  (no site, no touches, no conversions).
