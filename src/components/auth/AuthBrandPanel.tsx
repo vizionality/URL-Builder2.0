@@ -32,18 +32,13 @@ export function AuthBrandPanel() {
 
       <div className="relative z-10 flex w-full flex-col justify-center px-12 py-16 xl:px-16">
         {/* Brand lockup */}
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white font-bold text-green-700">
-            U
-          </div>
-          <div>
-            <p className="text-sm font-semibold leading-tight text-white">
-              {SITE_NAME}
-            </p>
-            <p className="text-xs leading-tight text-green-100/80">
-              by Vizionality
-            </p>
-          </div>
+        <div>
+          <p className="text-sm font-semibold leading-tight text-white">
+            {SITE_NAME}
+          </p>
+          <p className="text-xs leading-tight text-green-100/80">
+            by Vizionality
+          </p>
         </div>
 
         <h2 className="mt-10 max-w-md text-4xl font-bold leading-tight tracking-tight text-white">
