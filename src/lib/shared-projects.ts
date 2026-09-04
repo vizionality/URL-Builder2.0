@@ -47,10 +47,15 @@ export async function getSharedProject(
   return (data as SharedProject) ?? null;
 }
 
-// Best-effort lookup of who shared it, for display only.
-export async function getOwnerEmail(ownerId: string): Promise<string | null> {
+// Best-effort lookup of the sharer's display NAME, for attribution on the
+// shared page. Never returns the email: the shared link is visible to any
+// signed-in viewer, and a raw email is more than attribution needs. Falls back
+// to null when the owner has set no name, so the page can show a generic label.
+export async function getOwnerName(ownerId: string): Promise<string | null> {
   const admin = createAdminClient();
   const { data, error } = await admin.auth.admin.getUserById(ownerId);
   if (error) return null;
-  return data.user?.email ?? null;
+  const meta = (data.user?.user_metadata ?? {}) as Record<string, unknown>;
+  const name = meta.full_name ?? meta.name;
+  return typeof name === "string" && name.trim() ? name.trim() : null;
 }

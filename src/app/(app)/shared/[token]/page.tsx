@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { Header } from "@/components/Header";
 import {
-  getOwnerEmail,
+  getOwnerName,
   getSharedProject,
 } from "@/lib/shared-projects";
 import { SharedProjectView } from "@/components/SharedProjectView";
@@ -18,15 +18,15 @@ export default async function SharedProjectPage({
   const shared = await getSharedProject(token);
   if (!shared) notFound();
 
-  const ownerEmail = await getOwnerEmail(shared.owner_id);
+  const ownerName = await getOwnerName(shared.owner_id);
 
   return (
     <>
       <Header
         title="Shared project"
         subtitle={
-          ownerEmail
-            ? `Shared with you by ${ownerEmail}`
+          ownerName
+            ? `Shared with you by ${ownerName}`
             : "A UTM project shared with you"
         }
       />
