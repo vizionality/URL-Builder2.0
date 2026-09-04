@@ -26,7 +26,7 @@ export type Band = {
 export type Candle = {
   // ISO week key, e.g. "2026-W07".
   week: string;
-  // The Monday of the ISO week as "yyyy-mm-dd" (lightweight-charts time).
+  // The Monday of the ISO week as "yyyy-mm-dd" (the candle's time axis value).
   time: string;
   open: number;
   high: number;
