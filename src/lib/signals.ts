@@ -62,18 +62,34 @@ export const DISABLED_METRICS: { label: string; reason: string }[] = [
   { label: "ROAS", reason: "Needs Google Ads (token pending)" },
 ];
 
-export function useSignals(propertyId: string, metric: SignalMetricId) {
+// Optional deep-link filter to chart one dimension value instead of the whole
+// property.
+export type SignalFilter = { dimension: string; value: string };
+
+export function useSignals(
+  propertyId: string,
+  metric: SignalMetricId,
+  filter?: SignalFilter | null
+) {
   const [state, setState] = useState<{
     loading: boolean;
     error: string | null;
     data: SignalsPayload | null;
   }>({ loading: false, error: null, data: null });
 
+  const dimension = filter?.dimension ?? "";
+  const value = filter?.value ?? "";
+
   const load = useCallback(() => {
     if (!propertyId) return () => {};
     let cancelled = false;
     setState((s) => ({ ...s, loading: true, error: null }));
-    fetch(`/api/ga4/signals?metric=${encodeURIComponent(metric)}`)
+    const params = new URLSearchParams({ metric });
+    if (dimension && value) {
+      params.set("dimension", dimension);
+      params.set("value", value);
+    }
+    fetch(`/api/ga4/signals?${params.toString()}`)
       .then(async (r) => {
         const d = await r.json();
         if (!r.ok) throw new Error(d.error ?? "Failed to compute signals.");
@@ -93,7 +109,7 @@ export function useSignals(propertyId: string, metric: SignalMetricId) {
     return () => {
       cancelled = true;
     };
-  }, [propertyId, metric]);
+  }, [propertyId, metric, dimension, value]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- load() marks loading before its async fetch

@@ -249,8 +249,13 @@ export default function ScreenerPage() {
                 <tbody>
                   {state.data.hits.map((h) => (
                     <tr key={h.value} className="border-b border-zinc-100">
-                      <td className="max-w-[220px] truncate py-2.5 pr-3 font-medium text-zinc-900" title={h.value}>
-                        {h.value}
+                      <td className="max-w-[220px] truncate py-2.5 pr-3 font-medium" title={h.value}>
+                        <a
+                          href={`/measurement/signals?dimension=${encodeURIComponent(dimension)}&value=${encodeURIComponent(h.value)}&metric=${encodeURIComponent(metric)}`}
+                          className="text-green-700 hover:underline"
+                        >
+                          {h.value}
+                        </a>
                       </td>
                       <td className="py-2.5 pr-3 tabular-nums text-zinc-700">{Math.round(h.latest)}</td>
                       <td
