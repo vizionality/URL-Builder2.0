@@ -5,6 +5,7 @@ import { Loader2, Copy, Check, Plus } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
 import { buildGtmTag } from "@/lib/attribution/snippet";
+import { AttributionDashboard } from "@/components/attribution/AttributionDashboard";
 
 type Site = {
   id: string;
@@ -186,6 +187,8 @@ export default function AttributionPage() {
         subtitle="Capture multi-touch journeys from your clients' sites via GTM"
       />
       <div className="space-y-6 p-4 sm:p-6">
+        {sites && sites.length > 0 && <AttributionDashboard sites={sites} />}
+
         <Card title="Add a site" description="Create a site to get a capture key and GTM tag.">
           <div className="flex flex-wrap items-end gap-3">
             <label className="text-sm">
