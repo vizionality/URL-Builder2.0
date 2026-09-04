@@ -1,198 +1,235 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import {
-  createChart,
-  ColorType,
-  LineStyle,
-  CrosshairMode,
-  type IChartApi,
-  type SeriesMarker,
-  type Time,
-  type UTCTimestamp,
-} from "lightweight-charts";
+  ComposedChart,
+  Line,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ReferenceLine,
+  ReferenceDot,
+  ResponsiveContainer,
+} from "recharts";
 import type { SignalsPayload } from "@/lib/signals";
 import { periodCandles } from "@/lib/indicators/candles";
 import { sma } from "@/lib/indicators/movingAverages";
 
-// Light palette matching the app: candles read clearly on a white card, moving
-// averages in the app's green accent, muted grid and axes.
-const PANEL = "transparent"; // sit on the white Card
-const GRID = "#f1f5f4"; // very subtle gridlines
-const TEXT = "#71717a"; // axis + label text
-const UP = "#12b795"; // candle up / positive (app green)
-const DOWN = "#e5484d"; // candle down / negative
-const FAST = "#0c7a65"; // fast SMA (deep green)
-const SLOW = "#a1a1aa"; // slow SMA (muted)
-const LINEC = "#12b795"; // daily line
-const BAND = "#d4d4d8"; // control band
-const THRESH = "#a1a1aa"; // cusum threshold
+// Light palette matching the app.
+const UP = "#12b795";
+const DOWN = "#e5484d";
+const FAST = "#0c7a65";
+const SLOW = "#a1a1aa";
+const LINE = "#12b795";
+const BAND = "#d4d4d8";
+const GRID = "#f1f5f4";
+const TEXT = "#71717a";
+const THRESH = "#a1a1aa";
 
 type Timeframe = "daily" | "weekly" | "monthly";
 
-// Taller than before so the panes read like a real charting terminal.
 const H_PRICE = 340;
 const H_DESEAS = 240;
 const H_CUSUM = 200;
 
-// SMA windows per timeframe, in units of that timeframe's bar.
 const SMA_WINDOWS: Record<Timeframe, { fast: number; slow: number; label: string }> = {
   daily: { fast: 7, slow: 30, label: "7d / 30d SMA" },
   weekly: { fast: 4, slow: 12, label: "4w / 12w SMA" },
   monthly: { fast: 3, slow: 6, label: "3m / 6m SMA" },
 };
 
-function toTime(iso: string): UTCTimestamp {
-  return (Date.parse(`${iso}T00:00:00Z`) / 1000) as UTCTimestamp;
+const axis = { stroke: GRID, tick: { fill: TEXT, fontSize: 11 }, tickLine: false } as const;
+const cursor = { stroke: "#a1a1aa", strokeDasharray: "3 3" } as const;
+
+function shortDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
-function baseOptions(height: number) {
-  return {
-    height,
-    layout: {
-      background: { type: ColorType.Solid, color: PANEL },
-      textColor: TEXT,
-      fontSize: 11,
-    },
-    grid: { vertLines: { color: GRID }, horzLines: { color: GRID } },
-    rightPriceScale: { borderColor: GRID, scaleMargins: { top: 0.12, bottom: 0.12 } },
-    timeScale: { borderColor: GRID, timeVisible: false, rightOffset: 4 },
-    crosshair: {
-      mode: CrosshairMode.Normal,
-      vertLine: { color: "#d4d4d8", width: 1 as const, style: LineStyle.Dashed, labelBackgroundColor: "#52525b" },
-      horzLine: { color: "#d4d4d8", width: 1 as const, style: LineStyle.Dashed, labelBackgroundColor: "#52525b" },
-    },
-  };
-}
-
-// Crossover markers from two aligned moving-average arrays over the same dates.
-function crossMarkers(
-  dates: string[],
+// Crossovers of a fast line over a slow line, tagged with the value to place the
+// marker at (candle close, or the daily value).
+function crossPoints(
+  times: string[],
   fast: (number | null)[],
-  slow: (number | null)[]
-): SeriesMarker<Time>[] {
-  const out: SeriesMarker<Time>[] = [];
-  for (let i = 1; i < dates.length; i++) {
+  slow: (number | null)[],
+  valueAt: number[]
+): { time: string; y: number; direction: "up" | "down" }[] {
+  const out: { time: string; y: number; direction: "up" | "down" }[] = [];
+  for (let i = 1; i < times.length; i++) {
     const f0 = fast[i - 1], s0 = slow[i - 1], f1 = fast[i], s1 = slow[i];
     if (f0 == null || s0 == null || f1 == null || s1 == null) continue;
-    if (f0 <= s0 && f1 > s1) {
-      out.push({ time: toTime(dates[i]) as Time, position: "belowBar", color: UP, shape: "arrowUp", text: "cross up" });
-    } else if (f0 >= s0 && f1 < s1) {
-      out.push({ time: toTime(dates[i]) as Time, position: "aboveBar", color: DOWN, shape: "arrowDown", text: "cross down" });
-    }
+    if (f0 <= s0 && f1 > s1) out.push({ time: times[i], y: valueAt[i], direction: "up" });
+    else if (f0 >= s0 && f1 < s1) out.push({ time: times[i], y: valueAt[i], direction: "down" });
   }
   return out;
 }
 
-function line(arr: (number | null)[], dates: string[]) {
-  return dates
-    .map((d, i) => ({ time: toTime(d) as Time, value: arr[i] }))
-    .filter((p): p is { time: Time; value: number } => p.value != null);
+type CandleShapeProps = {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  payload?: { open: number; high: number; low: number; close: number };
+};
+
+// Draws one candle inside the pixel box recharts gives for the [low, high] range
+// bar: wick from high to low, body between open and close.
+function Candle({ x = 0, y = 0, width = 0, height = 0, payload }: CandleShapeProps) {
+  if (!payload) return null;
+  const { open, high, low, close } = payload;
+  const range = high - low;
+  const cx = x + width / 2;
+  const up = close >= open;
+  const color = up ? UP : DOWN;
+  if (range <= 0) {
+    return <line x1={x} x2={x + width} y1={y + height} y2={y + height} stroke={color} strokeWidth={1.5} />;
+  }
+  const ratio = height / range;
+  const yOpen = y + (high - open) * ratio;
+  const yClose = y + (high - close) * ratio;
+  const bodyTop = Math.min(yOpen, yClose);
+  const bodyH = Math.max(1, Math.abs(yClose - yOpen));
+  const bw = Math.max(1, width * 0.6);
+  return (
+    <g>
+      <line x1={cx} x2={cx} y1={y} y2={y + height} stroke={color} strokeWidth={1} />
+      <rect x={cx - bw / 2} y={bodyTop} width={bw} height={bodyH} fill={color} />
+    </g>
+  );
 }
 
-// Pane 1: price. Daily renders a line; weekly/monthly render OHLC candles. Both
-// carry fast/slow SMA overlays and crossover markers for the timeframe.
-function drawPrice(el: HTMLDivElement, payload: SignalsPayload, tf: Timeframe): IChartApi {
-  const chart = createChart(el, baseOptions(H_PRICE));
+type PriceRow = {
+  time: string;
+  value?: number;
+  range?: [number, number];
+  open?: number;
+  high?: number;
+  low?: number;
+  close?: number;
+  fast: number | null;
+  slow: number | null;
+};
+
+function PricePane({ payload, tf }: { payload: SignalsPayload; tf: Timeframe }) {
   const win = SMA_WINDOWS[tf];
+  const { data, crosses, isCandle } = useMemo<{
+    data: PriceRow[];
+    crosses: { time: string; y: number; direction: "up" | "down" }[];
+    isCandle: boolean;
+  }>(() => {
+    if (tf === "daily") {
+      const values = payload.daily.map((p) => p.value);
+      const fast = sma(values, win.fast);
+      const slow = sma(values, win.slow);
+      const rows = payload.daily.map((p, i) => ({
+        time: p.date,
+        value: p.value,
+        fast: fast[i],
+        slow: slow[i],
+      }));
+      const cr = crossPoints(payload.daily.map((p) => p.date), fast, slow, values);
+      return { data: rows, crosses: cr, isCandle: false };
+    }
+    const candles = periodCandles(payload.daily, tf === "weekly" ? "week" : "month");
+    const closes = candles.map((c) => c.close);
+    const fast = sma(closes, win.fast);
+    const slow = sma(closes, win.slow);
+    const rows = candles.map((c, i) => ({
+      time: c.time,
+      range: [c.low, c.high] as [number, number],
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+      fast: fast[i],
+      slow: slow[i],
+    }));
+    const cr = crossPoints(candles.map((c) => c.time), fast, slow, closes);
+    return { data: rows, crosses: cr, isCandle: true };
+  }, [payload.daily, tf, win.fast, win.slow]);
 
-  if (tf === "daily") {
-    const dates = payload.daily.map((p) => p.date);
-    const values = payload.daily.map((p) => p.value);
-    const fast = sma(values, win.fast);
-    const slow = sma(values, win.slow);
-    const s = chart.addLineSeries({ color: LINEC, lineWidth: 2, priceLineVisible: false });
-    s.setData(payload.daily.map((p) => ({ time: toTime(p.date) as Time, value: p.value })));
-    chart.addLineSeries({ color: FAST, lineWidth: 2, priceLineVisible: false }).setData(line(fast, dates));
-    chart.addLineSeries({ color: SLOW, lineWidth: 2, priceLineVisible: false }).setData(line(slow, dates));
-    s.setMarkers(crossMarkers(dates, fast, slow));
-    chart.timeScale().fitContent();
-    return chart;
-  }
-
-  const candles = periodCandles(payload.daily, tf === "weekly" ? "week" : "month");
-  const dates = candles.map((c) => c.time);
-  const closes = candles.map((c) => c.close);
-  const fast = sma(closes, win.fast);
-  const slow = sma(closes, win.slow);
-  const cs = chart.addCandlestickSeries({
-    upColor: UP,
-    downColor: DOWN,
-    wickUpColor: UP,
-    wickDownColor: DOWN,
-    borderVisible: true,
-    borderUpColor: UP,
-    borderDownColor: DOWN,
-    priceLineVisible: false,
-  });
-  cs.setData(candles.map((c) => ({ time: toTime(c.time) as Time, open: c.open, high: c.high, low: c.low, close: c.close })));
-  chart.addLineSeries({ color: FAST, lineWidth: 2, priceLineVisible: false }).setData(line(fast, dates));
-  chart.addLineSeries({ color: SLOW, lineWidth: 2, priceLineVisible: false }).setData(line(slow, dates));
-  cs.setMarkers(crossMarkers(dates, fast, slow));
-  chart.timeScale().fitContent();
-  return chart;
+  return (
+    <ResponsiveContainer width="100%" height={H_PRICE}>
+      <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 4, left: 4 }}>
+        <CartesianGrid stroke={GRID} vertical={false} />
+        <XAxis dataKey="time" {...axis} tickFormatter={shortDate} minTickGap={40} />
+        <YAxis {...axis} width={44} domain={["auto", "auto"]} />
+        <Tooltip cursor={cursor} labelFormatter={(l) => shortDate(String(l))} />
+        {isCandle && <Bar dataKey="range" shape={<Candle />} isAnimationActive={false} />}
+        {!isCandle && (
+          <Line type="monotone" dataKey="value" stroke={LINE} strokeWidth={2} dot={false} isAnimationActive={false} />
+        )}
+        <Line type="monotone" dataKey="fast" stroke={FAST} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+        <Line type="monotone" dataKey="slow" stroke={SLOW} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+        {crosses.map((c, i) => (
+          <ReferenceDot key={i} x={c.time} y={c.y} r={4} fill={c.direction === "up" ? UP : DOWN} stroke="#fff" strokeWidth={1} />
+        ))}
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
 }
 
-function drawDeseasonalized(el: HTMLDivElement, payload: SignalsPayload): IChartApi {
-  const chart = createChart(el, baseOptions(H_DESEAS));
-  chart.addLineSeries({ color: BAND, lineWidth: 1, priceLineVisible: false }).setData(
-    payload.controlBand.map((b) => ({ time: toTime(b.date) as Time, value: b.upper }))
+function DeseasPane({ payload }: { payload: SignalsPayload }) {
+  const data = useMemo(() => {
+    const band = new Map(payload.controlBand.map((b) => [b.date, b]));
+    return payload.deseasonalized.map((p) => {
+      const b = band.get(p.date);
+      return { time: p.date, value: p.value, lower: b?.lower ?? null, upper: b?.upper ?? null };
+    });
+  }, [payload.deseasonalized, payload.controlBand]);
+
+  const valueByDate = useMemo(
+    () => new Map(payload.deseasonalized.map((p) => [p.date, p.value])),
+    [payload.deseasonalized]
   );
-  chart.addLineSeries({ color: BAND, lineWidth: 1, priceLineVisible: false }).setData(
-    payload.controlBand.map((b) => ({ time: toTime(b.date) as Time, value: b.lower }))
+
+  return (
+    <ResponsiveContainer width="100%" height={H_DESEAS}>
+      <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 4, left: 4 }}>
+        <CartesianGrid stroke={GRID} vertical={false} />
+        <XAxis dataKey="time" {...axis} tickFormatter={shortDate} minTickGap={40} />
+        <YAxis {...axis} width={44} domain={["auto", "auto"]} />
+        <Tooltip cursor={cursor} labelFormatter={(l) => shortDate(String(l))} />
+        <Line type="monotone" dataKey="upper" stroke={BAND} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
+        <Line type="monotone" dataKey="lower" stroke={BAND} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls />
+        <Line type="monotone" dataKey="value" stroke={LINE} strokeWidth={2} dot={false} isAnimationActive={false} />
+        {payload.signals.map((s, i) => {
+          const y = valueByDate.get(s.date);
+          if (y == null) return null;
+          return (
+            <ReferenceDot key={i} x={s.date} y={y} r={4} fill={s.direction === "up" ? UP : DOWN} stroke="#fff" strokeWidth={1} />
+          );
+        })}
+      </ComposedChart>
+    </ResponsiveContainer>
   );
-  const l = chart.addLineSeries({ color: LINEC, lineWidth: 2, priceLineVisible: false });
-  l.setData(payload.deseasonalized.map((p) => ({ time: toTime(p.date) as Time, value: p.value })));
-  l.setMarkers(
-    payload.signals.map((s) => ({
-      time: toTime(s.date) as Time,
-      position: s.direction === "up" ? "belowBar" : "aboveBar",
-      color: s.direction === "up" ? UP : DOWN,
-      shape: "circle",
-      text: s.provisional ? "provisional" : s.direction,
-    }))
-  );
-  chart.timeScale().fitContent();
-  return chart;
 }
 
-function drawCusum(el: HTMLDivElement, payload: SignalsPayload): IChartApi {
-  const chart = createChart(el, baseOptions(H_CUSUM));
-  chart.addLineSeries({ color: UP, lineWidth: 2 }).setData(
-    payload.cusum.map((p) => ({ time: toTime(p.date) as Time, value: p.cplus }))
+function CusumPane({ payload }: { payload: SignalsPayload }) {
+  return (
+    <ResponsiveContainer width="100%" height={H_CUSUM}>
+      <ComposedChart data={payload.cusum} margin={{ top: 8, right: 8, bottom: 4, left: 4 }}>
+        <CartesianGrid stroke={GRID} vertical={false} />
+        <XAxis dataKey="date" {...axis} tickFormatter={shortDate} minTickGap={40} />
+        <YAxis {...axis} width={44} domain={["auto", "auto"]} />
+        <Tooltip cursor={cursor} labelFormatter={(l) => shortDate(String(l))} />
+        {payload.cusumThreshold > 0 && (
+          <ReferenceLine y={payload.cusumThreshold} stroke={THRESH} strokeDasharray="4 4" />
+        )}
+        <Line type="monotone" dataKey="cplus" stroke={UP} strokeWidth={2} dot={false} isAnimationActive={false} />
+        <Line type="monotone" dataKey="cminus" stroke={DOWN} strokeWidth={2} dot={false} isAnimationActive={false} />
+      </ComposedChart>
+    </ResponsiveContainer>
   );
-  chart.addLineSeries({ color: DOWN, lineWidth: 2 }).setData(
-    payload.cusum.map((p) => ({ time: toTime(p.date) as Time, value: p.cminus }))
-  );
-  if (payload.cusumThreshold > 0 && payload.cusum.length) {
-    chart.addLineSeries({ color: THRESH, lineWidth: 1, lineStyle: LineStyle.Dashed, crosshairMarkerVisible: false }).setData(
-      payload.cusum.map((p) => ({ time: toTime(p.date) as Time, value: payload.cusumThreshold }))
-    );
-  }
-  chart.timeScale().fitContent();
-  return chart;
 }
 
-function Pane({ label, draw }: { label: string; draw: (el: HTMLDivElement) => IChartApi }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const chart = draw(el);
-    const onResize = () => chart.applyOptions({ width: el.clientWidth });
-    onResize();
-    window.addEventListener("resize", onResize);
-    return () => {
-      window.removeEventListener("resize", onResize);
-      chart.remove();
-    };
-  }, [draw]);
+function Pane({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
-        {label}
-      </p>
-      <div ref={ref} className="w-full" />
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-zinc-400">{label}</p>
+      {children}
     </div>
   );
 }
@@ -205,11 +242,6 @@ const TIMEFRAMES: { id: Timeframe; label: string }[] = [
 
 export default function SignalsChart({ payload }: { payload: SignalsPayload }) {
   const [tf, setTf] = useState<Timeframe>("weekly");
-
-  const priceDraw = useCallback((el: HTMLDivElement) => drawPrice(el, payload, tf), [payload, tf]);
-  const deseasDraw = useCallback((el: HTMLDivElement) => drawDeseasonalized(el, payload), [payload]);
-  const cusumDraw = useCallback((el: HTMLDivElement) => drawCusum(el, payload), [payload]);
-
   const priceLabel =
     tf === "daily"
       ? `Daily line + trend (${SMA_WINDOWS.daily.label})`
@@ -224,18 +256,22 @@ export default function SignalsChart({ payload }: { payload: SignalsPayload }) {
             type="button"
             onClick={() => setTf(t.id)}
             className={`rounded-md px-3.5 py-1.5 text-xs font-semibold transition-colors ${
-              tf === t.id
-                ? "bg-green-600 text-white"
-                : "text-zinc-600 hover:text-zinc-900"
+              tf === t.id ? "bg-green-600 text-white" : "text-zinc-600 hover:text-zinc-900"
             }`}
           >
             {t.label}
           </button>
         ))}
       </div>
-      <Pane label={priceLabel} draw={priceDraw} />
-      <Pane label="Deseasonalized daily + control band" draw={deseasDraw} />
-      <Pane label="CUSUM change detector (C+ / C-, threshold h)" draw={cusumDraw} />
+      <Pane label={priceLabel}>
+        <PricePane payload={payload} tf={tf} />
+      </Pane>
+      <Pane label="Deseasonalized daily + control band">
+        <DeseasPane payload={payload} />
+      </Pane>
+      <Pane label="CUSUM change detector (C+ / C-, threshold h)">
+        <CusumPane payload={payload} />
+      </Pane>
     </div>
   );
 }

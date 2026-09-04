@@ -15,8 +15,8 @@ import {
   type UiSignal,
 } from "@/lib/signals";
 
-// lightweight-charts touches the DOM at construction, so the chart is client
-// only: no server render, no hydration mismatch.
+// The chart depends on the container width, so it renders client only to avoid
+// a server/client size mismatch.
 const SignalsChart = dynamic(() => import("@/components/signals/SignalsChart"), {
   ssr: false,
   loading: () => (
