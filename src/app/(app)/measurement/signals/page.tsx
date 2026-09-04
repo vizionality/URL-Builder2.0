@@ -119,10 +119,31 @@ function SignalRow({
   );
 }
 
+const DIMENSION_LABELS: Record<string, string> = {
+  campaign: "Campaign",
+  source: "Source",
+  medium: "Medium",
+  landingPage: "Landing page",
+};
+
+// Read an optional deep-link filter and starting metric from the URL, once, on
+// the client (avoids a Suspense boundary for useSearchParams).
+function initialFromUrl(): { filter: { dimension: string; value: string } | null; metric: SignalMetricId } {
+  if (typeof window === "undefined") return { filter: null, metric: "sessions" };
+  const p = new URLSearchParams(window.location.search);
+  const dim = p.get("dimension");
+  const val = p.get("value");
+  const m = p.get("metric") ?? "";
+  const metric = SIGNAL_METRICS.some((x) => x.id === m) ? (m as SignalMetricId) : "sessions";
+  return { filter: dim && val ? { dimension: dim, value: val } : null, metric };
+}
+
 export default function SignalsPage() {
   const [propertyId] = useGa4PropertyId();
-  const [metric, setMetric] = useState<SignalMetricId>("sessions");
-  const { loading, error, data, reload } = useSignals(propertyId, metric);
+  const [initial] = useState(initialFromUrl);
+  const filter = initial.filter;
+  const [metric, setMetric] = useState<SignalMetricId>(initial.metric);
+  const { loading, error, data, reload } = useSignals(propertyId, metric, filter);
 
   const flags = data?.flags;
   const emptyReason = !flags
@@ -148,6 +169,23 @@ export default function SignalsPage() {
         subtitle="Trend and change-point detection on your GA4 metrics"
       />
       <div className="space-y-6 p-4 sm:p-6">
+        {filter && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm">
+            <span className="text-green-800">
+              Filtered to{" "}
+              <span className="font-semibold">
+                {DIMENSION_LABELS[filter.dimension] ?? filter.dimension}
+              </span>
+              : <span className="font-semibold">{filter.value}</span>
+            </span>
+            <a
+              href="/measurement/signals"
+              className="ml-auto rounded-md border border-green-300 bg-white px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100"
+            >
+              Clear filter
+            </a>
+          </div>
+        )}
         {/* Metric picker */}
         <div className="flex flex-wrap items-center gap-2">
           {SIGNAL_METRICS.map((m) => (

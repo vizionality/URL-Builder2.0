@@ -29,6 +29,33 @@ function isMetricId(value: string): value is MetricId {
   return value in METRICS;
 }
 
+// Optional deep-link filter: chart one dimension value (a campaign, source,
+// medium, or landing page) instead of the whole property. Mirrors the screener.
+const DIMENSIONS = {
+  campaign: "sessionCampaignName",
+  source: "sessionSource",
+  medium: "sessionMedium",
+  landingPage: "landingPage",
+} as const;
+type DimensionId = keyof typeof DIMENSIONS;
+
+function isDimensionId(value: string): value is DimensionId {
+  return value in DIMENSIONS;
+}
+
+// A GA4 dimensionFilter clause for one exact value, or {} when unfiltered.
+function dimensionFilter(dimension: DimensionId | null, value: string) {
+  if (!dimension || !value) return {};
+  return {
+    dimensionFilter: {
+      filter: {
+        fieldName: DIMENSIONS[dimension],
+        stringFilter: { value, matchType: "EXACT" },
+      },
+    },
+  };
+}
+
 function todayUtcIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -121,6 +148,12 @@ export async function GET(request: Request) {
   }
   const metric = metricParam;
 
+  const dimParam = url.searchParams.get("dimension");
+  const filterValue = url.searchParams.get("value") ?? "";
+  const dimension = dimParam && isDimensionId(dimParam) ? dimParam : null;
+  const isFiltered = Boolean(dimension && filterValue);
+  const dimFilter = dimensionFilter(dimension, filterValue);
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -169,6 +202,7 @@ export async function GET(request: Request) {
         dateRanges,
         dimensions: [{ name: "date" }],
         metrics: [{ name: "sessions" }],
+        ...dimFilter,
       });
       for (const r of rows) {
         const date = parseGa4Date(r.dimensionValues?.[0]?.value ?? "");
@@ -180,6 +214,7 @@ export async function GET(request: Request) {
         dateRanges,
         dimensions: [{ name: "date" }],
         metrics: [{ name: keyMetric }],
+        ...dimFilter,
       });
       for (const r of rows) {
         const date = parseGa4Date(r.dimensionValues?.[0]?.value ?? "");
@@ -192,6 +227,7 @@ export async function GET(request: Request) {
         dateRanges,
         dimensions: [{ name: "date" }],
         metrics: [{ name: keyMetric }, { name: "sessions" }],
+        ...dimFilter,
       });
       for (const r of rows) {
         const date = parseGa4Date(r.dimensionValues?.[0]?.value ?? "");
@@ -214,6 +250,26 @@ export async function GET(request: Request) {
   const input: RunInput = { metric, kind, series };
   if (kind === "rate") input.rateSamples = samples;
   const payload = runIndicators(input);
+
+  const filterInfo = isFiltered ? { dimension, value: filterValue } : null;
+
+  // A filtered (deep-linked) view is compute-only: its signals are not persisted
+  // or acknowledgeable, so they never pollute the property-wide signal history.
+  if (isFiltered) {
+    const provisionalFrom = payload.provisionalFromDate;
+    return NextResponse.json({
+      ...payload,
+      signals: payload.signals.map((s) => ({
+        ...s,
+        provisional: Boolean(provisionalFrom && s.date >= provisionalFrom),
+        acknowledgedAt: null,
+      })),
+      metricLabel: METRICS[metric].label,
+      keyMetric,
+      filter: filterInfo,
+      ranAt: new Date().toISOString(),
+    });
+  }
 
   // Persist newly fired signals, then merge stored acknowledged status. A signal
   // on a provisional (still-restating) day is held back: it is not persisted and
