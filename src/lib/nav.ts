@@ -7,6 +7,7 @@ import {
   SlidersHorizontal,
   Activity,
   LineChart,
+  Radar,
 } from "lucide-react";
 
 export type NavItem = {
@@ -24,5 +25,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/options", label: "UTM Options", icon: SlidersHorizontal },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/measurement/signals", label: "Signals", icon: LineChart },
+  { href: "/screener", label: "Screener", icon: Radar },
   { href: "/integrations", label: "Integrations", icon: Plug },
 ];
