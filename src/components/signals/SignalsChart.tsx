@@ -12,6 +12,7 @@ import {
   ReferenceLine,
   ReferenceDot,
   ResponsiveContainer,
+  Brush,
 } from "recharts";
 import type { SignalsPayload } from "@/lib/signals";
 import { periodCandles } from "@/lib/indicators/candles";
@@ -39,6 +40,10 @@ const SMA_WINDOWS: Record<Timeframe, { fast: number; slow: number; label: string
   weekly: { fast: 4, slow: 12, label: "4w / 12w SMA" },
   monthly: { fast: 3, slow: 6, label: "3m / 6m SMA" },
 };
+
+// How many bars the brush shows by default when the pane opens; the rest is
+// reachable by dragging the brush handles or sliding the window.
+const DEFAULT_WINDOW: Record<Timeframe, number> = { daily: 120, weekly: 52, monthly: 24 };
 
 const axis = { stroke: GRID, tick: { fill: TEXT, fontSize: 11 }, tickLine: false } as const;
 const cursor = { stroke: "#a1a1aa", strokeDasharray: "3 3" } as const;
@@ -150,9 +155,12 @@ function PricePane({ payload, tf }: { payload: SignalsPayload; tf: Timeframe }) 
     return { data: rows, crosses: cr, isCandle: true };
   }, [payload.daily, tf, win.fast, win.slow]);
 
+  const startIndex = Math.max(0, data.length - DEFAULT_WINDOW[tf]);
+
   return (
     <ResponsiveContainer width="100%" height={H_PRICE}>
-      <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 4, left: 4 }}>
+      {/* key={tf} remounts on a timeframe switch so the brush window resets. */}
+      <ComposedChart key={tf} data={data} margin={{ top: 8, right: 8, bottom: 4, left: 4 }}>
         <CartesianGrid stroke={GRID} vertical={false} />
         <XAxis dataKey="time" {...axis} tickFormatter={shortDate} minTickGap={40} />
         <YAxis {...axis} width={44} domain={["auto", "auto"]} />
@@ -166,6 +174,15 @@ function PricePane({ payload, tf }: { payload: SignalsPayload; tf: Timeframe }) 
         {crosses.map((c, i) => (
           <ReferenceDot key={i} x={c.time} y={c.y} r={4} fill={c.direction === "up" ? UP : DOWN} stroke="#fff" strokeWidth={1} />
         ))}
+        <Brush
+          dataKey="time"
+          height={22}
+          stroke={LINE}
+          fill="#f8faf9"
+          travellerWidth={8}
+          startIndex={startIndex}
+          tickFormatter={(v) => shortDate(String(v))}
+        />
       </ComposedChart>
     </ResponsiveContainer>
   );
