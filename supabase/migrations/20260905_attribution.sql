@@ -10,13 +10,18 @@
 -- is public but keyed: it resolves site_key to a site (and its owner) and never
 -- trusts a client-supplied user_id.
 
--- A tracked site. site_key is a public token embedded in the client's GTM tag;
+-- A tracked site. site_key is a public token embedded in the client's GTM tag.
+-- collector_host is the client's first-party hostname for the collector (for
+-- example metrics.clientsite.com), CNAMEd to this app and added as a custom
+-- domain; the collect endpoint maps the incoming Host header to a site through
+-- it, which is what lets the server set a Safari-durable first-party cookie.
 -- allowed_origins is the CORS allowlist the collect endpoint checks.
 create table if not exists public.attribution_sites (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
   name text not null,
   site_key text not null unique,
+  collector_host text unique,
   allowed_origins text[] not null default '{}',
   created_at timestamptz default now()
 );

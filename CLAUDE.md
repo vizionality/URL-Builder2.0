@@ -141,11 +141,13 @@ attributes conversions across touches with selectable credit models.
   `visitor_id` to a salted hash of an email, so touches merge across devices
   once the same person identifies on each. No fingerprinting of anonymous users;
   coarse geo only, never precise.
-- Collector is cross-domain by default (the GTM tag runs on the client domain
-  and beacons to this app). Safari ITP ages a client-set visitor id out at about
-  7 days; a client can optionally serve a first-party collector (same-site CNAME)
-  for a durable id. The snippet respects GTM Consent Mode (`analytics_storage`)
-  and a `dataLayer` `attr_consent` flag.
+- Collector is same-site (Option A): each client CNAMEs a first-party hostname
+  (for example metrics.clientsite.com, stored as the site's `collector_host`) to
+  this app as a custom domain, and the GTM tag beacons there. The collect
+  endpoint maps the Host header to a site, then sets an HttpOnly first-party
+  visitor cookie the server owns, which survives Safari ITP; the snippet keeps a
+  localStorage fallback for the first request. The snippet respects GTM Consent
+  Mode (`analytics_storage`) and a `dataLayer` `attr_consent` flag.
 - `lib/attribution/` is pure TypeScript with unit tests: channel grouping, the
   five credit models (first-touch, last-touch, linear, time-decay, position-based
   40/20/40, each summing to 1.0), and funnel aggregation. Explicit empty states
