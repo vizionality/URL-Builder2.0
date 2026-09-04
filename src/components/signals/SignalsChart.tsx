@@ -15,17 +15,18 @@ import type { SignalsPayload } from "@/lib/signals";
 import { periodCandles } from "@/lib/indicators/candles";
 import { sma } from "@/lib/indicators/movingAverages";
 
-// Modern dark "terminal" palette, TC2000 / TradingView flavored.
-const PANEL = "#0e131c"; // pane background
-const GRID = "#1a2130"; // very subtle gridlines
-const TEXT = "#8b97ad"; // axis + label text
-const UP = "#22c55e"; // candle up / positive
-const DOWN = "#ef4444"; // candle down / negative
-const FAST = "#38bdf8"; // fast SMA (cyan)
-const SLOW = "#f59e0b"; // slow SMA (amber)
-const LINEC = "#22d3ee"; // daily line
-const BAND = "#334155"; // control band
-const THRESH = "#64748b"; // cusum threshold
+// Light palette matching the app: candles read clearly on a white card, moving
+// averages in the app's green accent, muted grid and axes.
+const PANEL = "transparent"; // sit on the white Card
+const GRID = "#f1f5f4"; // very subtle gridlines
+const TEXT = "#71717a"; // axis + label text
+const UP = "#12b795"; // candle up / positive (app green)
+const DOWN = "#e5484d"; // candle down / negative
+const FAST = "#0c7a65"; // fast SMA (deep green)
+const SLOW = "#a1a1aa"; // slow SMA (muted)
+const LINEC = "#12b795"; // daily line
+const BAND = "#d4d4d8"; // control band
+const THRESH = "#a1a1aa"; // cusum threshold
 
 type Timeframe = "daily" | "weekly" | "monthly";
 
@@ -52,16 +53,14 @@ function baseOptions(height: number) {
       background: { type: ColorType.Solid, color: PANEL },
       textColor: TEXT,
       fontSize: 11,
-      fontFamily:
-        "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace",
     },
     grid: { vertLines: { color: GRID }, horzLines: { color: GRID } },
     rightPriceScale: { borderColor: GRID, scaleMargins: { top: 0.12, bottom: 0.12 } },
     timeScale: { borderColor: GRID, timeVisible: false, rightOffset: 4 },
     crosshair: {
       mode: CrosshairMode.Normal,
-      vertLine: { color: "#3b4759", width: 1 as const, style: LineStyle.Dashed, labelBackgroundColor: "#1f2937" },
-      horzLine: { color: "#3b4759", width: 1 as const, style: LineStyle.Dashed, labelBackgroundColor: "#1f2937" },
+      vertLine: { color: "#d4d4d8", width: 1 as const, style: LineStyle.Dashed, labelBackgroundColor: "#52525b" },
+      horzLine: { color: "#d4d4d8", width: 1 as const, style: LineStyle.Dashed, labelBackgroundColor: "#52525b" },
     },
   };
 }
@@ -190,10 +189,10 @@ function Pane({ label, draw }: { label: string; draw: (el: HTMLDivElement) => IC
   }, [draw]);
   return (
     <div>
-      <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-[#5b6678]">
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
         {label}
       </p>
-      <div ref={ref} className="w-full overflow-hidden rounded-lg" />
+      <div ref={ref} className="w-full" />
     </div>
   );
 }
@@ -217,8 +216,8 @@ export default function SignalsChart({ payload }: { payload: SignalsPayload }) {
       : `${tf === "weekly" ? "Weekly" : "Monthly"} candles + trend (${SMA_WINDOWS[tf].label})`;
 
   return (
-    <div className="space-y-4 rounded-xl border border-[#1a2130] bg-[#0b0f17] p-3 sm:p-4">
-      <div className="inline-flex gap-0.5 rounded-lg bg-[#131a26] p-0.5">
+    <div className="space-y-4">
+      <div className="inline-flex gap-0.5 rounded-lg border border-zinc-200 bg-zinc-50 p-0.5">
         {TIMEFRAMES.map((t) => (
           <button
             key={t.id}
@@ -226,8 +225,8 @@ export default function SignalsChart({ payload }: { payload: SignalsPayload }) {
             onClick={() => setTf(t.id)}
             className={`rounded-md px-3.5 py-1.5 text-xs font-semibold transition-colors ${
               tf === t.id
-                ? "bg-[#22c55e] text-[#06210f]"
-                : "text-[#8b97ad] hover:text-white"
+                ? "bg-green-600 text-white"
+                : "text-zinc-600 hover:text-zinc-900"
             }`}
           >
             {t.label}
