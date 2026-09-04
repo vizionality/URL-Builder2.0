@@ -56,6 +56,9 @@ export type IndicatorPayload = {
   metric: string;
   kind: MetricKind;
   flags: IndicatorFlags;
+  // Raw daily series (before deseasonalization), so the chart can re-aggregate
+  // to daily / weekly / monthly on demand.
+  daily: Point[];
   // Daily deseasonalized series and its control band (count metrics use a CUSUM
   // baseline band; rate metrics use Wilson intervals).
   deseasonalized: Point[];

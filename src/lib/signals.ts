@@ -28,6 +28,7 @@ export type SignalsPayload = {
   metricLabel: string;
   kind: MetricKind;
   flags: IndicatorFlags;
+  daily: Point[];
   deseasonalized: Point[];
   controlBand: Band[];
   cusum: CusumSeriesPoint[];

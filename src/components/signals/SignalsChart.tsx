@@ -1,27 +1,47 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createChart,
   ColorType,
   LineStyle,
+  CrosshairMode,
   type IChartApi,
   type SeriesMarker,
   type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
 import type { SignalsPayload } from "@/lib/signals";
+import { periodCandles } from "@/lib/indicators/candles";
+import { sma } from "@/lib/indicators/movingAverages";
 
-// Colors pulled from the app's green accent so the panes match the rest of the UI.
-const GREEN = "#12b795";
-const GREEN_DARK = "#0c7a65";
-const UP = "#12b795";
-const DOWN = "#e5484d";
-const GRID = "#f1f5f4";
-const TEXT = "#71717a";
+// Modern dark "terminal" palette, TC2000 / TradingView flavored.
+const PANEL = "#0e131c"; // pane background
+const GRID = "#1a2130"; // very subtle gridlines
+const TEXT = "#8b97ad"; // axis + label text
+const UP = "#22c55e"; // candle up / positive
+const DOWN = "#ef4444"; // candle down / negative
+const FAST = "#38bdf8"; // fast SMA (cyan)
+const SLOW = "#f59e0b"; // slow SMA (amber)
+const LINEC = "#22d3ee"; // daily line
+const BAND = "#334155"; // control band
+const THRESH = "#64748b"; // cusum threshold
+
+type Timeframe = "daily" | "weekly" | "monthly";
+
+// Taller than before so the panes read like a real charting terminal.
+const H_PRICE = 340;
+const H_DESEAS = 240;
+const H_CUSUM = 200;
+
+// SMA windows per timeframe, in units of that timeframe's bar.
+const SMA_WINDOWS: Record<Timeframe, { fast: number; slow: number; label: string }> = {
+  daily: { fast: 7, slow: 30, label: "7d / 30d SMA" },
+  weekly: { fast: 4, slow: 12, label: "4w / 12w SMA" },
+  monthly: { fast: 3, slow: 6, label: "3m / 6m SMA" },
+};
 
 function toTime(iso: string): UTCTimestamp {
-  // Midnight UTC for the day; lightweight-charts sorts numeric times reliably.
   return (Date.parse(`${iso}T00:00:00Z`) / 1000) as UTCTimestamp;
 }
 
@@ -29,105 +49,124 @@ function baseOptions(height: number) {
   return {
     height,
     layout: {
-      background: { type: ColorType.Solid, color: "transparent" },
+      background: { type: ColorType.Solid, color: PANEL },
       textColor: TEXT,
       fontSize: 11,
+      fontFamily:
+        "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace",
     },
-    grid: {
-      vertLines: { color: GRID },
-      horzLines: { color: GRID },
+    grid: { vertLines: { color: GRID }, horzLines: { color: GRID } },
+    rightPriceScale: { borderColor: GRID, scaleMargins: { top: 0.12, bottom: 0.12 } },
+    timeScale: { borderColor: GRID, timeVisible: false, rightOffset: 4 },
+    crosshair: {
+      mode: CrosshairMode.Normal,
+      vertLine: { color: "#3b4759", width: 1 as const, style: LineStyle.Dashed, labelBackgroundColor: "#1f2937" },
+      horzLine: { color: "#3b4759", width: 1 as const, style: LineStyle.Dashed, labelBackgroundColor: "#1f2937" },
     },
-    rightPriceScale: { borderColor: GRID },
-    timeScale: { borderColor: GRID, timeVisible: false },
-    handleScroll: false,
-    handleScale: false,
   };
 }
 
-// Pane 1: weekly candles with fast/slow SMA overlays and crossover markers.
-function drawCandles(el: HTMLDivElement, payload: SignalsPayload): IChartApi {
-  const chart = createChart(el, baseOptions(220));
-  const candles = chart.addCandlestickSeries({
+// Crossover markers from two aligned moving-average arrays over the same dates.
+function crossMarkers(
+  dates: string[],
+  fast: (number | null)[],
+  slow: (number | null)[]
+): SeriesMarker<Time>[] {
+  const out: SeriesMarker<Time>[] = [];
+  for (let i = 1; i < dates.length; i++) {
+    const f0 = fast[i - 1], s0 = slow[i - 1], f1 = fast[i], s1 = slow[i];
+    if (f0 == null || s0 == null || f1 == null || s1 == null) continue;
+    if (f0 <= s0 && f1 > s1) {
+      out.push({ time: toTime(dates[i]) as Time, position: "belowBar", color: UP, shape: "arrowUp", text: "cross up" });
+    } else if (f0 >= s0 && f1 < s1) {
+      out.push({ time: toTime(dates[i]) as Time, position: "aboveBar", color: DOWN, shape: "arrowDown", text: "cross down" });
+    }
+  }
+  return out;
+}
+
+function line(arr: (number | null)[], dates: string[]) {
+  return dates
+    .map((d, i) => ({ time: toTime(d) as Time, value: arr[i] }))
+    .filter((p): p is { time: Time; value: number } => p.value != null);
+}
+
+// Pane 1: price. Daily renders a line; weekly/monthly render OHLC candles. Both
+// carry fast/slow SMA overlays and crossover markers for the timeframe.
+function drawPrice(el: HTMLDivElement, payload: SignalsPayload, tf: Timeframe): IChartApi {
+  const chart = createChart(el, baseOptions(H_PRICE));
+  const win = SMA_WINDOWS[tf];
+
+  if (tf === "daily") {
+    const dates = payload.daily.map((p) => p.date);
+    const values = payload.daily.map((p) => p.value);
+    const fast = sma(values, win.fast);
+    const slow = sma(values, win.slow);
+    const s = chart.addLineSeries({ color: LINEC, lineWidth: 2, priceLineVisible: false });
+    s.setData(payload.daily.map((p) => ({ time: toTime(p.date) as Time, value: p.value })));
+    chart.addLineSeries({ color: FAST, lineWidth: 2, priceLineVisible: false }).setData(line(fast, dates));
+    chart.addLineSeries({ color: SLOW, lineWidth: 2, priceLineVisible: false }).setData(line(slow, dates));
+    s.setMarkers(crossMarkers(dates, fast, slow));
+    chart.timeScale().fitContent();
+    return chart;
+  }
+
+  const candles = periodCandles(payload.daily, tf === "weekly" ? "week" : "month");
+  const dates = candles.map((c) => c.time);
+  const closes = candles.map((c) => c.close);
+  const fast = sma(closes, win.fast);
+  const slow = sma(closes, win.slow);
+  const cs = chart.addCandlestickSeries({
     upColor: UP,
     downColor: DOWN,
     wickUpColor: UP,
     wickDownColor: DOWN,
-    borderVisible: false,
+    borderVisible: true,
+    borderUpColor: UP,
+    borderDownColor: DOWN,
+    priceLineVisible: false,
   });
-  candles.setData(
-    payload.candles.map((c) => ({
-      time: toTime(c.time) as Time,
-      open: c.open,
-      high: c.high,
-      low: c.low,
-      close: c.close,
+  cs.setData(candles.map((c) => ({ time: toTime(c.time) as Time, open: c.open, high: c.high, low: c.low, close: c.close })));
+  chart.addLineSeries({ color: FAST, lineWidth: 2, priceLineVisible: false }).setData(line(fast, dates));
+  chart.addLineSeries({ color: SLOW, lineWidth: 2, priceLineVisible: false }).setData(line(slow, dates));
+  cs.setMarkers(crossMarkers(dates, fast, slow));
+  chart.timeScale().fitContent();
+  return chart;
+}
+
+function drawDeseasonalized(el: HTMLDivElement, payload: SignalsPayload): IChartApi {
+  const chart = createChart(el, baseOptions(H_DESEAS));
+  chart.addLineSeries({ color: BAND, lineWidth: 1, priceLineVisible: false }).setData(
+    payload.controlBand.map((b) => ({ time: toTime(b.date) as Time, value: b.upper }))
+  );
+  chart.addLineSeries({ color: BAND, lineWidth: 1, priceLineVisible: false }).setData(
+    payload.controlBand.map((b) => ({ time: toTime(b.date) as Time, value: b.lower }))
+  );
+  const l = chart.addLineSeries({ color: LINEC, lineWidth: 2, priceLineVisible: false });
+  l.setData(payload.deseasonalized.map((p) => ({ time: toTime(p.date) as Time, value: p.value })));
+  l.setMarkers(
+    payload.signals.map((s) => ({
+      time: toTime(s.date) as Time,
+      position: s.direction === "up" ? "belowBar" : "aboveBar",
+      color: s.direction === "up" ? UP : DOWN,
+      shape: "circle",
+      text: s.provisional ? "provisional" : s.direction,
     }))
   );
-
-  const fast = chart.addLineSeries({ color: GREEN, lineWidth: 2 });
-  const slow = chart.addLineSeries({ color: GREEN_DARK, lineWidth: 2, lineStyle: LineStyle.Dashed });
-  fast.setData(
-    payload.candles
-      .map((c, i) => ({ time: toTime(c.time) as Time, value: payload.smaFast[i] }))
-      .filter((p): p is { time: Time; value: number } => p.value != null)
-  );
-  slow.setData(
-    payload.candles
-      .map((c, i) => ({ time: toTime(c.time) as Time, value: payload.smaSlow[i] }))
-      .filter((p): p is { time: Time; value: number } => p.value != null)
-  );
-
-  const markers: SeriesMarker<Time>[] = payload.crossovers.map((x) => ({
-    time: toTime(x.date) as Time,
-    position: x.direction === "up" ? "belowBar" : "aboveBar",
-    color: x.direction === "up" ? UP : DOWN,
-    shape: x.direction === "up" ? "arrowUp" : "arrowDown",
-    text: x.direction === "up" ? "cross up" : "cross down",
-  }));
-  candles.setMarkers(markers);
   chart.timeScale().fitContent();
   return chart;
 }
 
-// Pane 2: deseasonalized daily series with its control band.
-function drawDeseasonalized(el: HTMLDivElement, payload: SignalsPayload): IChartApi {
-  const chart = createChart(el, baseOptions(180));
-  const bandUpper = chart.addLineSeries({ color: "#d4d4d8", lineWidth: 1 });
-  const bandLower = chart.addLineSeries({ color: "#d4d4d8", lineWidth: 1 });
-  bandUpper.setData(payload.controlBand.map((b) => ({ time: toTime(b.date) as Time, value: b.upper })));
-  bandLower.setData(payload.controlBand.map((b) => ({ time: toTime(b.date) as Time, value: b.lower })));
-
-  const line = chart.addLineSeries({ color: GREEN, lineWidth: 2 });
-  line.setData(payload.deseasonalized.map((p) => ({ time: toTime(p.date) as Time, value: p.value })));
-
-  const markers: SeriesMarker<Time>[] = payload.signals.map((s) => ({
-    time: toTime(s.date) as Time,
-    position: s.direction === "up" ? "belowBar" : "aboveBar",
-    color: s.direction === "up" ? UP : DOWN,
-    shape: "circle",
-    text: s.provisional ? "provisional" : s.direction,
-  }));
-  line.setMarkers(markers);
-  chart.timeScale().fitContent();
-  return chart;
-}
-
-// Pane 3: CUSUM Cplus / Cminus with the decision threshold h.
 function drawCusum(el: HTMLDivElement, payload: SignalsPayload): IChartApi {
-  const chart = createChart(el, baseOptions(160));
-  const cplus = chart.addLineSeries({ color: UP, lineWidth: 2 });
-  const cminus = chart.addLineSeries({ color: DOWN, lineWidth: 2 });
-  cplus.setData(payload.cusum.map((p) => ({ time: toTime(p.date) as Time, value: p.cplus })));
-  cminus.setData(payload.cusum.map((p) => ({ time: toTime(p.date) as Time, value: p.cminus })));
-
+  const chart = createChart(el, baseOptions(H_CUSUM));
+  chart.addLineSeries({ color: UP, lineWidth: 2 }).setData(
+    payload.cusum.map((p) => ({ time: toTime(p.date) as Time, value: p.cplus }))
+  );
+  chart.addLineSeries({ color: DOWN, lineWidth: 2 }).setData(
+    payload.cusum.map((p) => ({ time: toTime(p.date) as Time, value: p.cminus }))
+  );
   if (payload.cusumThreshold > 0 && payload.cusum.length) {
-    const h = chart.addLineSeries({
-      color: TEXT,
-      lineWidth: 1,
-      lineStyle: LineStyle.Dashed,
-      crosshairMarkerVisible: false,
-    });
-    h.setData(
+    chart.addLineSeries({ color: THRESH, lineWidth: 1, lineStyle: LineStyle.Dashed, crosshairMarkerVisible: false }).setData(
       payload.cusum.map((p) => ({ time: toTime(p.date) as Time, value: payload.cusumThreshold }))
     );
   }
@@ -135,21 +174,12 @@ function drawCusum(el: HTMLDivElement, payload: SignalsPayload): IChartApi {
   return chart;
 }
 
-function Pane({
-  label,
-  draw,
-  payload,
-}: {
-  label: string;
-  draw: (el: HTMLDivElement, payload: SignalsPayload) => IChartApi;
-  payload: SignalsPayload;
-}) {
+function Pane({ label, draw }: { label: string; draw: (el: HTMLDivElement) => IChartApi }) {
   const ref = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const chart = draw(el, payload);
+    const chart = draw(el);
     const onResize = () => chart.applyOptions({ width: el.clientWidth });
     onResize();
     window.addEventListener("resize", onResize);
@@ -157,22 +187,56 @@ function Pane({
       window.removeEventListener("resize", onResize);
       chart.remove();
     };
-  }, [draw, payload]);
-
+  }, [draw]);
   return (
     <div>
-      <p className="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-400">{label}</p>
-      <div ref={ref} className="w-full" />
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-[#5b6678]">
+        {label}
+      </p>
+      <div ref={ref} className="w-full overflow-hidden rounded-lg" />
     </div>
   );
 }
 
+const TIMEFRAMES: { id: Timeframe; label: string }[] = [
+  { id: "daily", label: "Daily" },
+  { id: "weekly", label: "Weekly" },
+  { id: "monthly", label: "Monthly" },
+];
+
 export default function SignalsChart({ payload }: { payload: SignalsPayload }) {
+  const [tf, setTf] = useState<Timeframe>("weekly");
+
+  const priceDraw = useCallback((el: HTMLDivElement) => drawPrice(el, payload, tf), [payload, tf]);
+  const deseasDraw = useCallback((el: HTMLDivElement) => drawDeseasonalized(el, payload), [payload]);
+  const cusumDraw = useCallback((el: HTMLDivElement) => drawCusum(el, payload), [payload]);
+
+  const priceLabel =
+    tf === "daily"
+      ? `Daily line + trend (${SMA_WINDOWS.daily.label})`
+      : `${tf === "weekly" ? "Weekly" : "Monthly"} candles + trend (${SMA_WINDOWS[tf].label})`;
+
   return (
-    <div className="space-y-4">
-      <Pane label="Weekly candles + trend (4w / 12w SMA)" draw={drawCandles} payload={payload} />
-      <Pane label="Deseasonalized daily + control band" draw={drawDeseasonalized} payload={payload} />
-      <Pane label="CUSUM change detector (C+ / C-, threshold h)" draw={drawCusum} payload={payload} />
+    <div className="space-y-4 rounded-xl border border-[#1a2130] bg-[#0b0f17] p-3 sm:p-4">
+      <div className="inline-flex gap-0.5 rounded-lg bg-[#131a26] p-0.5">
+        {TIMEFRAMES.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTf(t.id)}
+            className={`rounded-md px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+              tf === t.id
+                ? "bg-[#22c55e] text-[#06210f]"
+                : "text-[#8b97ad] hover:text-white"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <Pane label={priceLabel} draw={priceDraw} />
+      <Pane label="Deseasonalized daily + control band" draw={deseasDraw} />
+      <Pane label="CUSUM change detector (C+ / C-, threshold h)" draw={cusumDraw} />
     </div>
   );
 }
