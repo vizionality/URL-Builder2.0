@@ -26,6 +26,11 @@ const SCORECARD_METRICS = [
   { name: "averageSessionDuration" },
 ];
 
+// Metrics the Total Users Overview can switch between (returning users comes
+// from its own report).
+const MONTHLY_METRICS = ["totalUsers", "newUsers", "sessions", "engagedSessions"] as const;
+type MonthValues = Record<(typeof MONTHLY_METRICS)[number] | "returningUsers", number>;
+
 // First day of the month `back` months before the month of `endIso`.
 function monthStart(endIso: string, back: number): string {
   const [y, m] = endIso.split("-").map(Number);
@@ -104,8 +109,15 @@ export async function GET(request: Request) {
       {
         dateRanges: [{ startDate: windowStart, endDate: end }],
         dimensions: [{ name: "yearMonth" }],
-        metrics: [{ name: "totalUsers" }],
+        metrics: MONTHLY_METRICS.map((name) => ({ name })),
         ...filt,
+      },
+      // Returning users by month (GA4's own new/returning split, not total - new).
+      {
+        dateRanges: [{ startDate: windowStart, endDate: end }],
+        dimensions: [{ name: "yearMonth" }],
+        metrics: [{ name: "totalUsers" }],
+        ...pageFilterExpr(filters, [exactFilter("newVsReturning", "returning")]),
       },
       // Geo map: new users for every US state (not just the top few).
       {
@@ -149,9 +161,8 @@ export async function GET(request: Request) {
       );
     }
 
-    // Six (or eight) reports -> two batch calls running together: one round
-    // trip, and only two requests against GA4's concurrency limit.
-    const [scoreRes, leadRes, channelRes, statesRes, monthlyRes, geoRes, medRes = [], campRes = [], srcRes = [], pageRes = []] =
+    // Seven (or eleven) reports -> batch calls of five, two at a time.
+    const [scoreRes, leadRes, channelRes, statesRes, monthlyRes, returningRes, geoRes, medRes = [], campRes = [], srcRes = [], pageRes = []] =
       await batchRunReports(propertyId, token, reports, request.signal);
 
     // Scorecards: match rows by their dateRange dimension value.
@@ -184,10 +195,20 @@ export async function GET(request: Request) {
       .map((r) => ({ region: r.dimensionValues?.[0]?.value ?? "", newUsers: num(r) }))
       .filter((s) => s.region && !s.region.startsWith("(") && s.newUsers > 0);
 
-    // Monthly: map yearMonth -> users, then align current vs prior year.
-    const usersByYm = new Map<string, number>();
-    for (const r of monthlyRes) usersByYm.set(r.dimensionValues?.[0]?.value ?? "", num(r));
-    const monthly: { month: string; current: number; previousYear: number }[] = [];
+    // Monthly: map yearMonth -> each metric, then align current vs prior year.
+    const byYm = new Map<string, MonthValues>();
+    const at = (ym: string) => {
+      let v = byYm.get(ym);
+      if (!v) byYm.set(ym, (v = { totalUsers: 0, newUsers: 0, returningUsers: 0, sessions: 0, engagedSessions: 0 }));
+      return v;
+    };
+    for (const r of monthlyRes) {
+      const v = at(r.dimensionValues?.[0]?.value ?? "");
+      MONTHLY_METRICS.forEach((name, i) => (v[name] = num(r, i)));
+    }
+    for (const r of returningRes) at(r.dimensionValues?.[0]?.value ?? "").returningUsers = num(r);
+    const empty: MonthValues = { totalUsers: 0, newUsers: 0, returningUsers: 0, sessions: 0, engagedSessions: 0 };
+    const monthly: { month: string; current: MonthValues; previousYear: MonthValues }[] = [];
     const [sy, sm] = displayStart.split("-").map(Number);
     for (let i = 0; i < 13; i++) {
       const idx = sy * 12 + (sm - 1) + i;
@@ -197,8 +218,8 @@ export async function GET(request: Request) {
       const prevKey = ymKey(y - 1, m);
       monthly.push({
         month: formatYearMonth(key),
-        current: usersByYm.get(key) ?? 0,
-        previousYear: usersByYm.get(prevKey) ?? 0,
+        current: byYm.get(key) ?? empty,
+        previousYear: byYm.get(prevKey) ?? empty,
       });
     }
 

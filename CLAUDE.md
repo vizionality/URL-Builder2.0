@@ -41,7 +41,8 @@ with real GA4 reporting.
   and session campaign dropdowns plus a Looker-style date picker (presets with This/Last submenus, Include today, Start/End calendars; default This year to date).
 - Tiles: seven summary scorecards (Views, Total users, New users, Sessions, Engagement rate,
   Avg session duration, Generate Lead) with %Δ vs the previous period; Total Users Overview
-  (monthly, this year vs previous year); Channel Group pie; Top States bar; US Geo Map
+  (monthly, this year vs previous year; metric dropdown: total/new/returning users, sessions,
+  engaged sessions); Channel Group pie; Top States bar; US Geo Map
   choropleth (react-simple-maps + us-atlas, bundled, no runtime fetch); Top Traffic Sources,
   Landing Pages, and Conversions, each a table plus a daily trend.
 - Data: `/api/ga4/overview` (scorecards, monthly, channel, states, geo, filter options) and

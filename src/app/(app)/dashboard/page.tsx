@@ -45,7 +45,7 @@ type Overview = {
   channelGroup: { channel: string; users: number }[];
   topStates: { region: string; newUsers: number }[];
   geo: { region: string; newUsers: number }[];
-  monthly: { month: string; current: number; previousYear: number }[];
+  monthly: { month: string; current: Record<MonthlyMetric, number>; previousYear: Record<MonthlyMetric, number> }[];
   // Present only when requested with options=1.
   filters: { mediums: FilterOption[]; campaigns: FilterOption[]; sources?: FilterOption[]; pages?: FilterOption[] } | null;
   range: { startDate: string; endDate: string };
@@ -60,6 +60,15 @@ function localToday(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+
+type MonthlyMetric = "totalUsers" | "newUsers" | "returningUsers" | "sessions" | "engagedSessions";
+const MONTHLY_OPTIONS: { id: MonthlyMetric; label: string }[] = [
+  { id: "totalUsers", label: "Total users" },
+  { id: "newUsers", label: "New users" },
+  { id: "returningUsers", label: "Returning users" },
+  { id: "sessions", label: "Sessions" },
+  { id: "engagedSessions", label: "Engaged sessions" },
+];
 
 function Delta({ value, invert = false }: { value: number | null; invert?: boolean }) {
   if (value == null) return <span className="text-xs text-zinc-400">—</span>;
@@ -94,6 +103,7 @@ export default function DashboardPage() {
     custom: presetRange(DEFAULT_PRESET, today)!,
   }));
   const [compare, setCompare] = useState<CompareMode>("period");
+  const [monthlyMetric, setMonthlyMetric] = useState<MonthlyMetric>("totalUsers");
   const shownRange = resolveRange(dates, today);
   const startDate = shownRange.startDate;
   // Whole-period presets ("This month") reach past today; GA4 has nothing
@@ -209,6 +219,17 @@ export default function DashboardPage() {
   const sources = options?.sources ?? [];
   const pages = options?.pages ?? [];
 
+  const monthlyLabel = MONTHLY_OPTIONS.find((o) => o.id === monthlyMetric)!.label;
+  // Switching the metric is instant: every metric arrives with the report.
+  const monthlyData = useMemo(
+    () =>
+      (d?.monthly ?? []).map((row) => ({
+        month: row.month,
+        current: row.current[monthlyMetric] ?? 0,
+        previousYear: row.previousYear[monthlyMetric] ?? 0,
+      })),
+    [d, monthlyMetric]
+  );
   const channelData = useMemo(
     () => (d?.channelGroup ?? []).map((c) => ({ name: c.channel, value: c.users })),
     [d]
@@ -310,16 +331,24 @@ export default function DashboardPage() {
             </Card>
 
             {/* Total Users Overview */}
-            <Card title="Total Users Overview" description="This year vs. previous year, by month.">
+            <Card title={`${monthlyLabel} Overview`} description="This year vs. previous year, by month.">
+              <select
+                value={monthlyMetric}
+                onChange={(e) => setMonthlyMetric(e.target.value as MonthlyMetric)}
+                aria-label="Overview metric"
+                className={`${inputClass} -mt-2 mb-3`}
+              >
+                {MONTHLY_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+              </select>
               <div className="h-72 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={d.monthly} margin={{ top: 8, right: 8, bottom: 4, left: 4 }}>
+                  <BarChart data={monthlyData} margin={{ top: 8, right: 8, bottom: 4, left: 4 }}>
                     <CartesianGrid stroke="#f1f5f4" vertical={false} />
                     <XAxis dataKey="month" tick={{ fontSize: 10 }} interval={0} angle={-30} textAnchor="end" height={54} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => compact(Number(v))} />
                     <Tooltip />
                     <Legend />
-                    <Bar name="Total users" dataKey="current" fill={GREEN} radius={[3, 3, 0, 0]} />
+                    <Bar name={monthlyLabel} dataKey="current" fill={GREEN} radius={[3, 3, 0, 0]} />
                     <Bar name="Previous year" dataKey="previousYear" fill={GREEN_LIGHT} radius={[3, 3, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
