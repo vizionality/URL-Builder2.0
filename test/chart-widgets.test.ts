@@ -96,18 +96,26 @@ describe("time chart grain", () => {
   });
 });
 
-describe("world map US states", () => {
-  it("asks for the metric by US region, ANDed with the page's filters", async () => {
-    const { usRegionsSpec } = await import("@/lib/chart-widgets");
+describe("world map states and provinces", () => {
+  it("asks for the metric by country + region for the US and Canada, ANDed with the page's filters", async () => {
+    const { subdivisionsSpec } = await import("@/lib/chart-widgets");
     const pageFilter = { filter: { fieldName: "sessionMedium", inListFilter: { values: ["cpc"] } } };
-    const spec = usRegionsSpec("newUsers", { ...ctx, filter: { dimensionFilter: pageFilter } });
-    const body = spec.body as { dimensions: { name: string }[]; dimensionFilter: { andGroup: { expressions: unknown[] } } };
-    expect(body.dimensions[0].name).toBe("region");
+    const spec = subdivisionsSpec("newUsers", { ...ctx, filter: { dimensionFilter: pageFilter } });
+    const body = spec.body as {
+      dimensions: { name: string }[];
+      dimensionFilter: { andGroup: { expressions: { filter?: { inListFilter?: { values: string[] } } }[] } };
+    };
+    expect(body.dimensions.map((d) => d.name)).toEqual(["country", "region"]);
     expect(body.dimensionFilter.andGroup.expressions[0]).toEqual(pageFilter);
+    expect(body.dimensionFilter.andGroup.expressions[1].filter?.inListFilter?.values).toEqual(["United States", "Canada"]);
     const rows = [
-      { dimensionValues: [{ value: "Massachusetts" }], metricValues: [{ value: "12" }] },
-      { dimensionValues: [{ value: "(not set)" }], metricValues: [{ value: "3" }] },
+      { dimensionValues: [{ value: "United States" }, { value: "Massachusetts" }], metricValues: [{ value: "12" }] },
+      { dimensionValues: [{ value: "Canada" }, { value: "Ontario" }], metricValues: [{ value: "5" }] },
+      { dimensionValues: [{ value: "Canada" }, { value: "(not set)" }], metricValues: [{ value: "3" }] },
     ];
-    expect(spec.parse(rows)).toEqual([{ label: "Massachusetts", value: 12 }]);
+    expect(spec.parse(rows)).toEqual([
+      { country: "United States", label: "Massachusetts", value: 12 },
+      { country: "Canada", label: "Ontario", value: 5 },
+    ]);
   });
 });

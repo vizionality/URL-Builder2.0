@@ -10,10 +10,31 @@ import {
   rowMetricValues,
   runReport,
 } from "@/lib/ga4-api";
-// US city coordinates by state name, from the GeoNames gazetteer (CC BY 4.0,
-// geonames.org) via the cities.json package. Server-only: never sent whole.
+// City coordinates by state / province name, from the GeoNames gazetteer
+// (CC BY 4.0, geonames.org) via the cities.json package. Server-only: never
+// sent whole.
 import usCitiesJson from "@/data/us-cities.json";
-const usCities = usCitiesJson as unknown as Record<string, Record<string, [number, number]>>;
+import caCitiesJson from "@/data/ca-cities.json";
+type CityCoords = Record<string, Record<string, [number, number]>>;
+const COORDS: Record<string, CityCoords> = {
+  "United States": usCitiesJson as unknown as CityCoords,
+  Canada: caCitiesJson as unknown as CityCoords,
+};
+
+// GA4 writes some city names without accents ("Montreal") where GeoNames has
+// them ("Montréal"), so fall back to an accent- and case-insensitive match.
+const plain = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const plainIndex = new Map<CityCoords[string], Map<string, [number, number]>>();
+function cityAt(coords: CityCoords[string] | undefined, city: string): [number, number] | undefined {
+  if (!coords) return undefined;
+  if (coords[city]) return coords[city];
+  let index = plainIndex.get(coords);
+  if (!index) {
+    index = new Map(Object.entries(coords).map(([name, at]) => [plain(name), at]));
+    plainIndex.set(coords, index);
+  }
+  return index.get(plain(city));
+}
 import { exactFilter, pageFilterExpr, parsePageFilters } from "@/lib/ga4-filters";
 
 function isoDay(v: string | null, fallback: string): string {
@@ -27,6 +48,8 @@ export async function GET(request: Request) {
   const end = isoDay(url.searchParams.get("endDate"), today);
   const start = isoDay(url.searchParams.get("startDate"), `${end.slice(0, 4)}-01-01`);
   const region = (url.searchParams.get("region") ?? "").trim();
+  // The state's country: the US (default) or Canada.
+  const country = url.searchParams.get("country") === "Canada" ? "Canada" : "United States";
   if (!region) return NextResponse.json({ error: "Missing state." }, { status: 400 });
   const filters = parsePageFilters(url.searchParams);
 
@@ -58,7 +81,7 @@ export async function GET(request: Request) {
         metrics: breakdownMetricNames(keyMetric),
         orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
         limit: 100,
-        ...pageFilterExpr(filters, [exactFilter("country", "United States"), exactFilter("region", region)]),
+        ...pageFilterExpr(filters, [exactFilter("country", country), exactFilter("region", region)]),
       },
       request.signal
     );
@@ -67,7 +90,7 @@ export async function GET(request: Request) {
       .filter((c) => c.city && c.city !== "(not set)")
       // GA4 gives city names only; attach coordinates for the heat map when known.
       .map((c) => {
-        const at = usCities[region]?.[c.city];
+        const at = cityAt(COORDS[country][region], c.city);
         return at ? { ...c, lat: at[0], lng: at[1] } : c;
       });
     return NextResponse.json({ region, cities });

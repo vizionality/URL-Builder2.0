@@ -56,7 +56,10 @@ with real GA4 reporting.
   cross-filters set by clicking a chart (source/medium cells, landing page, channel slice,
   Top States bar), shown as removable chips. Shared parsing in `lib/ga4-filters.ts`.
   Clicking a Geo Map state zooms in to a city heat map plus a ranked list (`/api/ga4/cities`).
-  City coordinates come from `src/data/us-cities.json` (GeoNames, CC BY 4.0), server-side only.
+  City coordinates come from `src/data/us-cities.json` and `src/data/ca-cities.json` (GeoNames,
+  CC BY 4.0), server-side only. The World map's North America view shades US states and Canadian
+  provinces (`src/data/canada-provinces.json`, Natural Earth, public domain) and drills into one for
+  a city heat map (`/api/ga4/cities?country=`).
 - Customizable layout: a "Customize" right sidebar lists the widget catalog (`lib/dashboard-widgets.ts`,
   unit-tested) with search, add/remove and Reset to default. The ordered widget ids save per user +
   property in `dashboard_layouts` (migration `20260925_dashboard_layouts.sql`, RLS-no-policies) via

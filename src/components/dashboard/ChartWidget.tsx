@@ -22,11 +22,12 @@ import { ComposableMap, Geographies, Geography, Marker } from "react-simple-maps
 import { feature } from "topojson-client";
 import type { GeometryCollection, Topology } from "topojson-specification";
 import type { FeatureCollection, Geometry } from "geojson";
-import { geoEqualEarth, geoMercator, type GeoPermissibleObjects, type GeoProjection } from "d3-geo";
+import { geoCentroid, geoEqualEarth, geoMercator, type GeoPermissibleObjects, type GeoProjection } from "d3-geo";
 import { getCached, setCached } from "@/lib/response-cache";
 // World country shapes (world-atlas, ISC), bundled so the map never fetches at runtime.
 import worldCountries from "world-atlas/countries-110m.json";
 import usStates from "us-atlas/states-10m.json";
+import canadaProvinces from "@/data/canada-provinces.json";
 import { ArrowLeft, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Card } from "@/components/Card";
 import { bucketLabel, compact, formatDuration, shade, TIME_GRAINS, type TimeGrain } from "@/lib/report";
@@ -36,6 +37,7 @@ import {
   COUNTRY_ALIASES,
   METRIC_BY_ID,
   METRIC_PICK_CHARTS,
+  SUBDIVIDED_COUNTRIES,
   TIME_CHART_TYPES,
   type ChartData,
   type MetricFormat,
@@ -293,8 +295,14 @@ function HBars({ data, format, label }: { data: ListData; format: MetricFormat; 
   );
 }
 
-// US state shapes (us-atlas), for the North America view.
-const usStatesGeography = usStates as unknown as React.ComponentProps<typeof Geographies>["geography"];
+// State / province shapes for the North America view: us-atlas for the US,
+// Natural Earth (public domain) for Canada, bundled so nothing is fetched.
+type SubdividedCountry = (typeof SUBDIVIDED_COUNTRIES)[number];
+type SubdivisionLayer = { country: SubdividedCountry; values: Map<string, number>; max: number };
+const SUBDIVISION_SHAPES: Record<SubdividedCountry, React.ComponentProps<typeof Geographies>["geography"]> = {
+  "United States": usStates as unknown as React.ComponentProps<typeof Geographies>["geography"],
+  Canada: canadaProvinces as unknown as React.ComponentProps<typeof Geographies>["geography"],
+};
 const worldGeography = worldCountries as unknown as React.ComponentProps<typeof Geographies>["geography"];
 
 // Country shapes as GeoJSON, to fit the whole world in the frame.
@@ -357,12 +365,12 @@ const WorldLayer = memo(function WorldLayer({
   max: number;
   projection: GeoProjection;
   // US states shaded on their own scale (North America and state views), or null.
-  states: { values: Map<string, number>; max: number } | null;
+  states: SubdivisionLayer[] | null;
   // Drilled into this state: others fade, and its cities are plotted.
   focusState: string | null;
   cities: CityPoint[];
   onHover: (h: Hover) => void;
-  onPickState: (name: string, geo: GeoPermissibleObjects) => void;
+  onPickState: (name: string, country: SubdividedCountry, geo: GeoPermissibleObjects) => void;
 }) {
   return (
     <ComposableMap projection={projection} width={MAP_W} height={MAP_H} style={{ width: "100%", height: "auto" }}>
@@ -386,31 +394,32 @@ const WorldLayer = memo(function WorldLayer({
           })
         }
       </Geographies>
-      {states && (
-        <Geographies geography={usStatesGeography}>
+      {/* US states and Canadian provinces (North America view), each shaded on its own scale. */}
+      {states?.map((layer) => (
+        <Geographies key={layer.country} geography={SUBDIVISION_SHAPES[layer.country]}>
           {({ geographies }) =>
             geographies.map((geo) => {
-              // GA4 `region` values are full state names, matching us-atlas `name`.
+              // GA4 `region` values are full state / province names, matching the shapes' `name`.
               const name = String(geo.properties?.name ?? "");
-              const value = states.values.get(name) ?? 0;
+              const value = layer.values.get(name) ?? 0;
               const faded = focusState != null && focusState !== name;
               return (
                 <Geography
-                  key={`st-${geo.rsmKey}`}
+                  key={`${layer.country}-${geo.rsmKey}`}
                   geography={geo}
-                  fill={faded ? "#f4f4f5" : focusState ? "#e8f3ef" : shade(value, states.max)}
+                  fill={faded ? "#f4f4f5" : focusState ? "#e8f3ef" : shade(value, layer.max)}
                   stroke={faded ? "#e4e4e7" : "#ffffff"}
                   strokeWidth={0.6}
                   className="cursor-pointer outline-none hover:fill-[#f59e0b]"
                   onMouseEnter={() => onHover({ name, value })}
                   onMouseLeave={() => onHover(null)}
-                  onClick={() => onPickState(name, geo as unknown as GeoPermissibleObjects)}
+                  onClick={() => onPickState(name, layer.country, geo as unknown as GeoPermissibleObjects)}
                 />
               );
             })
           }
         </Geographies>
-      )}
+      ))}
       {/* City heat: a soft glow plus a dot, bigger and hotter for higher values. */}
       {cities.map((c) => (
         <Marker key={`g-${c.city}`} coordinates={[c.lng, c.lat]}>
@@ -458,7 +467,7 @@ function WorldMap({
 }) {
   const [hover, setHover] = useState<Hover>(null);
   // Drilled into a US state (from the North America view).
-  const [drill, setDrill] = useState<{ state: string; projection: GeoProjection } | null>(null);
+  const [drill, setDrill] = useState<{ state: string; country: SubdividedCountry; projection: GeoProjection } | null>(null);
   const [cityRows, setCityRows] = useState<{ state: string; rows: CityRow[]; loading: boolean; error: string | null } | null>(
     null
   );
@@ -471,20 +480,26 @@ function WorldMap({
   // Only North America can drill into a state.
   const activeDrill = region === "northAmerica" ? drill : null;
   const projection = activeDrill?.projection ?? regionProj;
-  // North America (and its states): the US is shaded by state, like the Geo Map.
-  const states = useMemo(() => {
+  // North America: US states and Canadian provinces, each country on its own
+  // shading scale (older data without a country is the US).
+  const states = useMemo((): SubdivisionLayer[] | null => {
     if (region !== "northAmerica" || !data.regions?.length) return null;
-    return {
-      values: new Map(data.regions.map((r) => [r.label, r.value])),
-      max: Math.max(0, ...data.regions.map((r) => r.value)),
-    };
+    return SUBDIVIDED_COUNTRIES.map((country) => {
+      const rows = data.regions!.filter((r) => (r.country ?? "United States") === country);
+      return {
+        country,
+        values: new Map(rows.map((r) => [r.label, r.value])),
+        max: Math.max(0, ...rows.map((r) => r.value)),
+      };
+    });
   }, [region, data]);
 
   const cityMetric = CITY_METRICS.has(metric) ? metric : "sessions";
   const drillState = activeDrill?.state ?? null;
+  const drillCountry = activeDrill?.country ?? null;
   useEffect(() => {
     if (!drillState) return;
-    const url = `/api/ga4/cities?${query}&region=${encodeURIComponent(drillState)}`;
+    const url = `/api/ga4/cities?${query}&region=${encodeURIComponent(drillState)}&country=${encodeURIComponent(drillCountry ?? "United States")}`;
     const cached = getCached<{ cities: CityRow[] }>(url);
     if (cached) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- serve a cached report synchronously
@@ -512,7 +527,7 @@ function WorldMap({
       cancelled = true;
       ac.abort();
     };
-  }, [drillState, query]);
+  }, [drillState, drillCountry, query]);
 
   const cities = useMemo((): CityPoint[] => {
     if (!drillState || cityRows?.state !== drillState) return [];
@@ -526,9 +541,11 @@ function WorldMap({
       .sort((x, y) => y.value - x.value);
   }, [drillState, cityRows, cityMetric]);
 
-  const pickState = useCallback((name: string, geo: GeoPermissibleObjects) => {
+  const pickState = useCallback((name: string, country: SubdividedCountry, geo: GeoPermissibleObjects) => {
     setHover(null);
-    setDrill({ state: name, projection: geoMercator().fitExtent(EXTENT, geo) });
+    // Rotated to the state's centre so a far-north province (Nunavut) fits well.
+    const [lon] = geoCentroid(geo);
+    setDrill({ state: name, country, projection: geoMercator().rotate([-lon, 0]).fitExtent(EXTENT, geo) });
   }, []);
   // Back one level: state -> North America -> World.
   const back = activeDrill ? () => setDrill(null) : region !== "world" ? onRegionBack : null;
@@ -566,7 +583,7 @@ function WorldMap({
                 ? cityRows.error
                 : `${drillState} by city${CITY_METRICS.has(metric) ? "" : " (sessions)"}. Hover a city`
             : states
-              ? "US shaded by state. Click a state for cities"
+              ? "US states and Canadian provinces. Click one for cities"
               : "Hover a country"}
       </p>
     </div>
