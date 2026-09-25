@@ -101,6 +101,12 @@ with real GA4 reporting.
   `GET /api/gsc/report` (totals + previous period, daily, queries, pages, countries, devices). Pure helpers
   in `lib/gsc-report.ts` (unit-tested), API calls in `lib/gsc.ts`.
 
+- AI Overview (/dashboard/ai, first tab): `POST /api/ai/overview` pulls a compact GA4 digest (totals,
+  channels, source/medium, landing pages, each vs the previous period) and Search Console digest (totals,
+  top queries and pages), sends it to Claude server-side (ANTHROPIC_API_KEY, rate-limited), and returns
+  headline, summary, wins, concerns and next steps. Computed on request, never stored. Pure helpers in
+  `lib/ai-overview.ts` (unit-tested).
+
 ### Integrations (/integrations)
 - A tile per platform (icon, name, status) linking to its setup page: /integrations/google-analytics
   (GA4 connect, property, BigQuery link test, Reconnect) and /integrations/search-console. OAuth start takes
