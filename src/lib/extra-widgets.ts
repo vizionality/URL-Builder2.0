@@ -10,7 +10,8 @@ export type Ctx = { current: Range[]; withPrev: Range[]; keyMetric: string; filt
 // A scorecard: value and previous-period value.
 export type ScoreData = { kind: "score"; value: number; prev: number; format: "number" | "percent" | "decimal" | "duration" };
 // A ranked list for a pie or bar.
-export type ListData = { kind: "list"; rows: { label: string; value: number }[] };
+// `regions`: the world map's per-US-state values (for its North America zoom).
+export type ListData = { kind: "list"; rows: { label: string; value: number }[]; regions?: { label: string; value: number }[] };
 // A table with named columns.
 export type TableData = { kind: "table"; columns: string[]; rows: { label: string; values: number[] }[] };
 export type WidgetData = ScoreData | ListData | TableData;

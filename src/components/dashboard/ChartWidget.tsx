@@ -25,6 +25,7 @@ import type { FeatureCollection, Geometry } from "geojson";
 import { geoEqualEarth, geoMercator, type GeoProjection } from "d3-geo";
 // World country shapes (world-atlas, ISC), bundled so the map never fetches at runtime.
 import worldCountries from "world-atlas/countries-110m.json";
+import usStates from "us-atlas/states-10m.json";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Card } from "@/components/Card";
 import { bucketLabel, compact, formatDuration, shade, TIME_GRAINS, type TimeGrain } from "@/lib/report";
@@ -277,6 +278,8 @@ function HBars({ data, format, label }: { data: ListData; format: MetricFormat; 
   );
 }
 
+// US state shapes (us-atlas), for the North America view.
+const usStatesGeography = usStates as unknown as React.ComponentProps<typeof Geographies>["geography"];
 const worldGeography = worldCountries as unknown as React.ComponentProps<typeof Geographies>["geography"];
 
 // Country shapes as GeoJSON, to fit the whole world in the frame.
@@ -316,11 +319,14 @@ const WorldLayer = memo(function WorldLayer({
   values,
   max,
   projection,
+  states,
   onHover,
 }: {
   values: Map<string, number>;
   max: number;
   projection: GeoProjection;
+  // US states shaded on their own scale (North America view), or null.
+  states: { values: Map<string, number>; max: number } | null;
   onHover: (h: { name: string; value: number } | null) => void;
 }) {
   return (
@@ -345,6 +351,29 @@ const WorldLayer = memo(function WorldLayer({
           })
         }
       </Geographies>
+      {states && (
+        <Geographies geography={usStatesGeography}>
+          {({ geographies }) =>
+            geographies.map((geo) => {
+              // GA4 `region` values are full state names, matching us-atlas `name`.
+              const name = String(geo.properties?.name ?? "");
+              const value = states.values.get(name) ?? 0;
+              return (
+                <Geography
+                  key={`st-${geo.rsmKey}`}
+                  geography={geo}
+                  fill={shade(value, states.max)}
+                  stroke="#ffffff"
+                  strokeWidth={0.6}
+                  className="outline-none hover:fill-[#f59e0b]"
+                  onMouseEnter={() => onHover({ name, value })}
+                  onMouseLeave={() => onHover(null)}
+                />
+              );
+            })
+          }
+        </Geographies>
+      )}
     </ComposableMap>
   );
 });
@@ -357,11 +386,23 @@ function WorldMap({ data, format, region }: { data: ListData; format: MetricForm
   );
   const max = Math.max(0, ...data.rows.map((r) => r.value));
   const projection = useMemo(() => regionProjection(region), [region]);
+  // Zoomed to North America: the US is shaded by state, like the Geo Map.
+  const states = useMemo(() => {
+    if (region !== "northAmerica" || !data.regions?.length) return null;
+    return {
+      values: new Map(data.regions.map((r) => [r.label, r.value])),
+      max: Math.max(0, ...data.regions.map((r) => r.value)),
+    };
+  }, [region, data]);
   return (
     <div className="overflow-hidden">
-      <WorldLayer values={values} max={max} projection={projection} onHover={setHover} />
+      <WorldLayer values={values} max={max} projection={projection} states={states} onHover={setHover} />
       <p className="mt-1 text-right text-xs text-zinc-600">
-        {hover ? `${hover.name}: ${formatMetric(hover.value, format)}` : "Hover a country"}
+        {hover
+          ? `${hover.name}: ${formatMetric(hover.value, format)}`
+          : states
+            ? "US shaded by state. Hover a state or country"
+            : "Hover a country"}
       </p>
     </div>
   );
