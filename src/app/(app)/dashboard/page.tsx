@@ -19,6 +19,7 @@ import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
 import { useGa4PropertyId } from "@/lib/storage";
 import { compact, formatDuration, pctDelta } from "@/lib/report";
+import { Breakdowns } from "@/components/dashboard/Breakdowns";
 
 const GREEN = "#12b795";
 const GREEN_LIGHT = "#a4ecd9";
@@ -208,6 +209,14 @@ export default function DashboardPage() {
                 </div>
               </Card>
             </div>
+
+            <Breakdowns
+              propertyId={propertyId}
+              startDate={startDate}
+              endDate={endDate}
+              medium={medium}
+              campaign={campaign}
+            />
           </div>
         )}
       </main>
