@@ -61,15 +61,21 @@ describe("report formatters", () => {
     ["last7", "2026-09-17", "2026-09-23"],
     ["last28", "2026-08-27", "2026-09-23"],
     ["last30", "2026-08-25", "2026-09-23"],
-    ["thisWeekSun", "2026-09-20", "2026-09-24"],
-    ["thisWeekMon", "2026-09-21", "2026-09-24"],
+    ["last90", "2026-06-26", "2026-09-23"],
+    ["thisWeekSun", "2026-09-20", "2026-09-26"],
+    ["thisWeekToDateSun", "2026-09-20", "2026-09-23"],
+    ["thisWeekMon", "2026-09-21", "2026-09-27"],
+    ["thisWeekToDateMon", "2026-09-21", "2026-09-23"],
     ["lastWeekSun", "2026-09-13", "2026-09-19"],
     ["lastWeekMon", "2026-09-14", "2026-09-20"],
-    ["thisMonth", "2026-09-01", "2026-09-24"],
+    ["thisMonth", "2026-09-01", "2026-09-30"],
+    ["thisMonthToDate", "2026-09-01", "2026-09-23"],
     ["lastMonth", "2026-08-01", "2026-08-31"],
-    ["thisQuarter", "2026-07-01", "2026-09-24"],
+    ["thisQuarter", "2026-07-01", "2026-09-30"],
+    ["thisQuarterToDate", "2026-07-01", "2026-09-23"],
     ["lastQuarter", "2026-04-01", "2026-06-30"],
-    ["thisYear", "2026-01-01", "2026-09-24"],
+    ["thisYear", "2026-01-01", "2026-12-31"],
+    ["thisYearToDate", "2026-01-01", "2026-09-23"],
     ["lastYear", "2025-01-01", "2025-12-31"],
   ] as const)("preset %s -> %s..%s", (preset, start, end) => {
     expect(presetRange(preset, T)).toEqual({ startDate: start, endDate: end });
@@ -79,9 +85,19 @@ describe("report formatters", () => {
     expect(presetRange("lastMonth", "2026-01-15")).toEqual({ startDate: "2025-12-01", endDate: "2025-12-31" });
     expect(presetRange("lastQuarter", "2026-02-10")).toEqual({ startDate: "2025-10-01", endDate: "2025-12-31" });
     // 2026-09-20 is a Sunday.
-    expect(presetRange("thisWeekSun", "2026-09-20")).toEqual({ startDate: "2026-09-20", endDate: "2026-09-20" });
+    expect(presetRange("thisWeekSun", "2026-09-20")).toEqual({ startDate: "2026-09-20", endDate: "2026-09-26" });
     expect(presetRange("thisWeekMon", "2026-09-20")).toEqual({ startDate: "2026-09-14", endDate: "2026-09-20" });
+    // To date on the period's first day: nothing before today, so just today.
+    expect(presetRange("thisWeekToDateSun", "2026-09-20")).toEqual({ startDate: "2026-09-20", endDate: "2026-09-20" });
     expect(presetRange("custom", T)).toBeNull();
+  });
+
+  it("include today extends to-date and last-N ranges through today", () => {
+    expect(presetRange("thisYearToDate", T, true)).toEqual({ startDate: "2026-01-01", endDate: "2026-09-24" });
+    expect(presetRange("last7", T, true)).toEqual({ startDate: "2026-09-18", endDate: "2026-09-24" });
+    // Whole periods and fixed past periods ignore it.
+    expect(presetRange("thisMonth", T, true)).toEqual({ startDate: "2026-09-01", endDate: "2026-09-30" });
+    expect(presetRange("lastMonth", T, true)).toEqual({ startDate: "2026-08-01", endDate: "2026-08-31" });
   });
 
   it("comparisonRange picks previous period or previous year", () => {

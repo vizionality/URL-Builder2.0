@@ -75,34 +75,63 @@ export function shiftYear(iso: string, years = -1): string {
 // ---- Date-range presets, matching Looker Studio's date control -------------
 
 export type DatePreset =
-  | "today" | "yesterday"
-  | "last7" | "last14" | "last28" | "last30"
-  | "thisWeekSun" | "thisWeekMon" | "lastWeekSun" | "lastWeekMon"
-  | "thisMonth" | "lastMonth" | "thisQuarter" | "lastQuarter"
-  | "thisYear" | "lastYear" | "custom";
+  | "custom" | "today" | "yesterday"
+  | "thisWeekSun" | "thisWeekToDateSun" | "thisWeekMon" | "thisWeekToDateMon"
+  | "thisMonth" | "thisMonthToDate" | "thisQuarter" | "thisQuarterToDate"
+  | "thisYear" | "thisYearToDate"
+  | "last7" | "last14" | "last28" | "last30" | "last90"
+  | "lastWeekSun" | "lastWeekMon" | "lastMonth" | "lastQuarter" | "lastYear";
 
-export const DATE_PRESETS: { id: DatePreset; label: string }[] = [
-  { id: "today", label: "Today" },
-  { id: "yesterday", label: "Yesterday" },
-  { id: "last7", label: "Last 7 days" },
-  { id: "last14", label: "Last 14 days" },
-  { id: "last28", label: "Last 28 days" },
-  { id: "last30", label: "Last 30 days" },
-  { id: "thisWeekSun", label: "This week (starts Sunday)" },
-  { id: "thisWeekMon", label: "This week (starts Monday)" },
-  { id: "lastWeekSun", label: "Last week (starts Sunday)" },
-  { id: "lastWeekMon", label: "Last week (starts Monday)" },
-  { id: "thisMonth", label: "This month" },
-  { id: "lastMonth", label: "Last month" },
-  { id: "thisQuarter", label: "This quarter" },
-  { id: "lastQuarter", label: "Last quarter" },
-  { id: "thisYear", label: "This year" },
-  { id: "lastYear", label: "Last year" },
-  { id: "custom", label: "Custom" },
+// Grouped like Looker Studio's date menu: top-level items, then the
+// "This ..." and "Last ..." submenus.
+export const PRESET_GROUPS: { label: string; items: { id: DatePreset; label: string }[] }[] = [
+  {
+    label: "",
+    items: [
+      { id: "custom", label: "Fixed" },
+      { id: "today", label: "Today" },
+      { id: "yesterday", label: "Yesterday" },
+    ],
+  },
+  {
+    label: "This period",
+    items: [
+      { id: "thisWeekSun", label: "This week (starts Sunday)" },
+      { id: "thisWeekToDateSun", label: "This week to date (starts Sunday)" },
+      { id: "thisWeekMon", label: "This week (starts Monday)" },
+      { id: "thisWeekToDateMon", label: "This week to date (starts Monday)" },
+      { id: "thisMonth", label: "This month" },
+      { id: "thisMonthToDate", label: "This month to date" },
+      { id: "thisQuarter", label: "This quarter" },
+      { id: "thisQuarterToDate", label: "This quarter to date" },
+      { id: "thisYear", label: "This year" },
+      { id: "thisYearToDate", label: "This year to date" },
+    ],
+  },
+  {
+    label: "Last period",
+    items: [
+      { id: "last7", label: "Last 7 days" },
+      { id: "last14", label: "Last 14 days" },
+      { id: "last28", label: "Last 28 days" },
+      { id: "last30", label: "Last 30 days" },
+      { id: "last90", label: "Last 90 days" },
+      { id: "lastWeekSun", label: "Last week (starts Sunday)" },
+      { id: "lastWeekMon", label: "Last week (starts Monday)" },
+      { id: "lastMonth", label: "Last month" },
+      { id: "lastQuarter", label: "Last quarter" },
+      { id: "lastYear", label: "Last year" },
+    ],
+  },
 ];
 
-// Looker Studio's default for a new report.
-export const DEFAULT_PRESET: DatePreset = "last28";
+export const DATE_PRESETS = PRESET_GROUPS.flatMap((g) => g.items);
+export function presetLabel(id: DatePreset): string {
+  return DATE_PRESETS.find((p) => p.id === id)?.label ?? id;
+}
+
+// The Hearthside Looker report's default.
+export const DEFAULT_PRESET: DatePreset = "thisYearToDate";
 
 function addDaysIso(iso: string, n: number): string {
   const ms = Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000;
@@ -117,37 +146,53 @@ function monthFirst(y: number, m: number, offset: number): string {
   return ymd(Math.floor(idx / 12), (idx % 12) + 1, 1);
 }
 
-// Resolve a preset to an inclusive ISO range, relative to `today` (ISO).
-// Like Looker Studio, "Last N days" ends yesterday, and "This ..." periods run
-// to today. Returns null for "custom", whose range comes from the user.
-export function presetRange(preset: DatePreset, today: string): { startDate: string; endDate: string } | null {
+// Resolve a preset to an inclusive ISO range, relative to `today` (ISO),
+// following Looker Studio:
+// - "This month" etc. cover the whole period, including days not yet reached.
+// - "... to date" and "Last N days" end yesterday, or today with includeToday.
+// - A to-date range on the period's first day (nothing before today) is today.
+// Returns null for "custom" (Fixed), whose range comes from the user.
+export function presetRange(
+  preset: DatePreset,
+  today: string,
+  includeToday = false
+): { startDate: string; endDate: string } | null {
   const [y, m] = today.split("-").map(Number);
   const dow = new Date(`${today}T00:00:00Z`).getUTCDay(); // 0 = Sunday
   const yesterday = addDaysIso(today, -1);
+  const last = includeToday ? today : yesterday;
   const r = (startDate: string, endDate: string) => ({ startDate, endDate });
+  const toDate = (start: string) => r(start, last < start ? today : last);
+  const lastN = (n: number) => r(addDaysIso(last, -(n - 1)), last);
   const sunStart = addDaysIso(today, -dow);
   const monStart = addDaysIso(today, -((dow + 6) % 7));
   const qStartMonth = Math.floor((m - 1) / 3) * 3 + 1;
   const thisQuarter = ymd(y, qStartMonth, 1);
 
   switch (preset) {
+    case "custom": return null;
     case "today": return r(today, today);
     case "yesterday": return r(yesterday, yesterday);
-    case "last7": return r(addDaysIso(today, -7), yesterday);
-    case "last14": return r(addDaysIso(today, -14), yesterday);
-    case "last28": return r(addDaysIso(today, -28), yesterday);
-    case "last30": return r(addDaysIso(today, -30), yesterday);
-    case "thisWeekSun": return r(sunStart, today);
-    case "thisWeekMon": return r(monStart, today);
+    case "thisWeekSun": return r(sunStart, addDaysIso(sunStart, 6));
+    case "thisWeekToDateSun": return toDate(sunStart);
+    case "thisWeekMon": return r(monStart, addDaysIso(monStart, 6));
+    case "thisWeekToDateMon": return toDate(monStart);
+    case "thisMonth": return r(ymd(y, m, 1), addDaysIso(monthFirst(y, m, 1), -1));
+    case "thisMonthToDate": return toDate(ymd(y, m, 1));
+    case "thisQuarter": return r(thisQuarter, addDaysIso(monthFirst(y, qStartMonth, 3), -1));
+    case "thisQuarterToDate": return toDate(thisQuarter);
+    case "thisYear": return r(ymd(y, 1, 1), ymd(y, 12, 31));
+    case "thisYearToDate": return toDate(ymd(y, 1, 1));
+    case "last7": return lastN(7);
+    case "last14": return lastN(14);
+    case "last28": return lastN(28);
+    case "last30": return lastN(30);
+    case "last90": return lastN(90);
     case "lastWeekSun": return r(addDaysIso(sunStart, -7), addDaysIso(sunStart, -1));
     case "lastWeekMon": return r(addDaysIso(monStart, -7), addDaysIso(monStart, -1));
-    case "thisMonth": return r(ymd(y, m, 1), today);
     case "lastMonth": return r(monthFirst(y, m, -1), addDaysIso(ymd(y, m, 1), -1));
-    case "thisQuarter": return r(thisQuarter, today);
     case "lastQuarter": return r(monthFirst(y, qStartMonth, -3), addDaysIso(thisQuarter, -1));
-    case "thisYear": return r(ymd(y, 1, 1), today);
     case "lastYear": return r(ymd(y - 1, 1, 1), ymd(y - 1, 12, 31));
-    case "custom": return null;
   }
 }
 
