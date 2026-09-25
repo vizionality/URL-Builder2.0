@@ -858,6 +858,7 @@ export default function DashboardPage() {
                         onMetric={(m) => setChartMetric(id, m)}
                         grain={chartGrains[id] ?? "day"}
                         onGrain={(g) => setChartGrain(id, g)}
+                        query={geoQuery}
                       />,
                     ])
                 ),
