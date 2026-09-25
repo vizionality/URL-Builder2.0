@@ -15,7 +15,8 @@ import {
 } from "recharts";
 import { Loader2, TrendingUp, TrendingDown } from "lucide-react";
 import { Card } from "@/components/Card";
-import { compact, pctDelta } from "@/lib/report";
+import { compact, metricLabel, pctDelta, type BreakdownMetric } from "@/lib/report";
+import { MetricSelect } from "@/components/dashboard/MetricSelect";
 import { getCached, setCached } from "@/lib/response-cache";
 
 const LINE_COLORS = ["#12b795", "#3b82f6", "#f59e0b", "#ec4899", "#8b5cf6"];
@@ -118,6 +119,8 @@ export function Breakdowns({
   onLanding: (v: string) => void;
   compare: "period" | "year";
 }) {
+  // What Top Traffic Sources ranks and trends by; changing it re-queries.
+  const [sourceMetric, setSourceMetric] = useState<BreakdownMetric>("totalUsers");
   const [state, setState] = useState<{ loading: boolean; error: string | null; data: Breakdowns | null }>(
     { loading: false, error: null, data: null }
   );
@@ -129,6 +132,7 @@ export function Breakdowns({
     p.set("startDate", startDate);
     p.set("endDate", endDate);
     p.set("compare", compare);
+    p.set("sourceMetric", sourceMetric);
     const url = `/api/ga4/breakdowns?${p.toString()}`;
     // A filter combination seen in the last few minutes shows instantly.
     const cached = getCached<Breakdowns>(url);
@@ -159,7 +163,7 @@ export function Breakdowns({
       cancelled = true;
       ac.abort();
     };
-  }, [propertyId, startDate, endDate, compare, filterQs]);
+  }, [propertyId, startDate, endDate, compare, filterQs, sourceMetric]);
 
   if (state.loading && !state.data) {
     return (
@@ -181,7 +185,8 @@ export function Breakdowns({
   return (
     <div className={`space-y-6 transition-opacity ${state.loading ? "opacity-60" : ""}`}>
       {/* Top Traffic Sources */}
-      <Card title="Top Traffic Sources" description="Click a source or medium to filter.">
+      <Card title="Top Traffic Sources" description={`Ranked by ${metricLabel(sourceMetric).toLowerCase()}. Click a source or medium to filter.`}>
+        <MetricSelect value={sourceMetric} onChange={setSourceMetric} label="Top Traffic Sources metric" />
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -189,7 +194,7 @@ export function Breakdowns({
                 <tr className="border-b border-zinc-200">
                   <th className={th}>Source</th>
                   <th className={th}>Medium</th>
-                  <th className={`${th} text-right`}>Total users</th>
+                  <th className={`${th} text-right`}>{metricLabel(sourceMetric)}</th>
                   <th className={`${th} text-right`}>%Δ</th>
                 </tr>
               </thead>

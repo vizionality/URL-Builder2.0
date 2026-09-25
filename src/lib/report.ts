@@ -230,3 +230,28 @@ export function pivotDaily(
     });
   return { data, series };
 }
+
+// ---- Switchable breakdown metrics -------------------------------------------
+
+// Metrics the Channel Group, Top States / Geo Map and Top Traffic Sources
+// dropdowns switch between. "keyEvents" is GA4's key events (named
+// "conversions" on older properties; the server resolves the real name).
+export type BreakdownMetric = "totalUsers" | "newUsers" | "sessions" | "engagedSessions" | "keyEvents";
+
+export const BREAKDOWN_METRICS: { id: BreakdownMetric; label: string }[] = [
+  { id: "totalUsers", label: "Total users" },
+  { id: "newUsers", label: "New users" },
+  { id: "sessions", label: "Sessions" },
+  { id: "engagedSessions", label: "Engaged sessions" },
+  { id: "keyEvents", label: "Key events" },
+];
+
+export function parseBreakdownMetric(v: string | null, fallback: BreakdownMetric): BreakdownMetric {
+  return BREAKDOWN_METRICS.some((m) => m.id === v) ? (v as BreakdownMetric) : fallback;
+}
+
+export function metricLabel(id: BreakdownMetric): string {
+  return BREAKDOWN_METRICS.find((m) => m.id === id)?.label ?? id;
+}
+
+export type MetricValues = Record<BreakdownMetric, number>;

@@ -2,7 +2,14 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
-import { runReport, ga4FailureMessage, Ga4Error } from "@/lib/ga4-api";
+import {
+  breakdownMetricNames,
+  detectKeyMetric,
+  ga4FailureMessage,
+  Ga4Error,
+  rowMetricValues,
+  runReport,
+} from "@/lib/ga4-api";
 // US city coordinates by state name, from the GeoNames gazetteer (CC BY 4.0,
 // geonames.org) via the cities.json package. Server-only: never sent whole.
 import usCitiesJson from "@/data/us-cities.json";
@@ -13,7 +20,7 @@ function isoDay(v: string | null, fallback: string): string {
   return v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : fallback;
 }
 
-// New users by city within one US state, for the Geo Map drill-down.
+// City metrics within one US state, for the Geo Map drill-down.
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const today = new Date().toISOString().slice(0, 10);
@@ -40,22 +47,24 @@ export async function GET(request: Request) {
   }
 
   try {
+    // Every switchable metric, so the map's dropdown switches without a refetch.
+    const keyMetric = await detectKeyMetric(conn.property_id, token, request.signal);
     const rows = await runReport(
       conn.property_id,
       token,
       {
         dateRanges: [{ startDate: start, endDate: end }],
         dimensions: [{ name: "city" }],
-        metrics: [{ name: "newUsers" }],
-        orderBys: [{ desc: true, metric: { metricName: "newUsers" } }],
-        limit: 50,
+        metrics: breakdownMetricNames(keyMetric),
+        orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
+        limit: 100,
         ...pageFilterExpr(filters, [exactFilter("country", "United States"), exactFilter("region", region)]),
       },
       request.signal
     );
     const cities = rows
-      .map((r) => ({ city: r.dimensionValues?.[0]?.value ?? "", newUsers: Number(r.metricValues?.[0]?.value ?? 0) }))
-      .filter((c) => c.city && c.newUsers > 0)
+      .map((r) => ({ city: r.dimensionValues?.[0]?.value ?? "", values: rowMetricValues(r) }))
+      .filter((c) => c.city && c.city !== "(not set)")
       // GA4 gives city names only; attach coordinates for the heat map when known.
       .map((c) => {
         const at = usCities[region]?.[c.city];

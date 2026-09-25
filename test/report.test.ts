@@ -134,3 +134,13 @@ describe("report formatters", () => {
     ]);
   });
 });
+
+describe("breakdown metrics", () => {
+  it("parses known metrics and falls back otherwise", async () => {
+    const { parseBreakdownMetric, metricLabel } = await import("@/lib/report");
+    expect(parseBreakdownMetric("keyEvents", "totalUsers")).toBe("keyEvents");
+    expect(parseBreakdownMetric("bogus", "totalUsers")).toBe("totalUsers");
+    expect(parseBreakdownMetric(null, "newUsers")).toBe("newUsers");
+    expect(metricLabel("engagedSessions")).toBe("Engaged sessions");
+  });
+});

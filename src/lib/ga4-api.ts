@@ -168,3 +168,16 @@ export function ga4FailureMessage(err: unknown): string {
   }
   return "GA4 report failed. Try again shortly.";
 }
+
+// GA4 metric names for every switchable breakdown metric, in BREAKDOWN_METRICS
+// order, with key events resolved to the property's own name.
+export const BREAKDOWN_METRIC_IDS = ["totalUsers", "newUsers", "sessions", "engagedSessions", "keyEvents"] as const;
+export function breakdownMetricNames(keyMetric: string): { name: string }[] {
+  return BREAKDOWN_METRIC_IDS.map((id) => ({ name: id === "keyEvents" ? keyMetric : id }));
+}
+// Read a row's metric values back into { totalUsers, ..., keyEvents }.
+export function rowMetricValues(r: RawRow): Record<(typeof BREAKDOWN_METRIC_IDS)[number], number> {
+  const out = {} as Record<(typeof BREAKDOWN_METRIC_IDS)[number], number>;
+  BREAKDOWN_METRIC_IDS.forEach((id, i) => (out[id] = Number(r.metricValues?.[i]?.value ?? 0)));
+  return out;
+}

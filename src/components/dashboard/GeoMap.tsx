@@ -6,7 +6,7 @@ import { geoAlbersUsa, geoMercator, type GeoPermissibleObjects, type GeoProjecti
 import { ArrowLeft, Loader2, Minus, Plus, RotateCcw } from "lucide-react";
 // US state shapes, bundled at build time so the map never fetches at runtime.
 import usStates from "us-atlas/states-10m.json";
-import { shade } from "@/lib/report";
+import { metricLabel, shade, type BreakdownMetric, type MetricValues } from "@/lib/report";
 import { getCached, setCached } from "@/lib/response-cache";
 
 // us-atlas ships TopoJSON. react-simple-maps converts TopoJSON at runtime, but
@@ -101,7 +101,7 @@ const MapLayer = memo(function MapLayer({
         }
       </Geographies>
       {/* City heat: a soft blurred glow per city plus a crisp dot. Bigger and
-          hotter means more new users. Biggest drawn first so small ones stay on top. */}
+          hotter means a higher value of the chosen metric. Biggest drawn first so small ones stay on top. */}
       {points.length > 0 && (
         <defs>
           <filter id="city-heat" x="-100%" y="-100%" width="300%" height="300%">
@@ -123,7 +123,7 @@ const MapLayer = memo(function MapLayer({
             stroke="#ffffff"
             strokeWidth={1 / pos.zoom}
             className="cursor-pointer"
-            onMouseEnter={() => onHover({ name: p.city, value: p.newUsers })}
+            onMouseEnter={() => onHover({ name: p.city, value: p.value })}
             onMouseLeave={() => onHover(null)}
           />
         </Marker>
@@ -133,10 +133,10 @@ const MapLayer = memo(function MapLayer({
   );
 });
 
-type City = { city: string; newUsers: number; lat?: number; lng?: number };
+type City = { city: string; values: MetricValues; lat?: number; lng?: number };
 type Cities = { region: string; cities: City[] };
 // A plotted city: `t` is 0..1 intensity, `r` the dot radius in map units.
-type CityPoint = { city: string; newUsers: number; lat: number; lng: number; t: number; r: number };
+type CityPoint = { city: string; value: number; lat: number; lng: number; t: number; r: number };
 
 // Yellow -> orange -> red as intensity rises.
 function heat(t: number): string {
@@ -160,19 +160,28 @@ function homeOf(projection: GeoProjection): Pos {
 const US_PROJECTION = geoAlbersUsa().translate([WIDTH / 2, HEIGHT / 2]);
 const US_HOME = homeOf(US_PROJECTION);
 
-// Choropleth of new users by US state. Clicking a state zooms into it and
+// Choropleth of the chosen metric by US state. Clicking a state zooms into it and
 // shows a city heat map plus a ranked list. GA4 has no city coordinates; the
 // server attaches them from a bundled gazetteer, and unmatched cities are
 // listed but not plotted. `query` carries the dashboard's date range and filters.
-export function GeoMap({ data, query }: { data: { region: string; newUsers: number }[]; query: string }) {
+export function GeoMap({
+  data,
+  metric,
+  query,
+}: {
+  data: { region: string; value: number }[];
+  metric: BreakdownMetric;
+  query: string;
+}) {
+  const unit = metricLabel(metric).toLowerCase();
   const [hover, setHover] = useState<Hover>(null);
   const [selected, setSelected] = useState<Selected>(null);
   const [cities, setCities] = useState<{ loading: boolean; error: string | null; data: Cities | null }>(
     { loading: false, error: null, data: null }
   );
 
-  const byState = useMemo(() => new Map(data.map((d) => [d.region, d.newUsers])), [data]);
-  const max = useMemo(() => Math.max(0, ...data.map((d) => d.newUsers)), [data]);
+  const byState = useMemo(() => new Map(data.map((d) => [d.region, d.value])), [data]);
+  const max = useMemo(() => Math.max(0, ...data.map((d) => d.value)), [data]);
 
   const [pos, setPos] = useState<Pos>(US_HOME);
 
@@ -227,18 +236,27 @@ export function GeoMap({ data, query }: { data: { region: string; newUsers: numb
     };
   }, [stateName, query]);
 
-  const cityList = useMemo(() => cities.data?.cities ?? [], [cities.data]);
-  const cityMax = Math.max(0, ...cityList.map((c) => c.newUsers));
+  // The city list follows the metric: ranked by it, zero rows dropped.
+  const cityList = useMemo(
+    () =>
+      (cities.data?.cities ?? [])
+        .map((c) => ({ ...c, value: c.values?.[metric] ?? 0 }))
+        .filter((c) => c.value > 0)
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 50),
+    [cities.data, metric]
+  );
+  const cityMax = Math.max(0, ...cityList.map((c) => c.value));
   const points = useMemo(() => {
     if (!selected || cityList.length === 0) return NO_POINTS;
-    const top = Math.max(1, ...cityList.map((c) => c.newUsers));
+    const top = Math.max(1, ...cityList.map((c) => c.value));
     return cityList
-      .filter((c): c is City & { lat: number; lng: number } => c.lat != null && c.lng != null)
+      .filter((c): c is City & { value: number; lat: number; lng: number } => c.lat != null && c.lng != null)
       .map((c) => {
-        const t = Math.sqrt(c.newUsers / top);
-        return { city: c.city, newUsers: c.newUsers, lat: c.lat, lng: c.lng, t, r: 4 + t * 18 };
+        const t = Math.sqrt(c.value / top);
+        return { city: c.city, value: c.value, lat: c.lat, lng: c.lng, t, r: 4 + t * 18 };
       })
-      .sort((a, b) => b.newUsers - a.newUsers);
+      .sort((a, b) => b.value - a.value);
   }, [selected, cityList]);
   const unplotted = cityList.length - points.length;
 
@@ -289,7 +307,7 @@ export function GeoMap({ data, query }: { data: { region: string; newUsers: numb
             <span>{max.toLocaleString("en-US")}</span>
           </div>
           <span className="truncate text-zinc-700">
-            {hover ? `${hover.name}: ${hover.value.toLocaleString("en-US")} new users` : "Click a state for cities. Drag to move."}
+            {hover ? `${hover.name}: ${hover.value.toLocaleString("en-US")} ${unit}` : "Click a state for cities. Drag to move."}
           </span>
         </div>
       ) : (
@@ -298,8 +316,8 @@ export function GeoMap({ data, query }: { data: { region: string; newUsers: numb
             <span className="font-medium text-zinc-800">{selected.name} by city</span>
             <span className="text-xs text-zinc-500">
               {hover
-                ? `${hover.name}: ${hover.value.toLocaleString("en-US")} new users`
-                : `${(byState.get(selected.name) ?? 0).toLocaleString("en-US")} new users`}
+                ? `${hover.name}: ${hover.value.toLocaleString("en-US")} ${unit}`
+                : `${(byState.get(selected.name) ?? 0).toLocaleString("en-US")} ${unit}`}
             </span>
           </div>
           {cities.loading && (
@@ -324,10 +342,10 @@ export function GeoMap({ data, query }: { data: { region: string; newUsers: numb
                   <div className="h-2 flex-1 rounded-sm bg-zinc-100">
                     <div
                       className="h-2 rounded-sm"
-                      style={{ width: `${(c.newUsers / cityMax) * 100}%`, background: shade(c.newUsers, cityMax) }}
+                      style={{ width: `${(c.value / cityMax) * 100}%`, background: shade(c.value, cityMax) }}
                     />
                   </div>
-                  <span className="w-12 text-right tabular-nums text-zinc-600">{c.newUsers.toLocaleString("en-US")}</span>
+                  <span className="w-12 text-right tabular-nums text-zinc-600">{c.value.toLocaleString("en-US")}</span>
                 </li>
               ))}
             </ul>
