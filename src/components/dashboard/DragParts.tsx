@@ -110,7 +110,8 @@ export function SortableWidget({
       >
         <GripVertical className="h-4 w-4" />
       </button>
-      {children}
+      {/* Fills the grid cell so cards in a row share the tallest height. */}
+      <div className="h-full">{children}</div>
     </div>
   );
 }
