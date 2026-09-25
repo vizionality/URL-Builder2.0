@@ -44,7 +44,7 @@ with real GA4 reporting.
   (monthly, this year vs previous year; metric dropdown: total/new/returning users, sessions,
   engaged sessions); Channel Group pie; Top States bar; US Geo Map (metric dropdowns on the pie,
   on Top States shared with the map and its city view, and on Top Traffic Sources: total/new
-  users, sessions, engaged sessions, key events)
+  users, sessions, engaged sessions, key events; Top Traffic Sources omits key events)
   choropleth (react-simple-maps + us-atlas, bundled, no runtime fetch); Top Traffic Sources,
   Landing Pages, and Conversions, each a table plus a daily trend.
 - Data: `/api/ga4/overview` (scorecards, monthly, channel, states, geo, filter options) and
