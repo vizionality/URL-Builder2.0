@@ -20,6 +20,7 @@ import { Card } from "@/components/Card";
 import { useGa4PropertyId } from "@/lib/storage";
 import { compact, formatDuration, pctDelta } from "@/lib/report";
 import { Breakdowns } from "@/components/dashboard/Breakdowns";
+import { GeoMap } from "@/components/dashboard/GeoMap";
 
 const GREEN = "#12b795";
 const GREEN_LIGHT = "#a4ecd9";
@@ -33,6 +34,7 @@ type Overview = {
   };
   channelGroup: { channel: string; users: number }[];
   topStates: { region: string; newUsers: number }[];
+  geo: { region: string; newUsers: number }[];
   monthly: { month: string; current: number; previousYear: number }[];
   filters: { mediums: string[]; campaigns: string[] };
   range: { startDate: string; endDate: string };
@@ -178,7 +180,7 @@ export default function DashboardPage() {
               </div>
             </Card>
 
-            <div className="grid gap-6 lg:grid-cols-2">
+            <div className="grid gap-6 lg:grid-cols-3">
               {/* Channel Group */}
               <Card title="Channel Group" description="Total users by default channel group.">
                 <div className="h-72 w-full">
@@ -207,6 +209,15 @@ export default function DashboardPage() {
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
+              </Card>
+
+              {/* Geo Map */}
+              <Card title="Geo Map" description="New users by US state.">
+                {d.geo.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-zinc-400">No US state data in this range.</p>
+                ) : (
+                  <GeoMap data={d.geo} />
+                )}
               </Card>
             </div>
 

@@ -47,6 +47,22 @@ export function previousPeriod(startIso: string, endIso: string): { start: strin
   return { start: iso(prevStart), end: iso(prevEnd) };
 }
 
+// Choropleth fill: interpolate from a light to a dark app green by value/max.
+// Zero (or no data) gets a neutral fill so "no users" reads differently from
+// "a few users".
+const SHADE_EMPTY = "#eef2f1";
+const SHADE_LOW = [0xd9, 0xf5, 0xec];
+const SHADE_HIGH = [0x0c, 0x7a, 0x65];
+export function shade(value: number, max: number): string {
+  if (!(value > 0) || !(max > 0)) return SHADE_EMPTY;
+  // sqrt spreads the colors so one dominant state doesn't wash out the rest.
+  const t = Math.min(1, Math.sqrt(value / max));
+  const hex = SHADE_LOW.map((lo, i) =>
+    Math.round(lo + (SHADE_HIGH[i] - lo) * t).toString(16).padStart(2, "0")
+  );
+  return `#${hex.join("")}`;
+}
+
 // Shift an ISO date back one calendar year.
 export function shiftYear(iso: string, years = -1): string {
   const [y, m, d] = iso.split("-").map(Number);

@@ -7,6 +7,7 @@ import {
   previousPeriod,
   shiftYear,
   pivotDaily,
+  shade,
 } from "@/lib/report";
 
 describe("report formatters", () => {
@@ -46,6 +47,14 @@ describe("report formatters", () => {
   it("shiftYear moves back a calendar year", () => {
     expect(shiftYear("2026-09-23")).toBe("2025-09-23");
     expect(shiftYear("2026-01-01", -1)).toBe("2025-01-01");
+  });
+
+  it("shade maps value/max onto a light-to-dark green, neutral for none", () => {
+    expect(shade(0, 100)).toBe("#eef2f1");
+    expect(shade(5, 0)).toBe("#eef2f1");
+    expect(shade(100, 100)).toBe("#0c7a65");
+    // A quarter of max -> sqrt 0.5 -> halfway between the two ends.
+    expect(shade(25, 100)).toBe("#73b8a9");
   });
 
   it("pivotDaily builds zero-filled rows with safe series keys", () => {

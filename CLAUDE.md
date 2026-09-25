@@ -37,10 +37,17 @@ with real GA4 reporting.
   server-side (ANTHROPIC_API_KEY) and returns 3-5 snake_case names. Never client-side.
 
 ### Dashboard (/dashboard)
-- Date range picker top right. Three chart cards (recharts): Active Campaigns (bar, monthly),
-  Clicks (line, daily), Engagement Rate by source (pie). Three summary cards.
-- Pulls real GA4 data via /api/ga4/report when a Property ID is saved; otherwise
-  clearly-labeled sample data.
+- A GA4 report modeled on the Hearthside Looker Studio dashboard. Header: session medium
+  and session campaign dropdowns plus a date range (default year to date).
+- Tiles: seven summary scorecards (Views, Total users, New users, Sessions, Engagement rate,
+  Avg session duration, Generate Lead) with %Δ vs the previous period; Total Users Overview
+  (monthly, this year vs previous year); Channel Group pie; Top States bar; US Geo Map
+  choropleth (react-simple-maps + us-atlas, bundled, no runtime fetch); Top Traffic Sources,
+  Landing Pages, and Conversions, each a table plus a daily trend.
+- Data: `/api/ga4/overview` (scorecards, monthly, channel, states, geo, filter options) and
+  `/api/ga4/breakdowns` (sources, pages, conversions). Per-user OAuth, computed on read.
+  Pure formatters live in `lib/report.ts` (unit-tested).
+- No property connected -> a connect-GA4 prompt, not sample data.
 
 ### Integrations (/integrations)
 - Google Analytics 4 card: GA4 Property ID input (numeric, e.g. 123456789).
