@@ -5,6 +5,9 @@ const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const SCOPES = [
   "https://www.googleapis.com/auth/analytics.readonly",
+  // Search Console (SEO Dashboard). Accounts connected before this was added
+  // reconnect once to grant it.
+  "https://www.googleapis.com/auth/webmasters.readonly",
   "openid",
   "email",
 ];

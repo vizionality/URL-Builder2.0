@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Loader2, Plug, CheckCircle2 } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
+import { SearchConsoleCard } from "@/components/SearchConsoleCard";
 
 type Connection = {
   connected: boolean;
@@ -180,6 +181,11 @@ export default function IntegrationsPage() {
             </div>
           )}
         </Card>
+        {connection !== null && (
+          <div className="mt-6">
+            <SearchConsoleCard googleConnected={connection.connected} />
+          </div>
+        )}
       </main>
     </>
   );

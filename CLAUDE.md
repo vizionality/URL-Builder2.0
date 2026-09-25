@@ -95,6 +95,11 @@ with real GA4 reporting.
   SEO Dashboard (/dashboard/seo), Social Media (/dashboard/social), and a More menu to create, name and
   delete custom pages (/dashboard/p/[id], names kept in localStorage `dashboardPages`). Pages other than
   Google Analytics are blank for now: grey dashed outlines where the GA cards sit.
+- SEO Dashboard (/dashboard/seo): Google Search Console via the same Google OAuth connection (scope
+  webmasters.readonly; older connections reconnect once). The site is picked on Integrations and saved in
+  `ga4_connections.gsc_site_url` (migration `20260927_gsc_site.sql`). `GET /api/gsc/sites`, `POST /api/gsc/site`,
+  `GET /api/gsc/report` (totals + previous period, daily, queries, pages, countries, devices). Pure helpers
+  in `lib/gsc-report.ts` (unit-tested), API calls in `lib/gsc.ts`.
 
 ### Integrations (/integrations)
 - Google Analytics 4 card: GA4 Property ID input (numeric, e.g. 123456789).

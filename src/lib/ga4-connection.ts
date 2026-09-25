@@ -6,6 +6,7 @@ export type Ga4Connection = {
   email: string | null;
   property_id: string | null;
   property_name: string | null;
+  gsc_site_url: string | null;
 };
 
 export async function getGa4Connection(
@@ -14,7 +15,7 @@ export async function getGa4Connection(
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("ga4_connections")
-    .select("user_id, refresh_token, email, property_id, property_name")
+    .select("*")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw error;
@@ -61,6 +62,16 @@ export async function deleteGa4Connection(userId: string): Promise<void> {
   const { error } = await admin
     .from("ga4_connections")
     .delete()
+    .eq("user_id", userId);
+  if (error) throw error;
+}
+
+// The Search Console site shown on the SEO Dashboard (e.g. "sc-domain:example.com").
+export async function setGscSite(userId: string, siteUrl: string | null): Promise<void> {
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("ga4_connections")
+    .update({ gsc_site_url: siteUrl, updated_at: new Date().toISOString() })
     .eq("user_id", userId);
   if (error) throw error;
 }

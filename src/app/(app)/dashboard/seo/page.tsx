@@ -1,12 +1,13 @@
 import { Header } from "@/components/Header";
-import { BlankDashboard, DashboardTabs } from "@/components/dashboard/DashboardTabs";
+import { DashboardTabs } from "@/components/dashboard/DashboardTabs";
+import { SeoDashboard } from "@/components/dashboard/SeoDashboard";
 
 export default function SeoDashboardPage() {
   return (
     <>
-      <Header title="Dashboard" subtitle="SEO Dashboard" />
+      <Header title="Dashboard" subtitle="Google Search Console performance" />
       <DashboardTabs />
-      <BlankDashboard name="SEO Dashboard" />
+      <SeoDashboard />
     </>
   );
 }
