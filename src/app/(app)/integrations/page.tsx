@@ -5,6 +5,7 @@ import { Loader2, Plug, CheckCircle2 } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
 import { SearchConsoleCard } from "@/components/SearchConsoleCard";
+import { BigQueryLinkTest } from "@/components/BigQueryLinkTest";
 
 type Connection = {
   connected: boolean;
@@ -160,6 +161,8 @@ export default function IntegrationsPage() {
                   Pick the property whose campaign data you want to see.
                 </p>
               </div>
+
+              {connection.propertyId && <BigQueryLinkTest propertyId={connection.propertyId} />}
 
               <div className="flex gap-2">
                 <button

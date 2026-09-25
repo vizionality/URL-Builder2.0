@@ -8,6 +8,8 @@ const SCOPES = [
   // Search Console (SEO Dashboard). Accounts connected before this was added
   // reconnect once to grant it.
   "https://www.googleapis.com/auth/webmasters.readonly",
+  // Creating the GA4 -> BigQuery export link changes GA4 settings.
+  "https://www.googleapis.com/auth/analytics.edit",
   "openid",
   "email",
 ];
