@@ -190,7 +190,12 @@ const NO_KEY_EVENTS: BreakdownMetric[] = ["keyEvents"];
 const pct = (v: number | undefined) => (v == null ? "—" : `${v.toFixed(1)}%`);
 const pickable = "max-w-full truncate text-left hover:text-green-700 hover:underline";
 
+// The three data sections the server returns; each has a full-width card
+// plus separate table and trend cards.
 export type BreakdownPart = "sources" | "pages" | "conversions";
+export type BreakdownCard =
+  | BreakdownPart
+  | "sources.table" | "sources.trend" | "pages.table" | "pages.trend" | "conversions.table" | "conversions.trend";
 
 export function Breakdowns({
   propertyId,
@@ -217,7 +222,7 @@ export function Breakdowns({
   // Which of the three cards are on the dashboard; only those are queried.
   parts: BreakdownPart[];
   // Places each card in the page's layout (render prop).
-  children: (cards: Partial<Record<BreakdownPart, React.ReactNode>>) => React.ReactNode;
+  children: (cards: Partial<Record<BreakdownCard, React.ReactNode>>) => React.ReactNode;
 }) {
   const partsKey = parts.join(",");
   // What Top Traffic Sources ranks and trends by; changing it re-queries.
@@ -279,7 +284,9 @@ export function Breakdowns({
   }, [propertyId, startDate, endDate, compare, filterQs, sourceMetric, serverGrain, partsKey]);
 
   const status = (node: React.ReactNode) =>
-    Object.fromEntries(parts.map((part) => [part, node])) as Partial<Record<BreakdownPart, React.ReactNode>>;
+    Object.fromEntries(
+      parts.flatMap((part) => [part, `${part}.table`, `${part}.trend`]).map((key) => [key, node])
+    ) as Partial<Record<BreakdownCard, React.ReactNode>>;
   if (state.loading && !state.data) {
     return children(status(
       <Card>
@@ -314,139 +321,159 @@ export function Breakdowns({
   const maxConv = Math.max(0, ...d.conversions.map((c) => c.count));
 
   const dim = `h-full transition-opacity ${state.loading ? "opacity-60" : ""}`;
-  const sourcesCard = (
-    <div className={dim}>
-      <Card title="Top Traffic Sources" description={`Ranked by ${metricLabel(sourceMetric).toLowerCase()}. Click a source or medium to filter.`}>
-        <MetricSelect value={sourceMetric} onChange={setSourceMetric} label="Top Traffic Sources metric" exclude={NO_KEY_EVENTS} />
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-zinc-200">
-                  <th className={th}>Source</th>
-                  <th className={th}>Medium</th>
-                  <th className={`${th} text-right`}>{metricLabel(sourceMetric)}</th>
-                  <th className={`${th} text-right`}>%Δ</th>
-                  <th className={`${th} text-right`}>Engagement rate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {src.rows.map((s, i) => (
-                  <tr key={`${s.source}-${s.medium}`} className="border-b border-zinc-100">
-                    <td className={`${td} max-w-[160px] truncate`} title={s.source}>
-                      <span className="mr-1.5 text-zinc-400">{src.start + i + 1}.</span>
-                      <button type="button" onClick={() => onSource(s.source)} className={pickable}>{s.source}</button>
-                    </td>
-                    <td className={td}>
-                      <button type="button" onClick={() => onMedium(s.medium)} className={pickable}>{s.medium}</button>
-                    </td>
-                    <td className={`${td} text-right tabular-nums`}>{s.users.toLocaleString("en-US")}</td>
-                    <td className={`${td} text-right text-xs`}><Delta value={pctDelta(s.users, s.prev)} /></td>
-                    <td className={`${td} text-right tabular-nums`}>{pct(s.engagementRate)}</td>
-                  </tr>
-                ))}
-                <tr>
-                  <td className={`${td} font-semibold`} colSpan={2}>Grand total</td>
-                  <td className={`${td} text-right font-semibold tabular-nums`}>{d.sourceTotal.users.toLocaleString("en-US")}</td>
-                  <td className={`${td} text-right text-xs`}><Delta value={pctDelta(d.sourceTotal.users, d.sourceTotal.prev)} /></td>
-                  <td className={`${td} text-right font-semibold tabular-nums`}>{pct(d.sourceTotal.engagementRate)}</td>
-                </tr>
-              </tbody>
-            </table>
-            <Pager page={src} noun="source / medium pairs" onGo={(n) => goTo("src", n)} />
+  // Each section's table and trend, used both in the full-width card (side by
+  // side) and as separate half-width cards.
+  const srcMetricSelect = (
+    <MetricSelect value={sourceMetric} onChange={setSourceMetric} label="Top Traffic Sources metric" exclude={NO_KEY_EVENTS} />
+  );
+  const srcDescription = `Ranked by ${metricLabel(sourceMetric).toLowerCase()}. Click a source or medium to filter.`;
+  const srcTableEl = (
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead>
+          <tr className="border-b border-zinc-200">
+            <th className={th}>Source</th>
+            <th className={th}>Medium</th>
+            <th className={`${th} text-right`}>{metricLabel(sourceMetric)}</th>
+            <th className={`${th} text-right`}>%Δ</th>
+            <th className={`${th} text-right`}>Engagement rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          {src.rows.map((s, i) => (
+            <tr key={`${s.source}-${s.medium}`} className="border-b border-zinc-100">
+              <td className={`${td} max-w-[160px] truncate`} title={s.source}>
+                <span className="mr-1.5 text-zinc-400">{src.start + i + 1}.</span>
+                <button type="button" onClick={() => onSource(s.source)} className={pickable}>{s.source}</button>
+              </td>
+              <td className={td}>
+                <button type="button" onClick={() => onMedium(s.medium)} className={pickable}>{s.medium}</button>
+              </td>
+              <td className={`${td} text-right tabular-nums`}>{s.users.toLocaleString("en-US")}</td>
+              <td className={`${td} text-right text-xs`}><Delta value={pctDelta(s.users, s.prev)} /></td>
+              <td className={`${td} text-right tabular-nums`}>{pct(s.engagementRate)}</td>
+            </tr>
+          ))}
+          <tr>
+            <td className={`${td} font-semibold`} colSpan={2}>Grand total</td>
+            <td className={`${td} text-right font-semibold tabular-nums`}>{d.sourceTotal.users.toLocaleString("en-US")}</td>
+            <td className={`${td} text-right text-xs`}><Delta value={pctDelta(d.sourceTotal.users, d.sourceTotal.prev)} /></td>
+            <td className={`${td} text-right font-semibold tabular-nums`}>{pct(d.sourceTotal.engagementRate)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <Pager page={src} noun="source / medium pairs" onGo={(n) => goTo("src", n)} />
+    </div>
+  );
+  const srcTrendEl = (
+    <TrendLines trend={srcTrend.trend} grain={srcTrend.grain} selected={srcGrain} onGrain={setSrcGrain} label="Traffic sources time grain" />
+  );
+  const pgTableEl = (
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead>
+          <tr className="border-b border-zinc-200">
+            <th className={th}>Landing page</th>
+            <th className={th}>Sessions</th>
+            <th className={`${th} text-right`}>Engagement</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lp.rows.map((p) => (
+            <tr key={p.page} className="border-b border-zinc-100">
+              <td className={`${td} max-w-[200px] truncate`} title={p.page}>
+                <button type="button" onClick={() => onLanding(p.page)} className={pickable}>{p.page}</button>
+              </td>
+              <td className={`${td} w-[45%]`}><CellBar value={p.sessions} max={maxPage} /></td>
+              <td className={`${td} text-right tabular-nums`}>{p.engagementRate.toFixed(2)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <Pager page={lp} noun="landing pages" onGo={(n) => goTo("lp", n)} />
+    </div>
+  );
+  const pgTrendEl = (
+    <TrendLines trend={pageTrend} grain={pageGrain} onGrain={setPageGrain} label="Landing pages time grain" />
+  );
+  const cvTableEl = (
+    <div className="overflow-x-auto">
+      {d.conversions.length === 0 ? (
+        <p className="py-6 text-sm text-zinc-400">No key events recorded in this range.</p>
+      ) : (
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-zinc-200">
+              <th className={th}>Event name</th>
+              <th className={th}>Count</th>
+              <th className={`${th} text-right`}>%Δ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {d.conversions.map((c) => (
+              <tr key={c.event} className="border-b border-zinc-100">
+                <td className={td}>{c.event}</td>
+                <td className={`${td} w-[50%]`}><CellBar value={c.count} max={maxConv} /></td>
+                <td className={`${td} text-right text-xs`}><Delta value={pctDelta(c.count, c.prev)} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+  const cvTrendEl = (
+    <>
+      {d.conversionTrend.data.length === 0 ? (
+        <p className="py-10 text-center text-sm text-zinc-400">No conversions in this range.</p>
+      ) : (
+        <div className="flex h-full min-h-72 w-full flex-col">
+          <GrainSelect value={convGrain} onChange={setConvGrain} label="Conversions time grain" />
+          <div className="min-h-64 flex-1">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={convData} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
+              <CartesianGrid stroke="#f1f5f4" vertical={false} />
+              <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => bucketLabel(String(v), convGrain)} minTickGap={24} />
+              <YAxis tick={{ fontSize: 11 }} width={36} allowDecimals={false} />
+              <Tooltip labelFormatter={(l) => bucketLabel(String(l), convGrain)} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              {d.conversionTrend.series.map((s, i) => (
+                <Bar key={s.key} dataKey={s.key} name={s.label} fill={LINE_COLORS[i % LINE_COLORS.length]} isAnimationActive={false} />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
           </div>
-          <TrendLines trend={srcTrend.trend} grain={srcTrend.grain} selected={srcGrain} onGrain={setSrcGrain} label="Traffic sources time grain" />
         </div>
+      )}
+    </>
+  );
+
+  const card = (title: string, description: string | undefined, body: React.ReactNode, top?: React.ReactNode) => (
+    <div className={dim}>
+      <Card title={title} description={description}>
+        {top}
+        {body}
       </Card>
     </div>
   );
-
-  const pagesCard = (
-    <div className={dim}>
-      <Card title="Landing Pages" description="Click a page to filter.">
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-zinc-200">
-                  <th className={th}>Landing page</th>
-                  <th className={th}>Sessions</th>
-                  <th className={`${th} text-right`}>Engagement</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lp.rows.map((p) => (
-                  <tr key={p.page} className="border-b border-zinc-100">
-                    <td className={`${td} max-w-[200px] truncate`} title={p.page}>
-                      <button type="button" onClick={() => onLanding(p.page)} className={pickable}>{p.page}</button>
-                    </td>
-                    <td className={`${td} w-[45%]`}><CellBar value={p.sessions} max={maxPage} /></td>
-                    <td className={`${td} text-right tabular-nums`}>{p.engagementRate.toFixed(2)}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <Pager page={lp} noun="landing pages" onGo={(n) => goTo("lp", n)} />
-          </div>
-          <TrendLines trend={pageTrend} grain={pageGrain} onGrain={setPageGrain} label="Landing pages time grain" />
-        </div>
-      </Card>
+  const sideBySide = (left: React.ReactNode, right: React.ReactNode) => (
+    <div className="grid gap-6 lg:grid-cols-2">
+      {left}
+      {right}
     </div>
   );
 
-  const conversionsCard = (
-    <div className={dim}>
-      <Card title="Conversions">
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="overflow-x-auto">
-            {d.conversions.length === 0 ? (
-              <p className="py-6 text-sm text-zinc-400">No key events recorded in this range.</p>
-            ) : (
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-zinc-200">
-                    <th className={th}>Event name</th>
-                    <th className={th}>Count</th>
-                    <th className={`${th} text-right`}>%Δ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {d.conversions.map((c) => (
-                    <tr key={c.event} className="border-b border-zinc-100">
-                      <td className={td}>{c.event}</td>
-                      <td className={`${td} w-[50%]`}><CellBar value={c.count} max={maxConv} /></td>
-                      <td className={`${td} text-right text-xs`}><Delta value={pctDelta(c.count, c.prev)} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-          {d.conversionTrend.data.length === 0 ? (
-            <p className="py-10 text-center text-sm text-zinc-400">No conversions in this range.</p>
-          ) : (
-            <div className="flex h-full min-h-72 w-full flex-col">
-              <GrainSelect value={convGrain} onChange={setConvGrain} label="Conversions time grain" />
-              <div className="min-h-64 flex-1">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={convData} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
-                  <CartesianGrid stroke="#f1f5f4" vertical={false} />
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => bucketLabel(String(v), convGrain)} minTickGap={24} />
-                  <YAxis tick={{ fontSize: 11 }} width={36} allowDecimals={false} />
-                  <Tooltip labelFormatter={(l) => bucketLabel(String(l), convGrain)} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  {d.conversionTrend.series.map((s, i) => (
-                    <Bar key={s.key} dataKey={s.key} name={s.label} fill={LINE_COLORS[i % LINE_COLORS.length]} isAnimationActive={false} />
-                  ))}
-                </BarChart>
-              </ResponsiveContainer>
-              </div>
-            </div>
-          )}
-        </div>
-      </Card>
-    </div>
-  );
-
-  return children({ sources: sourcesCard, pages: pagesCard, conversions: conversionsCard });
+  return children({
+    // Full width: table and trend side by side.
+    sources: card("Top Traffic Sources", srcDescription, sideBySide(srcTableEl, srcTrendEl), srcMetricSelect),
+    pages: card("Landing Pages", "Click a page to filter.", sideBySide(pgTableEl, pgTrendEl)),
+    conversions: card("Conversions", undefined, sideBySide(cvTableEl, cvTrendEl)),
+    // Split: table and trend as their own cards (50/50 by default).
+    "sources.table": card("Top Traffic Sources", srcDescription, srcTableEl, srcMetricSelect),
+    "sources.trend": card("Top Traffic Sources trend", `Top sources by ${metricLabel(sourceMetric).toLowerCase()}, over time.`, srcTrendEl),
+    "pages.table": card("Landing Pages", "Click a page to filter.", pgTableEl),
+    "pages.trend": card("Landing Pages trend", "Top landing pages by sessions, over time.", pgTrendEl),
+    "conversions.table": card("Conversions", "Key events with % change.", cvTableEl),
+    "conversions.trend": card("Conversions trend", "Key events over time.", cvTrendEl),
+  });
 }

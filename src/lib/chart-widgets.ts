@@ -120,7 +120,9 @@ export const EXISTING_WIDGET_CHARTS: Record<string, ChartType> = {
   "sc.bounceRate": "number", "sc.pagesPerSession": "number", "sc.engagedSessions": "number",
   "sc.eventCount": "number", "sc.keyEvents": "number",
   monthly: "bar", channel: "pie", states: "hbar", geo: "map",
-  sources: "table", pages: "table", conversions: "table", pageTitles: "table", campaigns: "table",
+  sources: "table", pages: "table", conversions: "table",
+  "sources.table": "table", "pages.table": "table", "conversions.table": "table",
+  "sources.trend": "line", "pages.trend": "line", "conversions.trend": "bar", pageTitles: "table", campaigns: "table",
   device: "pie", newVsReturning: "pie", browser: "hbar", countries: "hbar", cities: "hbar", hourOfDay: "bar",
 };
 

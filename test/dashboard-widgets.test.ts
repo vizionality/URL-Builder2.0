@@ -217,3 +217,18 @@ describe("any card fits anywhere", () => {
     expect(moved.spans["sc.sessions"]).toBe(3);
   });
 });
+
+describe("split breakdown cards", () => {
+  it("the default shows each section as a table + trend pair at 50%, and fetches it", async () => {
+    const { DEFAULT_LAYOUT, breakdownParts, defaultSpan, WIDGET_BY_ID } = await import("@/lib/dashboard-widgets");
+    for (const p of ["sources", "pages", "conversions"]) {
+      expect(DEFAULT_LAYOUT).toContain(`${p}.table`);
+      expect(DEFAULT_LAYOUT).toContain(`${p}.trend`);
+      expect(defaultSpan(`${p}.table`)).toBe(6);
+      // The full-width combined card is still in the catalog.
+      expect(WIDGET_BY_ID.has(p)).toBe(true);
+    }
+    expect(breakdownParts(["pages.trend", "monthly"])).toEqual(["pages"]);
+    expect(breakdownParts(DEFAULT_LAYOUT)).toEqual(["sources", "pages", "conversions"]);
+  });
+});
