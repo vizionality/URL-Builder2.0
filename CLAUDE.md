@@ -62,7 +62,10 @@ with real GA4 reporting.
   `GET/PUT/DELETE /api/dashboard/layout`. The overview and breakdowns routes take `parts` so hidden
   widgets cost no GA4 requests. Drag and drop (@dnd-kit): grip handles reorder widgets, catalog items
   drag onto the dashboard, and widgets drag back to the sidebar to remove (`applyDrop`, unit-tested).
-  New GA4 widgets are a planned follow-up.
+  Extra GA4 widgets (off by default): bounce rate, views per session, engaged sessions, event count,
+  key events scorecards; device, new vs returning, browsers, countries, cities, sessions by hour;
+  Top Pages and Campaigns tables. Specs in `lib/extra-widgets.ts` (unit-tested), served by
+  `GET /api/ga4/widgets?ids=` (one report each, batched, only for widgets on the layout).
 - No property connected -> a connect-GA4 prompt, not sample data.
 
 ### Integrations (/integrations)

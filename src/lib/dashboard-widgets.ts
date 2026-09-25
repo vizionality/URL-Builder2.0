@@ -31,12 +31,39 @@ export const WIDGETS: WidgetDef[] = [
   { id: "sources", title: "Top Traffic Sources", description: "Source / medium table with a trend.", category: "Acquisition", size: "full" },
   { id: "pages", title: "Landing Pages", description: "Landing page sessions and engagement, with a trend.", category: "Traffic", size: "full" },
   { id: "conversions", title: "Conversions", description: "Key events with % change and a trend.", category: "Conversions", size: "full" },
+  // Extra GA4 widgets (not in the default layout; see lib/extra-widgets.ts).
+  { id: "sc.bounceRate", title: "Bounce rate", description: "Share of sessions that weren't engaged.", category: "Summary", size: "scorecard" },
+  { id: "sc.pagesPerSession", title: "Views per session", description: "Average page and screen views per session.", category: "Summary", size: "scorecard" },
+  { id: "sc.engagedSessions", title: "Engaged sessions", description: "Sessions over 10s, with a key event, or 2+ views.", category: "Summary", size: "scorecard" },
+  { id: "sc.eventCount", title: "Event count", description: "All events fired, with % change.", category: "Summary", size: "scorecard" },
+  { id: "sc.keyEvents", title: "Key events", description: "All key events, with % change.", category: "Conversions", size: "scorecard" },
+  { id: "device", title: "Device category", description: "Sessions by desktop, mobile and tablet.", category: "Traffic", size: "third" },
+  { id: "newVsReturning", title: "New vs returning", description: "Users split into new and returning.", category: "Traffic", size: "third" },
+  { id: "browser", title: "Browsers", description: "Top browsers by sessions.", category: "Traffic", size: "third" },
+  { id: "countries", title: "Top Countries", description: "Top countries by sessions.", category: "Geography", size: "third" },
+  { id: "cities", title: "Top Cities", description: "Top cities by sessions.", category: "Geography", size: "third" },
+  { id: "hourOfDay", title: "Sessions by hour", description: "When visitors arrive, by hour of day.", category: "Traffic", size: "third" },
+  { id: "pageTitles", title: "Top Pages", description: "Page titles by views, users and engagement time.", category: "Traffic", size: "full" },
+  { id: "campaigns", title: "Campaigns", description: "Session campaigns by sessions, engagement and key events.", category: "Acquisition", size: "full" },
 ];
 
 export const WIDGET_BY_ID = new Map(WIDGETS.map((w) => [w.id, w]));
 
 // Today's dashboard, used until a user customizes theirs.
-export const DEFAULT_LAYOUT: string[] = WIDGETS.map((w) => w.id);
+export const DEFAULT_LAYOUT: string[] = [
+  "sc.views", "sc.totalUsers", "sc.newUsers", "sc.sessions", "sc.engagementRate",
+  "sc.avgSessionDuration", "sc.generateLead",
+  "monthly", "channel", "states", "geo", "sources", "pages", "conversions",
+];
+
+// Widgets served by /api/ga4/widgets rather than the overview/breakdowns routes.
+export const EXTRA_WIDGET_IDS = [
+  "sc.bounceRate", "sc.pagesPerSession", "sc.engagedSessions", "sc.eventCount", "sc.keyEvents",
+  "device", "newVsReturning", "browser", "countries", "cities", "hourOfDay", "pageTitles", "campaigns",
+];
+export function extraParts(layout: string[]): string[] {
+  return EXTRA_WIDGET_IDS.filter((id) => layout.includes(id));
+}
 
 export const MAX_LAYOUT = 60;
 
@@ -80,6 +107,7 @@ export function layoutBlocks(layout: string[]): LayoutBlock[] {
 export function overviewParts(layout: string[]): string[] {
   const parts = new Set<string>();
   for (const id of layout) {
+    if (EXTRA_WIDGET_IDS.includes(id)) continue;
     if (id.startsWith("sc.")) parts.add("summary");
     else if (["monthly", "channel", "states", "geo"].includes(id)) parts.add(id);
   }

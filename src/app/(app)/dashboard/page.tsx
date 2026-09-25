@@ -45,8 +45,11 @@ import {
 } from "@dnd-kit/core";
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { DashboardDropZone, SortableWidget } from "@/components/dashboard/DragParts";
+import { ExtraWidgetCard, useExtraWidgets } from "@/components/dashboard/ExtraWidgets";
+import type { WidgetData } from "@/lib/extra-widgets";
 import {
   applyDrop,
+  extraParts,
   breakdownParts,
   DEFAULT_LAYOUT,
   NEW_PREFIX,
@@ -113,8 +116,26 @@ const dropCollision: CollisionDetection = (args) => {
 };
 
 type Scorecards = Overview["scorecards"];
+const EXTRA_SCORE_LABELS: Record<string, string> = {
+  "sc.bounceRate": "Bounce rate",
+  "sc.pagesPerSession": "Views per session",
+  "sc.engagedSessions": "Engaged sessions",
+  "sc.eventCount": "Event count",
+  "sc.keyEvents": "Key events",
+};
 // One summary scorecard by widget id.
-function ScorecardFor({ id, s }: { id: string; s: Scorecards }) {
+function ScorecardFor({ id, s, extras }: { id: string; s: Scorecards; extras: Record<string, WidgetData> }) {
+  const extra = extras[id];
+  if (id in EXTRA_SCORE_LABELS) {
+    const label = EXTRA_SCORE_LABELS[id];
+    if (!extra || extra.kind !== "score") return <Scorecard label={label} value="…" delta={null} />;
+    const value =
+      extra.format === "percent" ? `${extra.value.toFixed(1)}%`
+      : extra.format === "decimal" ? extra.value.toFixed(2)
+      : compact(extra.value);
+    // A falling bounce rate is good news.
+    return <Scorecard label={label} value={value} delta={pctDelta(extra.value, extra.prev)} invert={id === "sc.bounceRate"} />;
+  }
   switch (id) {
     case "sc.views": return <Scorecard label="Views" value={compact(s.views.value)} delta={pctDelta(s.views.value, s.views.prev)} />;
     case "sc.totalUsers": return <Scorecard label="Total users" value={compact(s.totalUsers.value)} delta={pctDelta(s.totalUsers.value, s.totalUsers.prev)} />;
@@ -261,6 +282,15 @@ export default function DashboardPage() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
   const partsKey = layout ? overviewParts(layout).join(",") : null;
+  // Extra GA4 widgets (bounce rate, devices, ...) load separately, only when on the layout.
+  const extraQuery = useMemo(() => {
+    const p = new URLSearchParams(filterQs);
+    p.set("startDate", startDate);
+    p.set("endDate", endDate);
+    p.set("compare", compare);
+    return p.toString();
+  }, [filterQs, startDate, endDate, compare]);
+  const extras = useExtraWidgets(layout ? extraParts(layout) : [], extraQuery, Boolean(propertyId && layout));
 
   useEffect(() => {
     if (!propertyId || partsKey == null) return;
@@ -583,6 +613,11 @@ export default function DashboardPage() {
               </Card>
                 ),
                 ...tables,
+                ...Object.fromEntries(
+                  extraParts(layout)
+                    .filter((id) => !id.startsWith("sc."))
+                    .map((id) => [id, <ExtraWidgetCard key={id} id={id} state={extras} />])
+                ),
               };
               const blocks = layoutBlocks(layout);
               if (blocks.length === 0) {
@@ -614,7 +649,7 @@ export default function DashboardPage() {
                           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
                             {block.ids.map((id) => (
                               <SortableWidget key={id} id={id} title={WIDGET_BY_ID.get(id)?.title ?? id}>
-                                {s && <ScorecardFor id={id} s={s} />}
+                                {s && <ScorecardFor id={id} s={s} extras={extras.data} />}
                               </SortableWidget>
                             ))}
                           </div>
