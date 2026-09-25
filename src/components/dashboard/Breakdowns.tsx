@@ -67,7 +67,7 @@ function TrendLines({ trend }: { trend: Trend }) {
     return <p className="py-10 text-center text-sm text-zinc-400">No trend data in this range.</p>;
   }
   return (
-    <div className="h-64 w-full">
+    <div className="h-full min-h-72 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={trend.data} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
           <CartesianGrid stroke="#f1f5f4" vertical={false} />
@@ -101,12 +101,14 @@ export function Breakdowns({
   endDate,
   medium,
   campaign,
+  compare,
 }: {
   propertyId: string;
   startDate: string;
   endDate: string;
   medium: string;
   campaign: string;
+  compare: "period" | "year";
 }) {
   const [state, setState] = useState<{ loading: boolean; error: string | null; data: Breakdowns | null }>(
     { loading: false, error: null, data: null }
@@ -117,7 +119,7 @@ export function Breakdowns({
     let cancelled = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- mark loading before the async fetch
     setState((s) => ({ ...s, loading: true, error: null }));
-    const p = new URLSearchParams({ startDate, endDate });
+    const p = new URLSearchParams({ startDate, endDate, compare });
     if (medium) p.set("medium", medium);
     if (campaign) p.set("campaign", campaign);
     fetch(`/api/ga4/breakdowns?${p.toString()}`)
@@ -131,7 +133,7 @@ export function Breakdowns({
         if (!cancelled) setState({ loading: false, error: e instanceof Error ? e.message : "Failed to load breakdowns.", data: null });
       });
     return () => { cancelled = true; };
-  }, [propertyId, startDate, endDate, medium, campaign]);
+  }, [propertyId, startDate, endDate, compare, medium, campaign]);
 
   if (state.loading && !state.data) {
     return (
@@ -248,7 +250,7 @@ export function Breakdowns({
           {d.conversionTrend.data.length === 0 ? (
             <p className="py-10 text-center text-sm text-zinc-400">No conversions in this range.</p>
           ) : (
-            <div className="h-64 w-full">
+            <div className="h-full min-h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={d.conversionTrend.data} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
                   <CartesianGrid stroke="#f1f5f4" vertical={false} />

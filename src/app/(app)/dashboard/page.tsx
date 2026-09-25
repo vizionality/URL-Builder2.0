@@ -18,7 +18,16 @@ import { Loader2, TrendingUp, TrendingDown } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
 import { useGa4PropertyId } from "@/lib/storage";
-import { compact, formatDuration, pctDelta } from "@/lib/report";
+import {
+  compact,
+  formatDuration,
+  pctDelta,
+  presetRange,
+  DATE_PRESETS,
+  DEFAULT_PRESET,
+  type DatePreset,
+  type CompareMode,
+} from "@/lib/report";
 import { Breakdowns } from "@/components/dashboard/Breakdowns";
 import { GeoMap } from "@/components/dashboard/GeoMap";
 
@@ -43,9 +52,17 @@ type Overview = {
 const inputClass =
   "rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-sm text-zinc-900 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500";
 
-function ytdRange() {
-  const end = new Date().toISOString().slice(0, 10);
-  return { startDate: `${end.slice(0, 4)}-01-01`, endDate: end };
+// Today's date on the viewer's clock (not UTC), as ISO, so presets like
+// "Yesterday" mean the viewer's yesterday.
+function localToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function formatRangeLabel(iso: string): string {
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric", timeZone: "UTC",
+  });
 }
 
 function Delta({ value, invert = false }: { value: number | null; invert?: boolean }) {
@@ -72,7 +89,13 @@ function Scorecard({ label, value, delta, invert }: { label: string; value: stri
 
 export default function DashboardPage() {
   const [propertyId] = useGa4PropertyId();
-  const [{ startDate, endDate }, setRange] = useState(ytdRange);
+  const [today] = useState(localToday);
+  // Looker Studio-style date control: a preset (default Last 28 days) or a
+  // custom range, plus the %Δ comparison (previous period or previous year).
+  const [preset, setPreset] = useState<DatePreset>(DEFAULT_PRESET);
+  const [custom, setCustom] = useState(() => presetRange(DEFAULT_PRESET, today)!);
+  const [compare, setCompare] = useState<CompareMode>("period");
+  const { startDate, endDate } = preset === "custom" ? custom : presetRange(preset, today)!;
   const [medium, setMedium] = useState("");
   const [campaign, setCampaign] = useState("");
   const [state, setState] = useState<{ loading: boolean; error: string | null; data: Overview | null }>(
@@ -84,7 +107,7 @@ export default function DashboardPage() {
     let cancelled = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- mark loading before the async fetch
     setState((s) => ({ ...s, loading: true, error: null }));
-    const p = new URLSearchParams({ startDate, endDate });
+    const p = new URLSearchParams({ startDate, endDate, compare });
     if (medium) p.set("medium", medium);
     if (campaign) p.set("campaign", campaign);
     fetch(`/api/ga4/overview?${p.toString()}`)
@@ -96,7 +119,7 @@ export default function DashboardPage() {
       .then((d) => { if (!cancelled) setState({ loading: false, error: null, data: d }); })
       .catch((e) => { if (!cancelled) setState({ loading: false, error: e instanceof Error ? e.message : "Failed to load report.", data: null }); });
     return () => { cancelled = true; };
-  }, [propertyId, startDate, endDate, medium, campaign]);
+  }, [propertyId, startDate, endDate, compare, medium, campaign]);
 
   const d = state.data;
   const s = d?.scorecards;
@@ -126,10 +149,35 @@ export default function DashboardPage() {
             <option value="">Session campaign (all)</option>
             {campaigns.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
-          <div className="ml-auto flex items-center gap-2">
-            <input type="date" value={startDate} onChange={(e) => setRange((r) => ({ ...r, startDate: e.target.value }))} className={inputClass} />
-            <span className="text-sm text-zinc-400">to</span>
-            <input type="date" value={endDate} onChange={(e) => setRange((r) => ({ ...r, endDate: e.target.value }))} className={inputClass} />
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <select
+              value={preset}
+              onChange={(e) => {
+                const next = e.target.value as DatePreset;
+                // Switching to Custom starts from the range currently shown.
+                if (next === "custom") setCustom({ startDate, endDate });
+                setPreset(next);
+              }}
+              className={inputClass}
+              aria-label="Date range"
+            >
+              {DATE_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+            {preset === "custom" ? (
+              <>
+                <input type="date" value={custom.startDate} max={custom.endDate} onChange={(e) => e.target.value && setCustom((r) => ({ ...r, startDate: e.target.value }))} className={inputClass} />
+                <span className="text-sm text-zinc-400">to</span>
+                <input type="date" value={custom.endDate} min={custom.startDate} onChange={(e) => e.target.value && setCustom((r) => ({ ...r, endDate: e.target.value }))} className={inputClass} />
+              </>
+            ) : (
+              <span className="text-sm text-zinc-600">
+                {formatRangeLabel(startDate)} – {formatRangeLabel(endDate)}
+              </span>
+            )}
+            <select value={compare} onChange={(e) => setCompare(e.target.value as CompareMode)} className={inputClass} aria-label="Compare to">
+              <option value="period">vs. previous period</option>
+              <option value="year">vs. previous year</option>
+            </select>
           </div>
         </div>
 
@@ -227,6 +275,7 @@ export default function DashboardPage() {
               endDate={endDate}
               medium={medium}
               campaign={campaign}
+              compare={compare}
             />
           </div>
         )}

@@ -63,10 +63,100 @@ export function shade(value: number, max: number): string {
   return `#${hex.join("")}`;
 }
 
-// Shift an ISO date back one calendar year.
+// Shift an ISO date by whole years, clamping Feb 29 to Feb 28 when the target
+// year has no leap day (an invalid date would make GA4 reject the request).
 export function shiftYear(iso: string, years = -1): string {
   const [y, m, d] = iso.split("-").map(Number);
-  return `${y + years}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  const ty = y + years;
+  const daysInMonth = new Date(Date.UTC(ty, m, 0)).getUTCDate();
+  return `${ty}-${String(m).padStart(2, "0")}-${String(Math.min(d, daysInMonth)).padStart(2, "0")}`;
+}
+
+// ---- Date-range presets, matching Looker Studio's date control -------------
+
+export type DatePreset =
+  | "today" | "yesterday"
+  | "last7" | "last14" | "last28" | "last30"
+  | "thisWeekSun" | "thisWeekMon" | "lastWeekSun" | "lastWeekMon"
+  | "thisMonth" | "lastMonth" | "thisQuarter" | "lastQuarter"
+  | "thisYear" | "lastYear" | "custom";
+
+export const DATE_PRESETS: { id: DatePreset; label: string }[] = [
+  { id: "today", label: "Today" },
+  { id: "yesterday", label: "Yesterday" },
+  { id: "last7", label: "Last 7 days" },
+  { id: "last14", label: "Last 14 days" },
+  { id: "last28", label: "Last 28 days" },
+  { id: "last30", label: "Last 30 days" },
+  { id: "thisWeekSun", label: "This week (starts Sunday)" },
+  { id: "thisWeekMon", label: "This week (starts Monday)" },
+  { id: "lastWeekSun", label: "Last week (starts Sunday)" },
+  { id: "lastWeekMon", label: "Last week (starts Monday)" },
+  { id: "thisMonth", label: "This month" },
+  { id: "lastMonth", label: "Last month" },
+  { id: "thisQuarter", label: "This quarter" },
+  { id: "lastQuarter", label: "Last quarter" },
+  { id: "thisYear", label: "This year" },
+  { id: "lastYear", label: "Last year" },
+  { id: "custom", label: "Custom" },
+];
+
+// Looker Studio's default for a new report.
+export const DEFAULT_PRESET: DatePreset = "last28";
+
+function addDaysIso(iso: string, n: number): string {
+  const ms = Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000;
+  return new Date(ms).toISOString().slice(0, 10);
+}
+function ymd(y: number, m: number, d: number): string {
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+// First day of the month `offset` months from (y, m); m is 1-12.
+function monthFirst(y: number, m: number, offset: number): string {
+  const idx = y * 12 + (m - 1) + offset;
+  return ymd(Math.floor(idx / 12), (idx % 12) + 1, 1);
+}
+
+// Resolve a preset to an inclusive ISO range, relative to `today` (ISO).
+// Like Looker Studio, "Last N days" ends yesterday, and "This ..." periods run
+// to today. Returns null for "custom", whose range comes from the user.
+export function presetRange(preset: DatePreset, today: string): { startDate: string; endDate: string } | null {
+  const [y, m] = today.split("-").map(Number);
+  const dow = new Date(`${today}T00:00:00Z`).getUTCDay(); // 0 = Sunday
+  const yesterday = addDaysIso(today, -1);
+  const r = (startDate: string, endDate: string) => ({ startDate, endDate });
+  const sunStart = addDaysIso(today, -dow);
+  const monStart = addDaysIso(today, -((dow + 6) % 7));
+  const qStartMonth = Math.floor((m - 1) / 3) * 3 + 1;
+  const thisQuarter = ymd(y, qStartMonth, 1);
+
+  switch (preset) {
+    case "today": return r(today, today);
+    case "yesterday": return r(yesterday, yesterday);
+    case "last7": return r(addDaysIso(today, -7), yesterday);
+    case "last14": return r(addDaysIso(today, -14), yesterday);
+    case "last28": return r(addDaysIso(today, -28), yesterday);
+    case "last30": return r(addDaysIso(today, -30), yesterday);
+    case "thisWeekSun": return r(sunStart, today);
+    case "thisWeekMon": return r(monStart, today);
+    case "lastWeekSun": return r(addDaysIso(sunStart, -7), addDaysIso(sunStart, -1));
+    case "lastWeekMon": return r(addDaysIso(monStart, -7), addDaysIso(monStart, -1));
+    case "thisMonth": return r(ymd(y, m, 1), today);
+    case "lastMonth": return r(monthFirst(y, m, -1), addDaysIso(ymd(y, m, 1), -1));
+    case "thisQuarter": return r(thisQuarter, today);
+    case "lastQuarter": return r(monthFirst(y, qStartMonth, -3), addDaysIso(thisQuarter, -1));
+    case "thisYear": return r(ymd(y, 1, 1), today);
+    case "lastYear": return r(ymd(y - 1, 1, 1), ymd(y - 1, 12, 31));
+    case "custom": return null;
+  }
+}
+
+export type CompareMode = "period" | "year";
+
+// The comparison window for %Δ: the previous period of the same length, or the
+// same dates one year earlier (Looker Studio's two comparison options).
+export function comparisonRange(start: string, end: string, mode: CompareMode): { start: string; end: string } {
+  return mode === "year" ? { start: shiftYear(start), end: shiftYear(end) } : previousPeriod(start, end);
 }
 
 // Pivot long rows (date, series, value) into one object per date for a

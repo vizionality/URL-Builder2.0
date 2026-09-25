@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
-import { previousPeriod, formatYearMonth } from "@/lib/report";
+import { comparisonRange, formatYearMonth } from "@/lib/report";
 
 const DATA_API = "https://analyticsdata.googleapis.com/v1beta";
 
@@ -73,6 +73,8 @@ export async function GET(request: Request) {
   const start = isoDay(url.searchParams.get("startDate"), defaultStart);
   const medium = url.searchParams.get("medium") ?? "";
   const campaign = url.searchParams.get("campaign") ?? "";
+  // %Δ baseline: "year" = same dates last year, otherwise the previous period.
+  const compare = url.searchParams.get("compare") === "year" ? "year" : "period";
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -91,7 +93,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Google auth expired. Reconnect Google Analytics." }, { status: 401 });
   }
 
-  const prev = previousPeriod(start, end);
+  const prev = comparisonRange(start, end, compare);
   const filt = filterExpr(medium, campaign);
   // Monthly window: 13 displayed months plus 12 more for the prior-year series.
   const displayStart = monthStart(end, 12);

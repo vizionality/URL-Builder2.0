@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
 import { parseGa4Date } from "@/lib/indicators/dates";
-import { previousPeriod, pivotDaily } from "@/lib/report";
+import { comparisonRange, pivotDaily } from "@/lib/report";
 
 // Top Traffic Sources, Landing Pages, and Conversions for the Dashboard: each a
 // table plus a daily trend for its top items. Same filters and date range as
@@ -82,6 +82,8 @@ export async function GET(request: Request) {
   const start = isoDay(url.searchParams.get("startDate"), `${end.slice(0, 4)}-01-01`);
   const medium = url.searchParams.get("medium") ?? "";
   const campaign = url.searchParams.get("campaign") ?? "";
+  // %Δ baseline: "year" = same dates last year, otherwise the previous period.
+  const compare = url.searchParams.get("compare") === "year" ? "year" : "period";
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -100,7 +102,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Google auth expired. Reconnect Google Analytics." }, { status: 401 });
   }
 
-  const prev = previousPeriod(start, end);
+  const prev = comparisonRange(start, end, compare);
   const both = [{ startDate: start, endDate: end }, { startDate: prev.start, endDate: prev.end }];
   const cur = [{ startDate: start, endDate: end }];
 
