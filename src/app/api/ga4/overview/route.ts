@@ -63,6 +63,10 @@ export async function GET(request: Request) {
   // The medium/campaign dropdown lists don't depend on the filters, so the page
   // asks for them once (options=1) instead of on every filter change.
   const wantOptions = url.searchParams.get("options") === "1";
+  // Sections the page's layout shows (summary, monthly, channel, states, geo);
+  // absent means all. Reports for hidden widgets aren't run.
+  const partsParam = url.searchParams.get("parts");
+  const parts = new Set(partsParam == null ? ["summary", "monthly", "channel", "states", "geo"] : partsParam.split(","));
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -94,22 +98,28 @@ export async function GET(request: Request) {
     const allMetrics = breakdownMetricNames(keyMetric);
     const current = [{ startDate: start, endDate: end }];
     const withPrev = [...current, { startDate: prev.start, endDate: prev.end }];
-    const reports: unknown[] = [
+    // Each report is keyed, and only the sections on the page are run.
+    const plan: [string, unknown][] = [];
+    if (parts.has("summary")) {
       // Scorecards: two date ranges -> GA4 appends a dateRange dimension.
-      { dateRanges: withPrev, metrics: SCORECARD_METRICS, ...filt },
-      {
+      plan.push(["score", { dateRanges: withPrev, metrics: SCORECARD_METRICS, ...filt }]);
+      plan.push(["lead", {
         dateRanges: withPrev,
         metrics: [{ name: "eventCount" }],
         ...pageFilterExpr(filters, [exactFilter("eventName", "generate_lead")]),
-      },
-      {
+      }]);
+    }
+    if (parts.has("channel")) {
+      plan.push(["channel", {
         dateRanges: current,
         dimensions: [{ name: "sessionDefaultChannelGroup" }],
         metrics: allMetrics,
         limit: 25,
         ...filt,
-      },
-      {
+      }]);
+    }
+    if (parts.has("states")) {
+      plan.push(["states", {
         dateRanges: current,
         dimensions: [{ name: "region" }],
         metrics: allMetrics,
@@ -117,65 +127,53 @@ export async function GET(request: Request) {
         orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
         limit: 100,
         ...filt,
-      },
-      {
+      }]);
+    }
+    if (parts.has("monthly")) {
+      plan.push(["monthly", {
         dateRanges: [{ startDate: windowStart, endDate: end }],
         dimensions: [{ name: "yearMonth" }],
         metrics: MONTHLY_METRICS.map((name) => ({ name })),
         ...filt,
-      },
+      }]);
       // Returning users by month (GA4's own new/returning split, not total - new).
-      {
+      plan.push(["returning", {
         dateRanges: [{ startDate: windowStart, endDate: end }],
         dimensions: [{ name: "yearMonth" }],
         metrics: [{ name: "totalUsers" }],
         ...pageFilterExpr(filters, [exactFilter("newVsReturning", "returning")]),
-      },
-      // Geo map: new users for every US state (not just the top few).
-      {
+      }]);
+    }
+    if (parts.has("geo")) {
+      // Geo map: every US state (not just the top few).
+      plan.push(["geo", {
         dateRanges: current,
         dimensions: [{ name: "region" }],
         metrics: allMetrics,
         limit: 100,
         ...pageFilterExpr(filters, [exactFilter("country", "United States")]),
-      },
-    ];
+      }]);
+    }
     if (wantOptions) {
-      reports.push(
-        {
-          dateRanges: current,
-          dimensions: [{ name: "sessionMedium" }],
-          metrics: [{ name: "sessions" }],
-          orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
-          limit: 50,
-        },
-        {
-          dateRanges: current,
-          dimensions: [{ name: "sessionCampaignName" }],
-          metrics: [{ name: "sessions" }],
-          orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
-          limit: 100,
-        },
-        {
-          dateRanges: current,
-          dimensions: [{ name: "sessionSource" }],
-          metrics: [{ name: "sessions" }],
-          orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
-          limit: 100,
-        },
-        {
-          dateRanges: current,
-          dimensions: [{ name: "pagePath" }],
-          metrics: [{ name: "sessions" }],
-          orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
-          limit: 200,
-        }
-      );
+      const optionList = (name: string, limit: number) => ({
+        dateRanges: current,
+        dimensions: [{ name }],
+        metrics: [{ name: "sessions" }],
+        orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
+        limit,
+      });
+      plan.push(["med", optionList("sessionMedium", 50)]);
+      plan.push(["camp", optionList("sessionCampaignName", 100)]);
+      plan.push(["src", optionList("sessionSource", 100)]);
+      plan.push(["page", optionList("pagePath", 200)]);
     }
 
-    // Seven (or eleven) reports -> batch calls of five, two at a time.
-    const [scoreRes, leadRes, channelRes, statesRes, monthlyRes, returningRes, geoRes, medRes = [], campRes = [], srcRes = [], pageRes = []] =
-      await batchRunReports(propertyId, token, reports, request.signal);
+    // Batch calls of five, two at a time.
+    const results = await batchRunReports(propertyId, token, plan.map(([, body]) => body), request.signal);
+    const got = (key: string): RawRow[] => results[plan.findIndex(([k]) => k === key)] ?? [];
+    const [scoreRes, leadRes, channelRes, statesRes, monthlyRes, returningRes, geoRes] =
+      ["score", "lead", "channel", "states", "monthly", "returning", "geo"].map(got);
+    const [medRes, campRes, srcRes, pageRes] = ["med", "camp", "src", "page"].map(got);
 
     // Scorecards: match rows by their dateRange dimension value.
     const byRange = (rows: RawRow[], range: string) =>

@@ -188,6 +188,8 @@ function Pager({
 const NO_KEY_EVENTS: BreakdownMetric[] = ["keyEvents"];
 const pickable = "max-w-full truncate text-left hover:text-green-700 hover:underline";
 
+export type BreakdownPart = "sources" | "pages" | "conversions";
+
 export function Breakdowns({
   propertyId,
   startDate,
@@ -197,6 +199,8 @@ export function Breakdowns({
   onMedium,
   onLanding,
   compare,
+  parts,
+  children,
 }: {
   propertyId: string;
   startDate: string;
@@ -208,7 +212,12 @@ export function Breakdowns({
   onMedium: (v: string) => void;
   onLanding: (v: string) => void;
   compare: "period" | "year";
+  // Which of the three cards are on the dashboard; only those are queried.
+  parts: BreakdownPart[];
+  // Places each card in the page's layout (render prop).
+  children: (cards: Partial<Record<BreakdownPart, React.ReactNode>>) => React.ReactNode;
 }) {
+  const partsKey = parts.join(",");
   // What Top Traffic Sources ranks and trends by; changing it re-queries.
   const [sourceMetric, setSourceMetric] = useState<BreakdownMetric>("totalUsers");
   // Table pages (Top Traffic Sources, Landing Pages), tied to the report it was chosen on: new data
@@ -226,9 +235,10 @@ export function Breakdowns({
   );
 
   useEffect(() => {
-    if (!propertyId) return;
+    if (!propertyId || !partsKey) return;
     let cancelled = false;
     const p = new URLSearchParams(filterQs);
+    p.set("parts", partsKey);
     p.set("startDate", startDate);
     p.set("endDate", endDate);
     p.set("compare", compare);
@@ -264,21 +274,23 @@ export function Breakdowns({
       cancelled = true;
       ac.abort();
     };
-  }, [propertyId, startDate, endDate, compare, filterQs, sourceMetric, serverGrain]);
+  }, [propertyId, startDate, endDate, compare, filterQs, sourceMetric, serverGrain, partsKey]);
 
+  const status = (node: React.ReactNode) =>
+    Object.fromEntries(parts.map((part) => [part, node])) as Partial<Record<BreakdownPart, React.ReactNode>>;
   if (state.loading && !state.data) {
-    return (
+    return children(status(
       <Card>
         <div className="flex items-center gap-2 py-10 text-zinc-400">
           <Loader2 size={18} className="animate-spin" />
-          <span className="text-sm">Loading sources, pages, and conversions…</span>
+          <span className="text-sm">Loading…</span>
         </div>
       </Card>
-    );
+    ));
   }
-  if (state.error) return <Card><p className="py-6 text-sm text-red-600">{state.error}</p></Card>;
+  if (state.error) return children(status(<Card><p className="py-6 text-sm text-red-600">{state.error}</p></Card>));
   const d = state.data;
-  if (!d) return null;
+  if (!d) return children({});
 
   const maxPage = Math.max(0, ...d.landingPages.map((p) => p.sessions));
   const fresh = pages.data === d;
@@ -299,9 +311,9 @@ export function Breakdowns({
   const pageTrend = { ...d.pageTrend, data: bucketTrend(d.pageTrend.data, pageGrain) };
   const maxConv = Math.max(0, ...d.conversions.map((c) => c.count));
 
-  return (
-    <div className={`space-y-6 transition-opacity ${state.loading ? "opacity-60" : ""}`}>
-      {/* Top Traffic Sources */}
+  const dim = `transition-opacity ${state.loading ? "opacity-60" : ""}`;
+  const sourcesCard = (
+    <div className={dim}>
       <Card title="Top Traffic Sources" description={`Ranked by ${metricLabel(sourceMetric).toLowerCase()}. Click a source or medium to filter.`}>
         <MetricSelect value={sourceMetric} onChange={setSourceMetric} label="Top Traffic Sources metric" exclude={NO_KEY_EVENTS} />
         <div className="grid gap-6 lg:grid-cols-2">
@@ -341,8 +353,11 @@ export function Breakdowns({
           <TrendLines trend={srcTrend.trend} grain={srcTrend.grain} selected={srcGrain} onGrain={setSrcGrain} label="Traffic sources time grain" />
         </div>
       </Card>
+    </div>
+  );
 
-      {/* Landing Pages */}
+  const pagesCard = (
+    <div className={dim}>
       <Card title="Landing Pages" description="Click a page to filter.">
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="overflow-x-auto">
@@ -371,8 +386,11 @@ export function Breakdowns({
           <TrendLines trend={pageTrend} grain={pageGrain} onGrain={setPageGrain} label="Landing pages time grain" />
         </div>
       </Card>
+    </div>
+  );
 
-      {/* Conversions */}
+  const conversionsCard = (
+    <div className={dim}>
       <Card title="Conversions">
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="overflow-x-auto">
@@ -424,4 +442,6 @@ export function Breakdowns({
       </Card>
     </div>
   );
+
+  return children({ sources: sourcesCard, pages: pagesCard, conversions: conversionsCard });
 }
