@@ -55,7 +55,10 @@ describe("extra widget parts", () => {
 describe("widths", () => {
   it("parses and serializes custom widths, keeping defaults implicit", async () => {
     const { parseLayout, serializeLayout, sanitizeLayout } = await import("@/lib/dashboard-widgets");
-    expect(sanitizeLayout(["monthly|6", "geo|7", "sc.views|6", "monthly"])).toEqual(["monthly|6", "geo", "sc.views"]);
+    // Any width 1-12 is kept (a widget filling a slot takes the slot's width); out of range is dropped.
+    expect(sanitizeLayout(["monthly|6", "geo|7", "channel|13", "sc.views|6", "monthly"])).toEqual([
+      "monthly|6", "geo|7", "channel", "sc.views",
+    ]);
     const { ids, spans } = parseLayout(["monthly|6", "geo|4", "channel|12"]);
     expect(ids).toEqual(["monthly", "geo", "channel"]);
     expect(spans).toEqual({ monthly: 6, channel: 12 });
@@ -75,5 +78,49 @@ describe("widths", () => {
     expect(moved).toEqual({ ids: ["geo", "monthly"], spans: { monthly: 6, geo: 6 } });
     const reorder = dropWithSpans(["monthly", "sources"], {}, "sources", "monthly");
     expect(reorder).toEqual({ ids: ["sources", "monthly"], spans: {} });
+  });
+});
+
+describe("empty slots", () => {
+  it("shrinking leaves a slot, growing takes it back", async () => {
+    const { resizeWithGap } = await import("@/lib/dashboard-widgets");
+    const small = resizeWithGap(["monthly", "channel"], {}, "monthly", 6);
+    expect(small).toEqual({ ids: ["monthly", "gap:1", "channel"], spans: { monthly: 6, "gap:1": 6 } });
+    // Shrinking again widens the same slot rather than adding another.
+    const smaller = resizeWithGap(small.ids, small.spans, "monthly", 3);
+    expect(smaller.spans["gap:1"]).toBe(9);
+    expect(smaller.ids).toEqual(["monthly", "gap:1", "channel"]);
+    // Growing back to full removes the slot.
+    expect(resizeWithGap(smaller.ids, smaller.spans, "monthly", 12)).toEqual({
+      ids: ["monthly", "channel"],
+      spans: { monthly: 12 },
+    });
+  });
+
+  it("dropping a widget on a slot fills it at the slot's width", async () => {
+    const { dropWithSpans } = await import("@/lib/dashboard-widgets");
+    const base = { ids: ["monthly", "gap:1", "geo"], spans: { monthly: 6, "gap:1": 6 } };
+    expect(dropWithSpans(base.ids, base.spans, "new:device", "gap:1")).toEqual({
+      ids: ["monthly", "device", "geo"],
+      spans: { monthly: 6, device: 6 },
+    });
+    expect(dropWithSpans(base.ids, base.spans, "geo", "gap:1")).toEqual({
+      ids: ["monthly", "geo"],
+      spans: { monthly: 6, geo: 6 },
+    });
+    // Scorecards live in the Summary row, not in slots.
+    expect(dropWithSpans(base.ids, base.spans, "new:sc.bounceRate", "gap:1")).toEqual(base);
+  });
+
+  it("slots survive save and load, and group as their own blocks", async () => {
+    const { parseLayout, serializeLayout, layoutBlocks, sanitizeLayout } = await import("@/lib/dashboard-widgets");
+    const saved = serializeLayout(["monthly", "gap:1"], { monthly: 6, "gap:1": 6 });
+    expect(saved).toEqual(["monthly|6", "gap:1|6"]);
+    expect(parseLayout(saved)).toEqual({ ids: ["monthly", "gap:1"], spans: { monthly: 6, "gap:1": 6 } });
+    expect(sanitizeLayout(["gap:1", "gap:x|20", "gap:BAD|4"])).toEqual([]);
+    expect(layoutBlocks(["monthly", "gap:1"])).toEqual([
+      { kind: "widget", id: "monthly" },
+      { kind: "gap", id: "gap:1" },
+    ]);
   });
 });

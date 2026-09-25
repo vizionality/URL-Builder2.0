@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
+import { GripVertical, X } from "lucide-react";
 import { DASHBOARD_DROP, NEW_PREFIX, SIDEBAR_DROP, snapSpan, SPANS, type Span } from "@/lib/dashboard-widgets";
 
 // A widget on the dashboard that can be dragged by its grip to reorder, or
@@ -22,7 +22,7 @@ export function SortableWidget({
   title: string;
   className?: string;
   // Width in 12ths of the row (wide screens); omitted for scorecards.
-  span?: Span;
+  span?: number;
   onResize?: (span: Span) => void;
   children: React.ReactNode;
 }) {
@@ -30,7 +30,7 @@ export function SortableWidget({
     useSortable({ id });
   const nodeRef = useRef<HTMLDivElement | null>(null);
   // Width while the resize handle is being dragged (committed on release).
-  const [preview, setPreview] = useState<Span | null>(null);
+  const [preview, setPreview] = useState<number | null>(null);
   const shown = preview ?? span;
 
   function startResize(e: React.PointerEvent) {
@@ -41,7 +41,7 @@ export function SortableWidget({
     e.stopPropagation();
     const left = node.getBoundingClientRect().left;
     const gridWidth = grid.getBoundingClientRect().width;
-    let last: Span = span ?? 12;
+    let last: number = span ?? 12;
     const move = (ev: PointerEvent) => {
       last = snapSpan(((ev.clientX - left) / gridWidth) * 12);
       setPreview(last);
@@ -50,7 +50,7 @@ export function SortableWidget({
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       setPreview(null);
-      if (last !== span) onResize(last);
+      if (last !== span) onResize(last as Span);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -85,7 +85,7 @@ export function SortableWidget({
             onKeyDown={(e) => {
               if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
               e.preventDefault();
-              const i = SPANS.indexOf(span ?? 12);
+              const i = SPANS.indexOf(snapSpan(span ?? 12));
               const next = SPANS[Math.max(0, Math.min(SPANS.length - 1, i + (e.key === "ArrowRight" ? 1 : -1)))];
               if (next !== span) onResize(next);
             }}
@@ -150,6 +150,69 @@ export function SidebarDropZone({ className, children }: { className: string; ch
   return (
     <div ref={setNodeRef} className={`${className} ${isOver ? "bg-red-50/60" : ""}`}>
       {children}
+    </div>
+  );
+}
+
+// An empty slot left by shrinking a widget: a dashed box to drop a widget
+// into. It can be moved like a widget, or removed to close the space.
+export function GapSlot({
+  id,
+  span,
+  onAdd,
+  onRemove,
+}: {
+  id: string;
+  span: number;
+  onAdd: () => void;
+  onRemove: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging, isOver } =
+    useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Translate.toString(transform),
+        transition,
+        ...({ "--span": span } as React.CSSProperties),
+      }}
+      className={`group relative min-h-48 lg:[grid-column:span_var(--span)_/_span_var(--span)] ${isDragging ? "opacity-40" : ""}`}
+    >
+      <div
+        className={`flex h-full min-h-48 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 text-center transition-colors ${
+          isOver ? "border-green-400 bg-green-50" : "border-zinc-300 bg-zinc-50/50"
+        }`}
+      >
+        <p className="text-sm text-zinc-500">Empty space. Drag a widget here</p>
+        <button
+          type="button"
+          onClick={onAdd}
+          className="text-sm font-medium text-green-700 hover:underline"
+        >
+          or open Customize
+        </button>
+      </div>
+      <div className="absolute right-2 top-2 flex items-center gap-0.5">
+        <button
+          type="button"
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+          aria-label="Move empty space"
+          className="cursor-grab touch-none rounded p-1 text-zinc-300 hover:bg-zinc-100 hover:text-zinc-600 active:cursor-grabbing group-hover:text-zinc-400"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label="Remove empty space"
+          className="rounded p-1 text-zinc-300 hover:bg-zinc-100 hover:text-zinc-600 group-hover:text-zinc-400"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
     </div>
   );
 }
