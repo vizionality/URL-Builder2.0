@@ -5,7 +5,7 @@
 export type WidgetCategory = "Summary" | "Traffic" | "Geography" | "Acquisition" | "Conversions";
 
 // full = spans the row; third = one of three per row on wide screens;
-// scorecard = consecutive scorecards group into one Summary row.
+// scorecard = all scorecards share one Summary row.
 export type WidgetSize = "full" | "third" | "scorecard";
 
 export type WidgetDef = {
@@ -86,16 +86,18 @@ export type LayoutBlock =
   | { kind: "scorecards"; ids: string[] }
   | { kind: "widget"; id: string };
 
-// Group consecutive scorecards into one row; every other widget is its own block.
+// All scorecards share one Summary row, placed where the first scorecard sits
+// (so adding a scorecard anywhere joins the existing row instead of starting a
+// new one at the bottom). Every other widget is its own block.
 export function layoutBlocks(layout: string[]): LayoutBlock[] {
   const out: LayoutBlock[] = [];
+  let summary: { kind: "scorecards"; ids: string[] } | null = null;
   for (const id of layout) {
     const def = WIDGET_BY_ID.get(id);
     if (!def) continue;
-    const last = out[out.length - 1];
     if (def.size === "scorecard") {
-      if (last?.kind === "scorecards") last.ids.push(id);
-      else out.push({ kind: "scorecards", ids: [id] });
+      if (summary) summary.ids.push(id);
+      else out.push((summary = { kind: "scorecards", ids: [id] }));
     } else {
       out.push({ kind: "widget", id });
     }
