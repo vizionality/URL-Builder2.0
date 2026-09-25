@@ -46,7 +46,8 @@ with real GA4 reporting.
   on Top States shared with the map and its city view, and on Top Traffic Sources: total/new
   users, sessions, engaged sessions, key events; Top Traffic Sources omits key events)
   choropleth (react-simple-maps + us-atlas, bundled, no runtime fetch); Top Traffic Sources,
-  Landing Pages, and Conversions, each a table plus a daily trend.
+  Landing Pages, and Conversions, each a paginated table plus a trend with a Day/Week/Month/Quarter
+  grain (rolled up in the browser; total users is bucketed by GA4 since users can't be summed).
 - Data: `/api/ga4/overview` (scorecards, monthly, channel, states, geo, filter options) and
   `/api/ga4/breakdowns` (sources, pages, conversions). Per-user OAuth, computed on read.
   Pure formatters live in `lib/report.ts` (unit-tested).

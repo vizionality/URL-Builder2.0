@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
 import { parseGa4Date } from "@/lib/indicators/dates";
-import { comparisonRange, parseBreakdownMetric, pivotDaily } from "@/lib/report";
+import { bucketRanges, comparisonRange, parseBreakdownMetric, pivotDaily, type TimeGrain } from "@/lib/report";
 import { batchRunReports, currentKeyEvents, detectKeyMetric, ga4FailureMessage, Ga4Error, type RawRow } from "@/lib/ga4-api";
 
 // Top Traffic Sources, Landing Pages, and Conversions for the Dashboard: each a
@@ -38,6 +38,12 @@ export async function GET(request: Request) {
   const filters = parsePageFilters(url.searchParams);
   // What Top Traffic Sources ranks and trends by (the dashboard's dropdown).
   const sourceMetric = parseBreakdownMetric(url.searchParams.get("sourceMetric"), "totalUsers");
+  // Grain of the sources trend. Only needed server-side for total users, which
+  // can't be summed from days (a user active on two days is one user); every
+  // other trend is summed from daily rows in the browser.
+  const grainParam = url.searchParams.get("sourceGrain");
+  const sourceGrain: TimeGrain =
+    grainParam === "week" || grainParam === "month" || grainParam === "quarter" ? grainParam : "day";
   // %Δ baseline: "year" = same dates last year, otherwise the previous period.
   const compare = url.searchParams.get("compare") === "year" ? "year" : "period";
 
@@ -143,8 +149,22 @@ export async function GET(request: Request) {
 
     // Wave 2: daily trends for the top items, in one batch call. A trend with
     // nothing to show is left out rather than sent as an empty report.
-    const trendReports: { key: "src" | "page" | "conv"; body: unknown }[] = [];
-    if (trendSources.length) {
+    const trendReports: { key: "src" | "srcBucket" | "page" | "conv"; body: unknown; offset?: number }[] = [];
+    // Total users per week/month/quarter: one GA4 date range per bucket (at
+    // most 4 per report), so each bucket's users are counted once.
+    const srcBuckets =
+      srcMetric === "totalUsers" && sourceGrain !== "day" ? bucketRanges(start, end, sourceGrain) : null;
+    if (trendSources.length && srcBuckets) {
+      for (let i = 0; i < srcBuckets.length; i += 4) {
+        trendReports.push({ key: "srcBucket", offset: i, body: {
+          dateRanges: srcBuckets.slice(i, i + 4).map(({ startDate, endDate }) => ({ startDate, endDate })),
+          dimensions: [{ name: "sessionSource" }],
+          metrics: [{ name: srcMetric }],
+          limit: 10000,
+          ...pageFilterExpr(filters, [inList("sessionSource", trendSources)]),
+        } });
+      }
+    } else if (trendSources.length) {
       trendReports.push({ key: "src", body: {
         dateRanges: cur,
         dimensions: [{ name: "date" }, { name: "sessionSource" }],
@@ -174,7 +194,7 @@ export async function GET(request: Request) {
     const trendRows = await batchRunReports(
       propertyId, token, trendReports.map((t) => t.body), request.signal
     );
-    const rowsFor = (key: "src" | "page" | "conv"): RawRow[] =>
+    const rowsFor = (key: "src" | "srcBucket" | "page" | "conv"): RawRow[] =>
       trendRows[trendReports.findIndex((t) => t.key === key)] ?? [];
     const srcTrendRows = rowsFor("src");
     const pageTrendRows = rowsFor("page");
@@ -182,6 +202,20 @@ export async function GET(request: Request) {
 
     const long = (rows: RawRow[]) =>
       rows.map((r) => ({ date: parseGa4Date(dv(r, 0)), series: dv(r, 1), value: mv(r) }));
+
+    // Bucketed rows carry the range as the last dimension ("date_range_N",
+    // N counting within that report); map it back to the bucket's start date.
+    const srcBucketLong: { date: string; series: string; value: number }[] = [];
+    if (srcBuckets) {
+      trendReports.forEach((t, idx) => {
+        if (t.key !== "srcBucket") return;
+        for (const r of trendRows[idx] ?? []) {
+          const n = Number(dv(r, 1).replace("date_range_", ""));
+          const bucket = srcBuckets[(t.offset ?? 0) + n];
+          if (bucket) srcBucketLong.push({ date: bucket.key, series: dv(r, 0), value: mv(r) });
+        }
+      });
+    }
 
     // Conversions trend: only days with any events, like the Looker grouped bars.
     const convTrend = pivotDaily(long(convTrendRows), trendEvents);
@@ -193,7 +227,9 @@ export async function GET(request: Request) {
       sources,
       sourceTotal,
       sourceCount: allSources.filter((s) => s.users > 0).length,
-      sourceTrend: pivotDaily(long(srcTrendRows), trendSources),
+      sourceTrend: pivotDaily(srcBuckets ? srcBucketLong : long(srcTrendRows), trendSources),
+      // "day" means daily rows the browser may roll up; otherwise already bucketed.
+      sourceTrendGrain: srcBuckets ? sourceGrain : "day",
       landingPages,
       pageTrend: pivotDaily(long(pageTrendRows), trendPages),
       conversions,

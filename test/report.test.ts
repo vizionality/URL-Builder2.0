@@ -174,3 +174,22 @@ describe("trend time grain", () => {
     expect(bucketLabel("2026-08-30", "week")).toBe("Wk of Aug 30");
   });
 });
+
+describe("bucketRanges", () => {
+  it("covers the range with clipped buckets keyed by bucket start", async () => {
+    const { bucketRanges } = await import("@/lib/report");
+    expect(bucketRanges("2026-08-15", "2026-10-05", "month")).toEqual([
+      { key: "2026-08-01", startDate: "2026-08-15", endDate: "2026-08-31" },
+      { key: "2026-09-01", startDate: "2026-09-01", endDate: "2026-09-30" },
+      { key: "2026-10-01", startDate: "2026-10-01", endDate: "2026-10-05" },
+    ]);
+    // 2026-09-24 is a Thursday: the first week is clipped to start there.
+    expect(bucketRanges("2026-09-24", "2026-10-03", "week")).toEqual([
+      { key: "2026-09-20", startDate: "2026-09-24", endDate: "2026-09-26" },
+      { key: "2026-09-27", startDate: "2026-09-27", endDate: "2026-10-03" },
+    ]);
+    expect(bucketRanges("2026-01-01", "2026-09-23", "quarter").map((r) => r.key)).toEqual([
+      "2026-01-01", "2026-04-01", "2026-07-01",
+    ]);
+  });
+});
