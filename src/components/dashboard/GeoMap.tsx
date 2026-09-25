@@ -1,9 +1,9 @@
 "use client";
 
 import { memo, useEffect, useMemo, useState } from "react";
-import { ComposableMap, Geographies, Geography, Marker } from "react-simple-maps";
-import { geoMercator, type GeoPermissibleObjects, type GeoProjection } from "d3-geo";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from "react-simple-maps";
+import { geoAlbersUsa, geoMercator, type GeoPermissibleObjects, type GeoProjection } from "d3-geo";
+import { ArrowLeft, Loader2, Minus, Plus, RotateCcw } from "lucide-react";
 // US state shapes, bundled at build time so the map never fetches at runtime.
 import usStates from "us-atlas/states-10m.json";
 import { shade } from "@/lib/report";
@@ -18,6 +18,17 @@ const HEIGHT = 500;
 
 type Hover = { name: string; value: number } | null;
 type Selected = { name: string; projection: GeoProjection } | null;
+// Pan/zoom position: map coordinates at the view's center, and zoom factor.
+type Pos = { center: [number, number]; zoom: number };
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 8;
+
+// Drag to pan, pinch on touch, and ctrl/cmd + wheel to zoom. A plain wheel is
+// left to the page so scrolling past the map doesn't get stuck zooming it.
+function allowZoomEvent(e: Event): boolean {
+  if (e.type === "wheel") return (e as WheelEvent).ctrlKey || (e as WheelEvent).metaKey;
+  return true;
+}
 
 // The map layer is memoized and never depends on hover state. react-simple-maps
 // re-serializes the whole geography on every render, so hover is handled with
@@ -28,6 +39,8 @@ const MapLayer = memo(function MapLayer({
   max,
   selected,
   points,
+  pos,
+  onMove,
   onHover,
   onSelect,
 }: {
@@ -35,16 +48,27 @@ const MapLayer = memo(function MapLayer({
   max: number;
   selected: Selected;
   points: CityPoint[];
+  pos: Pos;
+  onMove: (p: Pos) => void;
   onHover: (h: Hover) => void;
   onSelect: (name: string, geo: GeoPermissibleObjects) => void;
 }) {
   return (
     <ComposableMap
-      projection={selected ? selected.projection : "geoAlbersUsa"}
+      projection={selected ? selected.projection : US_PROJECTION}
       width={WIDTH}
       height={HEIGHT}
       style={{ width: "100%", height: "auto" }}
     >
+      <ZoomableGroup
+        center={pos.center}
+        zoom={pos.zoom}
+        minZoom={MIN_ZOOM}
+        maxZoom={MAX_ZOOM}
+        filterZoomEvent={allowZoomEvent}
+        onMoveEnd={({ coordinates, zoom }) => coordinates && zoom != null && onMove({ center: coordinates, zoom })}
+        className="cursor-grab active:cursor-grabbing"
+      >
       <Geographies geography={geography}>
         {({ geographies }) =>
           geographies.map((geo) => {
@@ -59,11 +83,18 @@ const MapLayer = memo(function MapLayer({
                 geography={geo}
                 fill={isOther ? "#f4f4f5" : selected ? "#e8f3ef" : shade(value, max)}
                 stroke={isOther ? "#e4e4e7" : "#ffffff"}
-                strokeWidth={selected ? 1.5 : 0.75}
-                className={isOther || selected ? "outline-none" : "cursor-pointer outline-none hover:fill-[#f59e0b]"}
-                onMouseEnter={() => !isOther && onHover({ name, value })}
+                strokeWidth={(selected ? 1.5 : 0.75) / pos.zoom}
+                // Any state other than the zoomed one can be clicked to jump to it.
+                className={
+                  selected && !isOther
+                    ? "outline-none"
+                    : isOther
+                      ? "cursor-pointer outline-none hover:fill-[#d9f5ec]"
+                      : "cursor-pointer outline-none hover:fill-[#f59e0b]"
+                }
+                onMouseEnter={() => onHover({ name, value })}
                 onMouseLeave={() => onHover(null)}
-                onClick={() => !selected && onSelect(name, geo as unknown as GeoPermissibleObjects)}
+                onClick={() => (isOther || !selected) && onSelect(name, geo as unknown as GeoPermissibleObjects)}
               />
             );
           })
@@ -80,23 +111,24 @@ const MapLayer = memo(function MapLayer({
       )}
       {points.map((p) => (
         <Marker key={`g-${p.city}`} coordinates={[p.lng, p.lat]}>
-          <circle r={p.r * 2.2} fill={heat(p.t)} opacity={0.45} filter="url(#city-heat)" pointerEvents="none" />
+          <circle r={(p.r * 2.2) / pos.zoom} fill={heat(p.t)} opacity={0.45} filter="url(#city-heat)" pointerEvents="none" />
         </Marker>
       ))}
       {points.map((p) => (
         <Marker key={p.city} coordinates={[p.lng, p.lat]}>
           <circle
-            r={p.r}
+            r={p.r / pos.zoom}
             fill={heat(p.t)}
             fillOpacity={0.75}
             stroke="#ffffff"
-            strokeWidth={1}
+            strokeWidth={1 / pos.zoom}
             className="cursor-pointer"
             onMouseEnter={() => onHover({ name: p.city, value: p.newUsers })}
             onMouseLeave={() => onHover(null)}
           />
         </Marker>
       ))}
+      </ZoomableGroup>
     </ComposableMap>
   );
 });
@@ -117,6 +149,17 @@ function heat(t: number): string {
 }
 const NO_POINTS: CityPoint[] = [];
 
+// Starting view: the map coordinates at the middle of the frame, unzoomed.
+// ZoomableGroup centers on these, so this matches the un-panned projection.
+function homeOf(projection: GeoProjection): Pos {
+  const c = projection.invert?.([WIDTH / 2, HEIGHT / 2]);
+  return { center: c ? [c[0], c[1]] : [-96, 38], zoom: 1 };
+}
+// The same projection ComposableMap builds for "geoAlbersUsa", kept as one
+// stable object so the pan/zoom handlers aren't rebuilt on every render.
+const US_PROJECTION = geoAlbersUsa().translate([WIDTH / 2, HEIGHT / 2]);
+const US_HOME = homeOf(US_PROJECTION);
+
 // Choropleth of new users by US state. Clicking a state zooms into it and
 // shows a city heat map plus a ranked list. GA4 has no city coordinates; the
 // server attaches them from a bundled gazetteer, and unmatched cities are
@@ -131,14 +174,24 @@ export function GeoMap({ data, query }: { data: { region: string; newUsers: numb
   const byState = useMemo(() => new Map(data.map((d) => [d.region, d.newUsers])), [data]);
   const max = useMemo(() => Math.max(0, ...data.map((d) => d.newUsers)), [data]);
 
+  const [pos, setPos] = useState<Pos>(US_HOME);
+
   const onSelect = useMemo(
     () => (name: string, geo: GeoPermissibleObjects) => {
       const projection = geoMercator().fitExtent([[24, 24], [WIDTH - 24, HEIGHT - 24]], geo);
       setHover(null);
       setSelected({ name, projection });
+      setPos(homeOf(projection));
     },
     []
   );
+  const showAllStates = () => {
+    setSelected(null);
+    setPos(US_HOME);
+  };
+  const zoomBy = (f: number) =>
+    setPos((p) => ({ ...p, zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, p.zoom * f)) }));
+  const resetView = () => setPos(selected ? homeOf(selected.projection) : US_HOME);
 
   const stateName = selected?.name;
   useEffect(() => {
@@ -194,14 +247,36 @@ export function GeoMap({ data, query }: { data: { region: string; newUsers: numb
       {selected && (
         <button
           type="button"
-          onClick={() => setSelected(null)}
+          onClick={showAllStates}
           className="mb-1 inline-flex items-center gap-1 text-xs font-medium text-green-700 hover:underline"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> All states
         </button>
       )}
 
-      <MapLayer byState={byState} max={max} selected={selected} points={points} onHover={setHover} onSelect={onSelect} />
+      <div className="relative">
+        <MapLayer
+          byState={byState}
+          max={max}
+          selected={selected}
+          points={points}
+          pos={pos}
+          onMove={setPos}
+          onHover={setHover}
+          onSelect={onSelect}
+        />
+        <div className="absolute right-1 top-1 flex flex-col overflow-hidden rounded-md border border-zinc-200 bg-white shadow-sm">
+          <button type="button" onClick={() => zoomBy(1.5)} aria-label="Zoom in" className="p-1.5 text-zinc-600 hover:bg-zinc-50">
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+          <button type="button" onClick={() => zoomBy(1 / 1.5)} aria-label="Zoom out" className="border-t border-zinc-200 p-1.5 text-zinc-600 hover:bg-zinc-50">
+            <Minus className="h-3.5 w-3.5" />
+          </button>
+          <button type="button" onClick={resetView} aria-label="Reset view" className="border-t border-zinc-200 p-1.5 text-zinc-600 hover:bg-zinc-50">
+            <RotateCcw className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
 
       {!selected ? (
         <div className="mt-1 flex items-center justify-between gap-3 text-xs text-zinc-500">
@@ -214,7 +289,7 @@ export function GeoMap({ data, query }: { data: { region: string; newUsers: numb
             <span>{max.toLocaleString("en-US")}</span>
           </div>
           <span className="truncate text-zinc-700">
-            {hover ? `${hover.name}: ${hover.value.toLocaleString("en-US")} new users` : "Click a state for cities"}
+            {hover ? `${hover.name}: ${hover.value.toLocaleString("en-US")} new users` : "Click a state for cities. Drag to move."}
           </span>
         </div>
       ) : (
