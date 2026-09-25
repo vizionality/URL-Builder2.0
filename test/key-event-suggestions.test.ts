@@ -25,6 +25,15 @@ describe("suggestKeyEvents", () => {
     expect(s.map((x) => x.name)).not.toContain("sign_up");
   });
 
+  it("treats a lead CTA click as secondary to the lead itself", () => {
+    const s = suggestKeyEvents([
+      { name: "lead_cta_click", count: 50 },
+      { name: "generate_lead", count: 5 },
+      { name: "form_start", count: 20 },
+    ]);
+    expect(s.map((x) => [x.name, x.strength])).toEqual([["generate_lead", "strong"], ["lead_cta_click", "good"]]);
+  });
+
   it("validates event names", () => {
     expect(isValidEventName("generate_lead")).toBe(true);
     expect(isValidEventName("1bad")).toBe(false);

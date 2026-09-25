@@ -14,6 +14,8 @@ const AUTOMATIC = new Set([
 // Checked in order; the first match decides. Patterns match anywhere in the name.
 const RULES: { re: RegExp; strength: Strength; reason: string }[] = [
   { re: /purchase|checkout_complete|order_complete|transaction/, strength: "strong", reason: "A completed purchase." },
+  // A click toward a form (e.g. lead_cta_click) is intent, not the lead itself.
+  { re: /cta|lead.*click|click.*lead/, strength: "good", reason: "A click toward your lead form, not the lead itself." },
   { re: /generate_lead|lead|quote|estimate|consult/, strength: "strong", reason: "Someone asked to hear from you." },
   { re: /form_submit|submit|contact|inquiry|enquiry/, strength: "strong", reason: "A form was sent." },
   { re: /sign_?up|register|registration|create_account/, strength: "strong", reason: "A new account or registration." },
