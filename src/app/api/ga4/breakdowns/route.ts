@@ -36,6 +36,9 @@ export async function GET(request: Request) {
   const end = isoDay(url.searchParams.get("endDate"), today);
   const start = isoDay(url.searchParams.get("startDate"), `${end.slice(0, 4)}-01-01`);
   const filters = parsePageFilters(url.searchParams);
+  // Tables the page's layout shows (sources, pages, conversions); absent means all.
+  const partsParam = url.searchParams.get("parts");
+  const parts = new Set(partsParam == null ? ["sources", "pages", "conversions"] : partsParam.split(","));
   // What Top Traffic Sources ranks and trends by (the dashboard's dropdown).
   const sourceMetric = parseBreakdownMetric(url.searchParams.get("sourceMetric"), "totalUsers");
   // Grain of the sources trend. Only needed server-side for total users, which
@@ -75,8 +78,9 @@ export async function GET(request: Request) {
     ]);
     const srcMetric = sourceMetric === "keyEvents" ? keyMetric : sourceMetric;
 
-    // Wave 1: the three tables in one batch call (and which items to trend).
-    const [srcRows, pageRows, convRows] = await batchRunReports(propertyId, token, [
+    // Wave 1: the tables on the page, in one batch call (and which items to trend).
+    const wave1: [string, unknown][] = [];
+    if (parts.has("sources")) wave1.push(["src",
       {
         dateRanges: both,
         dimensions: [{ name: "sessionSource" }, { name: "sessionMedium" }],
@@ -86,7 +90,9 @@ export async function GET(request: Request) {
         orderBys: [{ desc: true, metric: { metricName: srcMetric } }],
         limit: 1000,
         ...pageFilterExpr(filters),
-      },
+      }
+    ]);
+    if (parts.has("pages")) wave1.push(["page",
       {
         dateRanges: cur,
         dimensions: [{ name: "landingPage" }],
@@ -94,15 +100,20 @@ export async function GET(request: Request) {
         orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
         limit: MAX_PAGES,
         ...pageFilterExpr(filters),
-      },
+      }
+    ]);
+    if (parts.has("conversions")) wave1.push(["conv",
       {
         dateRanges: both,
         dimensions: [{ name: "eventName" }],
         metrics: [{ name: keyMetric }],
         limit: 200,
         ...pageFilterExpr(filters),
-      },
-    ], request.signal);
+      }
+    ]);
+    const wave1Rows = await batchRunReports(propertyId, token, wave1.map(([, b]) => b), request.signal);
+    const wave1Got = (key: string): RawRow[] => wave1Rows[wave1.findIndex(([k]) => k === key)] ?? [];
+    const [srcRows, pageRows, convRows] = ["src", "page", "conv"].map(wave1Got);
 
     // Sources: with two date ranges GA4 appends the range as the last dimension.
     const srcMap = new Map<string, { source: string; medium: string; users: number; prev: number }>();

@@ -56,6 +56,11 @@ with real GA4 reporting.
   Top States bar), shown as removable chips. Shared parsing in `lib/ga4-filters.ts`.
   Clicking a Geo Map state zooms in to a city heat map plus a ranked list (`/api/ga4/cities`).
   City coordinates come from `src/data/us-cities.json` (GeoNames, CC BY 4.0), server-side only.
+- Customizable layout: a "Customize" right sidebar lists the widget catalog (`lib/dashboard-widgets.ts`,
+  unit-tested) with search, add/remove and Reset to default. The ordered widget ids save per user +
+  property in `dashboard_layouts` (migration `20260925_dashboard_layouts.sql`, RLS-no-policies) via
+  `GET/PUT/DELETE /api/dashboard/layout`. The overview and breakdowns routes take `parts` so hidden
+  widgets cost no GA4 requests. Drag and drop (@dnd-kit) and new GA4 widgets are planned follow-ups.
 - No property connected -> a connect-GA4 prompt, not sample data.
 
 ### Integrations (/integrations)

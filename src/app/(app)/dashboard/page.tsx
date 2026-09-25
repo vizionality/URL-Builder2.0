@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -14,7 +14,7 @@ import {
   YAxis,
   Legend,
 } from "recharts";
-import { Loader2, TrendingUp, TrendingDown, X } from "lucide-react";
+import { LayoutGrid, Loader2, TrendingUp, TrendingDown, X } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
 import { useGa4PropertyId } from "@/lib/storage";
@@ -30,9 +30,17 @@ import {
   type CompareMode,
 } from "@/lib/report";
 import { DateRangePicker, resolveRange, type DateValue } from "@/components/dashboard/DateRangePicker";
+import { WidgetSidebar, type SaveStatus } from "@/components/dashboard/WidgetSidebar";
+import {
+  breakdownParts,
+  DEFAULT_LAYOUT,
+  layoutBlocks,
+  overviewParts,
+  WIDGET_BY_ID,
+} from "@/lib/dashboard-widgets";
 import { MetricSelect } from "@/components/dashboard/MetricSelect";
 import { MultiSelect, type FilterOption } from "@/components/dashboard/MultiSelect";
-import { Breakdowns } from "@/components/dashboard/Breakdowns";
+import { Breakdowns, type BreakdownPart } from "@/components/dashboard/Breakdowns";
 import { getCached, setCached } from "@/lib/response-cache";
 import { GeoMap } from "@/components/dashboard/GeoMap";
 
@@ -73,6 +81,21 @@ const MONTHLY_OPTIONS: { id: MonthlyMetric; label: string }[] = [
   { id: "sessions", label: "Sessions" },
   { id: "engagedSessions", label: "Engaged sessions" },
 ];
+
+type Scorecards = Overview["scorecards"];
+// One summary scorecard by widget id.
+function ScorecardFor({ id, s }: { id: string; s: Scorecards }) {
+  switch (id) {
+    case "sc.views": return <Scorecard label="Views" value={compact(s.views.value)} delta={pctDelta(s.views.value, s.views.prev)} />;
+    case "sc.totalUsers": return <Scorecard label="Total users" value={compact(s.totalUsers.value)} delta={pctDelta(s.totalUsers.value, s.totalUsers.prev)} />;
+    case "sc.newUsers": return <Scorecard label="New users" value={compact(s.newUsers.value)} delta={pctDelta(s.newUsers.value, s.newUsers.prev)} />;
+    case "sc.sessions": return <Scorecard label="Sessions" value={compact(s.sessions.value)} delta={pctDelta(s.sessions.value, s.sessions.prev)} />;
+    case "sc.engagementRate": return <Scorecard label="Engagement rate" value={`${s.engagementRate.value.toFixed(1)}%`} delta={pctDelta(s.engagementRate.value, s.engagementRate.prev)} />;
+    case "sc.avgSessionDuration": return <Scorecard label="Avg session duration" value={formatDuration(s.avgSessionDuration.value)} delta={pctDelta(s.avgSessionDuration.value, s.avgSessionDuration.prev)} />;
+    case "sc.generateLead": return <Scorecard label="Generate Lead" value={compact(s.generateLead.value)} delta={pctDelta(s.generateLead.value, s.generateLead.prev)} />;
+    default: return null;
+  }
+}
 
 function Delta({ value, invert = false }: { value: number | null; invert?: boolean }) {
   if (value == null) return <span className="text-xs text-zinc-400">—</span>;
@@ -147,10 +170,66 @@ export default function DashboardPage() {
   const optionsLoaded = useRef(false);
   const [retry, setRetry] = useState(0);
 
+  // Widget layout, saved per user + property (see /api/dashboard/layout).
+  // Reports wait for it so hidden widgets never cost a GA4 request.
+  const [layout, setLayout] = useState<string[] | null>(null);
+  const [customizing, setCustomizing] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!propertyId) return;
     let cancelled = false;
+    fetch("/api/dashboard/layout")
+      .then((r) => r.json())
+      .then((d: { widgets?: string[]; saveUnavailable?: boolean }) => {
+        if (cancelled) return;
+        setLayout(Array.isArray(d.widgets) ? d.widgets : DEFAULT_LAYOUT);
+        if (d.saveUnavailable) setSaveStatus("unavailable");
+      })
+      .catch(() => !cancelled && setLayout(DEFAULT_LAYOUT));
+    return () => {
+      cancelled = true;
+    };
+  }, [propertyId]);
+  // Save shortly after the last change, so several quick toggles are one write.
+  const persistLayout = useCallback((next: string[]) => {
+    setLayout(next);
+    setSaveStatus("saving");
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      fetch("/api/dashboard/layout", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ widgets: next }),
+      })
+        .then((r) => setSaveStatus(r.ok ? "saved" : "error"))
+        .catch(() => setSaveStatus("error"));
+    }, 600);
+  }, []);
+  const toggleWidget = useCallback(
+    (id: string) => {
+      const cur = layout ?? DEFAULT_LAYOUT;
+      // A newly added widget goes at the end.
+      persistLayout(cur.includes(id) ? cur.filter((w) => w !== id) : [...cur, id]);
+    },
+    [layout, persistLayout]
+  );
+  const resetWidgets = useCallback(() => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    setLayout(DEFAULT_LAYOUT);
+    setSaveStatus("saving");
+    fetch("/api/dashboard/layout", { method: "DELETE" })
+      .then((r) => setSaveStatus(r.ok ? "saved" : "error"))
+      .catch(() => setSaveStatus("error"));
+  }, []);
+  const closeSidebar = useCallback(() => setCustomizing(false), []);
+  const partsKey = layout ? overviewParts(layout).join(",") : null;
+
+  useEffect(() => {
+    if (!propertyId || partsKey == null) return;
+    let cancelled = false;
     const p = new URLSearchParams(filterQs);
+    p.set("parts", partsKey);
     p.set("startDate", startDate);
     p.set("endDate", endDate);
     p.set("compare", compare);
@@ -196,7 +275,7 @@ export default function DashboardPage() {
       cancelled = true;
       ac.abort();
     };
-  }, [propertyId, startDate, endDate, compare, filterQs, retry]);
+  }, [propertyId, startDate, endDate, compare, filterQs, retry, partsKey]);
 
   const d = state.data;
   // Date range + filters, for the Geo Map's city drill-down.
@@ -274,6 +353,13 @@ export default function DashboardPage() {
           <MultiSelect label="Session source" options={sources} selected={source} onChange={setSource} />
           <MultiSelect label="Page path" options={pages} selected={page} onChange={setPage} />
           <div className="ml-auto flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCustomizing(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+            >
+              <LayoutGrid className="h-4 w-4" /> Customize
+            </button>
             <DateRangePicker value={dates} today={today} onChange={setDates} />
             <select value={compare} onChange={(e) => setCompare(e.target.value as CompareMode)} className={inputClass} aria-label="Compare to">
               <option value="period">vs. previous period</option>
@@ -339,22 +425,22 @@ export default function DashboardPage() {
               </button>
             </div>
           </Card>
-        ) : !s || !d ? null : (
-          <div className={`space-y-6 transition-opacity ${state.loading ? "opacity-60" : ""}`}>
-            {/* Summary scorecards */}
-            <Card title="Summary">
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-                <Scorecard label="Views" value={compact(s.views.value)} delta={pctDelta(s.views.value, s.views.prev)} />
-                <Scorecard label="Total users" value={compact(s.totalUsers.value)} delta={pctDelta(s.totalUsers.value, s.totalUsers.prev)} />
-                <Scorecard label="New users" value={compact(s.newUsers.value)} delta={pctDelta(s.newUsers.value, s.newUsers.prev)} />
-                <Scorecard label="Sessions" value={compact(s.sessions.value)} delta={pctDelta(s.sessions.value, s.sessions.prev)} />
-                <Scorecard label="Engagement rate" value={`${s.engagementRate.value.toFixed(1)}%`} delta={pctDelta(s.engagementRate.value, s.engagementRate.prev)} />
-                <Scorecard label="Avg session duration" value={formatDuration(s.avgSessionDuration.value)} delta={pctDelta(s.avgSessionDuration.value, s.avgSessionDuration.prev)} />
-                <Scorecard label="Generate Lead" value={compact(s.generateLead.value)} delta={pctDelta(s.generateLead.value, s.generateLead.prev)} />
-              </div>
-            </Card>
-
-            {/* Total Users Overview */}
+        ) : !d || !layout ? null : (
+          <Breakdowns
+            propertyId={propertyId}
+            startDate={startDate}
+            endDate={endDate}
+            filterQs={filterQs}
+            onSource={pick(setSource, source)}
+            onMedium={pick(setMedium, medium)}
+            onLanding={pick(setLanding, landing)}
+            compare={compare}
+            parts={breakdownParts(layout) as BreakdownPart[]}
+          >
+            {(tables) => {
+              // Every widget's card; the layout picks which appear and in what order.
+              const cards: Record<string, React.ReactNode> = {
+                monthly: (
             <Card title={`${monthlyLabel} Overview`} description="This year vs. previous year, by month.">
               <select
                 value={monthlyMetric}
@@ -378,9 +464,8 @@ export default function DashboardPage() {
                 </ResponsiveContainer>
               </div>
             </Card>
-
-            <div className="grid gap-6 lg:grid-cols-3">
-              {/* Channel Group */}
+                ),
+                channel: (
               <Card title="Channel Group" description={`${metricLabel(channelMetric)} by default channel group. Click a slice to filter.`}>
                 <MetricSelect value={channelMetric} onChange={setChannelMetric} label="Channel Group metric" />
                 <div className="h-72 w-full">
@@ -404,8 +489,8 @@ export default function DashboardPage() {
                   </ResponsiveContainer>
                 </div>
               </Card>
-
-              {/* Top States */}
+                ),
+                states: (
               <Card title="Top States" description={`${metricLabel(geoMetric)} by region. Click a bar to filter.`}>
                 <MetricSelect value={geoMetric} onChange={setGeoMetric} label="Top States and Geo Map metric" />
                 <div className="h-72 w-full">
@@ -430,30 +515,76 @@ export default function DashboardPage() {
                   </ResponsiveContainer>
                 </div>
               </Card>
-
-              {/* Geo Map */}
-              <Card title="Geo Map" description={`${metricLabel(geoMetric)} by US state. Follows the Top States metric.`}>
+                ),
+                geo: (
+              <Card
+                title="Geo Map"
+                description={`${metricLabel(geoMetric)} by US state.${layout.includes("states") ? " Follows the Top States metric." : ""}`}
+              >
+                {/* The metric dropdown lives on Top States; without that card, it moves here. */}
+                {!layout.includes("states") && (
+                  <MetricSelect value={geoMetric} onChange={setGeoMetric} label="Geo Map metric" />
+                )}
                 {geoData.length === 0 ? (
                   <p className="py-10 text-center text-sm text-zinc-400">No US state data in this range.</p>
                 ) : (
                   <GeoMap data={geoData} metric={geoMetric} query={geoQuery} />
                 )}
               </Card>
-            </div>
-
-            <Breakdowns
-              propertyId={propertyId}
-              startDate={startDate}
-              endDate={endDate}
-              filterQs={filterQs}
-              onSource={pick(setSource, source)}
-              onMedium={pick(setMedium, medium)}
-              onLanding={pick(setLanding, landing)}
-              compare={compare}
-            />
-          </div>
+                ),
+                ...tables,
+              };
+              const blocks = layoutBlocks(layout);
+              if (blocks.length === 0) {
+                return (
+                  <Card>
+                    <div className="py-10 text-center">
+                      <p className="text-sm text-zinc-500">Your dashboard is empty.</p>
+                      <button
+                        type="button"
+                        onClick={() => setCustomizing(true)}
+                        className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+                      >
+                        <LayoutGrid className="h-4 w-4" /> Add widgets
+                      </button>
+                    </div>
+                  </Card>
+                );
+              }
+              return (
+                <div className={`grid gap-6 lg:grid-cols-3 ${state.loading ? "[&>*]:opacity-60" : ""}`}>
+                  {blocks.map((block) =>
+                    block.kind === "scorecards" ? (
+                      <div key={`sc-${block.ids[0]}`} className="lg:col-span-3">
+                        <Card title="Summary">
+                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+                            {block.ids.map((id) => s && <ScorecardFor key={id} id={id} s={s} />)}
+                          </div>
+                        </Card>
+                      </div>
+                    ) : (
+                      <div
+                        key={block.id}
+                        className={WIDGET_BY_ID.get(block.id)?.size === "third" ? "min-w-0" : "min-w-0 lg:col-span-3"}
+                      >
+                        {cards[block.id]}
+                      </div>
+                    )
+                  )}
+                </div>
+              );
+            }}
+          </Breakdowns>
         )}
       </main>
+      <WidgetSidebar
+        open={customizing}
+        layout={layout ?? DEFAULT_LAYOUT}
+        onToggle={toggleWidget}
+        onReset={resetWidgets}
+        onClose={closeSidebar}
+        status={saveStatus}
+      />
     </>
   );
 }
