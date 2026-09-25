@@ -48,7 +48,14 @@ import { DashboardDropZone, SortableWidget } from "@/components/dashboard/DragPa
 import { ExtraWidgetCard, useExtraWidgets } from "@/components/dashboard/ExtraWidgets";
 import type { WidgetData } from "@/lib/extra-widgets";
 import {
-  applyDrop,
+  DASHBOARD_DROP,
+  dropWithSpans,
+  parseLayout,
+  serializeLayout,
+  SIDEBAR_DROP,
+  spanOf,
+  type Span,
+  type Spans,
   extraParts,
   breakdownParts,
   DEFAULT_LAYOUT,
@@ -104,15 +111,24 @@ const MONTHLY_OPTIONS: { id: MonthlyMetric; label: string }[] = [
 // Prefer the widget under the pointer, then the sidebar or dashboard area under
 // it; with the keyboard (no pointer), the nearest widget. The big drop areas
 // never win over a widget, so a reorder can't land on "the dashboard" by accident.
+// A dashboard widget let go over empty dashboard space (e.g. the gap below
+// Summary) goes to the nearest widget instead of being ignored; a new catalog
+// item dropped there is added at the end.
 const dropCollision: CollisionDetection = (args) => {
   const hits = pointerWithin(args);
   const widgets = hits.filter((h) => !String(h.id).startsWith("drop:"));
   if (widgets.length) return widgets;
-  if (hits.length) return hits;
-  return closestCenter({
-    ...args,
-    droppableContainers: args.droppableContainers.filter((c) => !String(c.id).startsWith("drop:")),
-  });
+  const nearestWidget = () =>
+    closestCenter({
+      ...args,
+      droppableContainers: args.droppableContainers.filter((c) => !String(c.id).startsWith("drop:")),
+    });
+  if (hits.some((h) => h.id === SIDEBAR_DROP)) return hits.filter((h) => h.id === SIDEBAR_DROP);
+  const fromCatalog = String(args.active.id).startsWith(NEW_PREFIX);
+  if (hits.some((h) => h.id === DASHBOARD_DROP)) {
+    return fromCatalog ? hits.filter((h) => h.id === DASHBOARD_DROP) : nearestWidget();
+  }
+  return nearestWidget();
 };
 
 type Scorecards = Overview["scorecards"];
@@ -227,6 +243,8 @@ export default function DashboardPage() {
   // Widget layout, saved per user + property (see /api/dashboard/layout).
   // Reports wait for it so hidden widgets never cost a GA4 request.
   const [layout, setLayout] = useState<string[] | null>(null);
+  // Custom widths (12ths of the row) for widgets not at their default.
+  const [spans, setSpans] = useState<Spans>({});
   const [customizing, setCustomizing] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -237,7 +255,9 @@ export default function DashboardPage() {
       .then((r) => r.json())
       .then((d: { widgets?: string[]; saveUnavailable?: boolean }) => {
         if (cancelled) return;
-        setLayout(Array.isArray(d.widgets) ? d.widgets : DEFAULT_LAYOUT);
+        const parsed = parseLayout(Array.isArray(d.widgets) ? d.widgets : DEFAULT_LAYOUT);
+        setLayout(parsed.ids);
+        setSpans(parsed.spans);
         if (d.saveUnavailable) setSaveStatus("unavailable");
       })
       .catch(() => !cancelled && setLayout(DEFAULT_LAYOUT));
@@ -246,15 +266,16 @@ export default function DashboardPage() {
     };
   }, [propertyId]);
   // Save shortly after the last change, so several quick toggles are one write.
-  const persistLayout = useCallback((next: string[]) => {
+  const persistLayout = useCallback((next: string[], nextSpans: Spans) => {
     setLayout(next);
+    setSpans(nextSpans);
     setSaveStatus("saving");
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       fetch("/api/dashboard/layout", {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ widgets: next }),
+        body: JSON.stringify({ widgets: serializeLayout(next, nextSpans) }),
       })
         .then((r) => setSaveStatus(r.ok ? "saved" : "error"))
         .catch(() => setSaveStatus("error"));
@@ -264,13 +285,25 @@ export default function DashboardPage() {
     (id: string) => {
       const cur = layout ?? DEFAULT_LAYOUT;
       // A newly added widget goes at the end.
-      persistLayout(cur.includes(id) ? cur.filter((w) => w !== id) : [...cur, id]);
+      if (cur.includes(id)) {
+        // Removed widgets forget their width.
+        const rest = { ...spans };
+        delete rest[id];
+        persistLayout(cur.filter((w) => w !== id), rest);
+      } else {
+        persistLayout([...cur, id], spans);
+      }
     },
-    [layout, persistLayout]
+    [layout, spans, persistLayout]
+  );
+  const resizeWidget = useCallback(
+    (id: string, span: Span) => layout && persistLayout(layout, { ...spans, [id]: span }),
+    [layout, spans, persistLayout]
   );
   const resetWidgets = useCallback(() => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     setLayout(DEFAULT_LAYOUT);
+    setSpans({});
     setSaveStatus("saving");
     fetch("/api/dashboard/layout", { method: "DELETE" })
       .then((r) => setSaveStatus(r.ok ? "saved" : "error"))
@@ -423,8 +456,8 @@ export default function DashboardPage() {
         onDragEnd={(e) => {
           setDragging(null);
           if (!layout) return;
-          const next = applyDrop(layout, String(e.active.id), e.over ? String(e.over.id) : null);
-          if (next !== layout) persistLayout(next);
+          const next = dropWithSpans(layout, spans, String(e.active.id), e.over ? String(e.over.id) : null);
+          if (next.ids !== layout || next.spans !== spans) persistLayout(next.ids, next.spans);
         }}
       >
       {/* Leave room for the Customize panel on wide screens so both stay usable while dragging. */}
@@ -645,10 +678,10 @@ export default function DashboardPage() {
               return (
                 <DashboardDropZone>
                 <SortableContext items={layout} strategy={rectSortingStrategy}>
-                <div className={`grid gap-6 lg:grid-cols-3 ${state.loading ? "[&>*]:opacity-60" : ""}`}>
+                <div className={`grid gap-6 lg:grid-cols-12 ${state.loading ? "[&>*]:opacity-60" : ""}`}>
                   {blocks.map((block) =>
                     block.kind === "scorecards" ? (
-                      <div key={`sc-${block.ids[0]}`} className="lg:col-span-3">
+                      <div key={`sc-${block.ids[0]}`} className="lg:col-span-12">
                         <Card title="Summary">
                           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
                             {block.ids.map((id) => (
@@ -664,7 +697,9 @@ export default function DashboardPage() {
                         key={block.id}
                         id={block.id}
                         title={WIDGET_BY_ID.get(block.id)?.title ?? block.id}
-                        className={WIDGET_BY_ID.get(block.id)?.size === "third" ? "min-w-0" : "min-w-0 lg:col-span-3"}
+                        className="min-w-0"
+                        span={spanOf(block.id, spans)}
+                        onResize={(sp) => resizeWidget(block.id, sp)}
                       >
                         {cards[block.id]}
                       </SortableWidget>
