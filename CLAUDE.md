@@ -65,6 +65,9 @@ with real GA4 reporting.
   Widths: a 12-column row; drag a widget's right edge to resize (25/33/50/75/100%, arrow keys too).
   Saved as "id|span" entries in the same `widgets` array. A non-full widget dropped on a full-width
   one pairs them 50/50 (`dropWithSpans`). All scorecards share one Summary row.
+  Shrinking a widget leaves an empty slot ("gap:<n>|span", dashed "drag a widget here" box) instead of
+  pulling the next widget up (`resizeWithGap`); dropping a widget on a slot fills it at its width.
+  Undo/redo (buttons, Cmd/Ctrl+Z, Shift+Cmd/Ctrl+Z) covers the last 50 layout changes this visit.
   Extra GA4 widgets (off by default): bounce rate, views per session, engaged sessions, event count,
   key events scorecards; device, new vs returning, browsers, countries, cities, sessions by hour;
   Top Pages and Campaigns tables. Specs in `lib/extra-widgets.ts` (unit-tested), served by

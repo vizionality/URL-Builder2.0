@@ -81,11 +81,26 @@ export function snapSpan(cols: number): Span {
   return SPANS.reduce((best, s) => (Math.abs(s - cols) < Math.abs(best - cols) ? s : best), SPANS[0] as Span);
 }
 
-// Saved layout entries are "id" or "id|span" (a custom width).
-function splitEntry(entry: string): { id: string; span: Span | null } {
+// ---- Empty slots ---------------------------------------------------------------
+// Shrinking a widget leaves an empty slot ("gap:<n>") beside it instead of
+// pulling the next widget up. It shows as a dashed "drop a widget here" box;
+// dropping a widget on it fills it, and it can be removed.
+export const GAP_PREFIX = "gap:";
+export const MAX_GAPS = 20;
+export function isGap(id: string): boolean {
+  return /^gap:[a-z0-9]{1,12}$/.test(id);
+}
+function newGapId(ids: string[]): string {
+  let n = 1;
+  while (ids.includes(`${GAP_PREFIX}${n}`)) n++;
+  return `${GAP_PREFIX}${n}`;
+}
+
+// Saved layout entries are "id" or "id|span" (a width in 12ths, 1-12).
+function splitEntry(entry: string): { id: string; span: number | null } {
   const [id, raw] = entry.split("|");
   const n = Number(raw);
-  return { id, span: (SPANS as readonly number[]).includes(n) ? (n as Span) : null };
+  return { id, span: Number.isInteger(n) && n >= 1 && n <= 12 ? n : null };
 }
 
 // Keep known widget ids, in order, each once, with a valid width if one was
@@ -98,7 +113,15 @@ export function sanitizeLayout(input: unknown): string[] {
   for (const entry of input) {
     if (typeof entry !== "string") continue;
     const { id, span } = splitEntry(entry);
-    if (!WIDGET_BY_ID.has(id) || seen.has(id)) continue;
+    if (seen.has(id)) continue;
+    if (isGap(id)) {
+      // An empty slot needs its width, and there's a cap on how many.
+      if (!span || out.filter((e) => isGap(e.split("|")[0])).length >= MAX_GAPS) continue;
+      seen.add(id);
+      out.push(`${id}|${span}`);
+      continue;
+    }
+    if (!WIDGET_BY_ID.has(id)) continue;
     seen.add(id);
     out.push(span && WIDGET_BY_ID.get(id)?.size !== "scorecard" ? `${id}|${span}` : id);
     if (out.length >= MAX_LAYOUT) break;
@@ -106,7 +129,7 @@ export function sanitizeLayout(input: unknown): string[] {
   return out;
 }
 
-export type Spans = Record<string, Span>;
+export type Spans = Record<string, number>;
 
 // Saved entries -> widget ids in order plus any custom widths.
 export function parseLayout(entries: string[]): { ids: string[]; spans: Spans } {
@@ -115,22 +138,25 @@ export function parseLayout(entries: string[]): { ids: string[]; spans: Spans } 
   for (const entry of sanitizeLayout(entries)) {
     const { id, span } = splitEntry(entry);
     ids.push(id);
-    if (span && span !== defaultSpan(id)) spans[id] = span;
+    if (span && (isGap(id) || span !== defaultSpan(id))) spans[id] = span;
   }
   return { ids, spans };
 }
 
 export function serializeLayout(ids: string[], spans: Spans): string[] {
-  return ids.map((id) => (spans[id] && spans[id] !== defaultSpan(id) ? `${id}|${spans[id]}` : id));
+  return ids.map((id) =>
+    spans[id] && (isGap(id) || spans[id] !== defaultSpan(id)) ? `${id}|${spans[id]}` : id
+  );
 }
 
-export function spanOf(id: string, spans: Spans): Span {
+export function spanOf(id: string, spans: Spans): number {
   return spans[id] ?? defaultSpan(id);
 }
 
 export type LayoutBlock =
   | { kind: "scorecards"; ids: string[] }
-  | { kind: "widget"; id: string };
+  | { kind: "widget"; id: string }
+  | { kind: "gap"; id: string };
 
 // All scorecards share one Summary row, placed where the first scorecard sits
 // (so adding a scorecard anywhere joins the existing row instead of starting a
@@ -139,6 +165,10 @@ export function layoutBlocks(layout: string[]): LayoutBlock[] {
   const out: LayoutBlock[] = [];
   let summary: { kind: "scorecards"; ids: string[] } | null = null;
   for (const id of layout) {
+    if (isGap(id)) {
+      out.push({ kind: "gap", id });
+      continue;
+    }
     const def = WIDGET_BY_ID.get(id);
     if (!def) continue;
     if (def.size === "scorecard") {
@@ -174,6 +204,42 @@ export const NEW_PREFIX = "new:";
 export const DASHBOARD_DROP = "drop:dashboard";
 export const SIDEBAR_DROP = "drop:sidebar";
 
+// Resize a widget. Shrinking leaves an empty slot for the freed width right
+// after it (merged into one already there), so nothing below moves up.
+// Growing takes width back from a slot right after it first.
+export function resizeWithGap(ids: string[], spans: Spans, id: string, span: number): { ids: string[]; spans: Spans } {
+  const old = spanOf(id, spans);
+  if (span === old || !ids.includes(id)) return { ids, spans };
+  const next = [...ids];
+  const nextSpans: Spans = { ...spans, [id]: span };
+  const after = next[next.indexOf(id) + 1];
+  if (span < old) {
+    const freed = old - span;
+    if (after && isGap(after)) {
+      nextSpans[after] = Math.min(12, spanOf(after, spans) + freed);
+    } else {
+      const gap = newGapId(next);
+      next.splice(next.indexOf(id) + 1, 0, gap);
+      nextSpans[gap] = freed;
+    }
+  } else if (after && isGap(after)) {
+    const left = spanOf(after, spans) - (span - old);
+    if (left > 0) nextSpans[after] = left;
+    else {
+      next.splice(next.indexOf(after), 1);
+      delete nextSpans[after];
+    }
+  }
+  return { ids: next, spans: nextSpans };
+}
+
+export function removeGap(ids: string[], spans: Spans, gap: string): { ids: string[]; spans: Spans } {
+  if (!ids.includes(gap)) return { ids, spans };
+  const rest = { ...spans };
+  delete rest[gap];
+  return { ids: ids.filter((i) => i !== gap), spans: rest };
+}
+
 // Drop plus widths: a widget that isn't full width, dropped onto a full-width
 // widget, sits beside it and both snap to 50%. (A full-width widget dropped on
 // another is just a reorder.)
@@ -183,11 +249,24 @@ export function dropWithSpans(
   active: string,
   over: string | null
 ): { ids: string[]; spans: Spans } {
+  // A widget dropped on an empty slot fills it, taking the slot's width.
+  if (over && isGap(over) && !isGap(active)) {
+    const moved = active.startsWith(NEW_PREFIX) ? active.slice(NEW_PREFIX.length) : active;
+    const def = WIDGET_BY_ID.get(moved);
+    if (!def || def.size === "scorecard") return { ids, spans };
+    if (active.startsWith(NEW_PREFIX) ? ids.includes(moved) : !ids.includes(moved)) return { ids, spans };
+    const width = spanOf(over, spans);
+    const next = ids.filter((i) => i !== moved);
+    next[next.indexOf(over)] = moved;
+    const nextSpans: Spans = { ...spans, [moved]: width };
+    delete nextSpans[over];
+    return { ids: next, spans: nextSpans };
+  }
   const next = applyDrop(ids, active, over);
   if (next === ids || !over) return { ids, spans };
   const moved = active.startsWith(NEW_PREFIX) ? active.slice(NEW_PREFIX.length) : active;
   const isCard = (id: string) => WIDGET_BY_ID.get(id)?.size === "scorecard";
-  if (next.includes(over) && next.includes(moved) && !isCard(over) && !isCard(moved)) {
+  if (next.includes(over) && next.includes(moved) && !isCard(over) && !isCard(moved) && !isGap(moved) && !isGap(over)) {
     const pairs = spanOf(over, spans) === 12 && (active.startsWith(NEW_PREFIX) || spanOf(moved, spans) !== 12);
     if (pairs) return { ids: next, spans: { ...spans, [over]: 6, [moved]: 6 } };
   }

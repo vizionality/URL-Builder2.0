@@ -14,7 +14,7 @@ import {
   YAxis,
   Legend,
 } from "recharts";
-import { LayoutGrid, Loader2, TrendingUp, TrendingDown, X } from "lucide-react";
+import { LayoutGrid, Loader2, Redo2, TrendingUp, TrendingDown, Undo2, X } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
 import { useGa4PropertyId } from "@/lib/storage";
@@ -44,13 +44,15 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import { DashboardDropZone, SortableWidget } from "@/components/dashboard/DragParts";
+import { DashboardDropZone, GapSlot, SortableWidget } from "@/components/dashboard/DragParts";
 import { ExtraWidgetCard, useExtraWidgets } from "@/components/dashboard/ExtraWidgets";
 import type { WidgetData } from "@/lib/extra-widgets";
 import {
   DASHBOARD_DROP,
   dropWithSpans,
   parseLayout,
+  removeGap,
+  resizeWithGap,
   serializeLayout,
   SIDEBAR_DROP,
   spanOf,
@@ -130,6 +132,9 @@ const dropCollision: CollisionDetection = (args) => {
   }
   return nearestWidget();
 };
+
+type LayoutSnapshot = { ids: string[]; spans: Spans };
+const HISTORY_LIMIT = 50;
 
 type Scorecards = Overview["scorecards"];
 const EXTRA_SCORE_LABELS: Record<string, string> = {
@@ -266,9 +271,7 @@ export default function DashboardPage() {
     };
   }, [propertyId]);
   // Save shortly after the last change, so several quick toggles are one write.
-  const persistLayout = useCallback((next: string[], nextSpans: Spans) => {
-    setLayout(next);
-    setSpans(nextSpans);
+  const saveLayout = useCallback((next: string[], nextSpans: Spans) => {
     setSaveStatus("saving");
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
@@ -281,6 +284,58 @@ export default function DashboardPage() {
         .catch(() => setSaveStatus("error"));
     }, 600);
   }, []);
+  // Undo / redo: every layout change pushes the previous layout (last 50,
+  // this visit only). Stepping back also saves, so a reload keeps it.
+  const [history, setHistory] = useState<{ past: LayoutSnapshot[]; future: LayoutSnapshot[] }>({
+    past: [],
+    future: [],
+  });
+  const persistLayout = useCallback(
+    (next: string[], nextSpans: Spans) => {
+      if (layout) {
+        const prev = { ids: layout, spans };
+        setHistory((h) => ({ past: [...h.past, prev].slice(-HISTORY_LIMIT), future: [] }));
+      }
+      setLayout(next);
+      setSpans(nextSpans);
+      saveLayout(next, nextSpans);
+    },
+    [layout, spans, saveLayout]
+  );
+  const undo = useCallback(() => {
+    const prev = history.past[history.past.length - 1];
+    if (!prev || !layout) return;
+    setHistory({ past: history.past.slice(0, -1), future: [{ ids: layout, spans }, ...history.future] });
+    setLayout(prev.ids);
+    setSpans(prev.spans);
+    saveLayout(prev.ids, prev.spans);
+  }, [history, layout, spans, saveLayout]);
+  const redo = useCallback(() => {
+    const next = history.future[0];
+    if (!next || !layout) return;
+    setHistory({ past: [...history.past, { ids: layout, spans }], future: history.future.slice(1) });
+    setLayout(next.ids);
+    setSpans(next.spans);
+    saveLayout(next.ids, next.spans);
+  }, [history, layout, spans, saveLayout]);
+  // Cmd/Ctrl+Z undoes, Shift+Cmd/Ctrl+Z or Ctrl+Y redoes (not while typing).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))) return;
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if ((k === "z" && e.shiftKey) || k === "y") {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo]);
   const toggleWidget = useCallback(
     (id: string) => {
       const cur = layout ?? DEFAULT_LAYOUT;
@@ -297,18 +352,23 @@ export default function DashboardPage() {
     [layout, spans, persistLayout]
   );
   const resizeWidget = useCallback(
-    (id: string, span: Span) => layout && persistLayout(layout, { ...spans, [id]: span }),
+    (id: string, span: Span) => {
+      if (!layout) return;
+      const next = resizeWithGap(layout, spans, id, span);
+      persistLayout(next.ids, next.spans);
+    },
     [layout, spans, persistLayout]
   );
-  const resetWidgets = useCallback(() => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    setLayout(DEFAULT_LAYOUT);
-    setSpans({});
-    setSaveStatus("saving");
-    fetch("/api/dashboard/layout", { method: "DELETE" })
-      .then((r) => setSaveStatus(r.ok ? "saved" : "error"))
-      .catch(() => setSaveStatus("error"));
-  }, []);
+  // Reset is a normal change, so it can be undone.
+  const resetWidgets = useCallback(() => persistLayout(DEFAULT_LAYOUT, {}), [persistLayout]);
+  const dropGap = useCallback(
+    (gap: string) => {
+      if (!layout) return;
+      const next = removeGap(layout, spans, gap);
+      persistLayout(next.ids, next.spans);
+    },
+    [layout, spans, persistLayout]
+  );
   const closeSidebar = useCallback(() => setCustomizing(false), []);
   // Drag and drop: mouse (after a small move), touch (press and hold), keyboard.
   const [dragging, setDragging] = useState<string | null>(null);
@@ -474,6 +534,28 @@ export default function DashboardPage() {
               <option value="period">vs. previous period</option>
               <option value="year">vs. previous year</option>
             </select>
+            <div className="flex items-center rounded-md border border-zinc-200 bg-white">
+              <button
+                type="button"
+                onClick={undo}
+                disabled={history.past.length === 0}
+                aria-label="Undo layout change"
+                title="Undo (Ctrl/Cmd+Z)"
+                className="p-2 text-zinc-600 hover:bg-zinc-50 disabled:opacity-30"
+              >
+                <Undo2 className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={redo}
+                disabled={history.future.length === 0}
+                aria-label="Redo layout change"
+                title="Redo (Shift+Ctrl/Cmd+Z)"
+                className="border-l border-zinc-200 p-2 text-zinc-600 hover:bg-zinc-50 disabled:opacity-30"
+              >
+                <Redo2 className="h-4 w-4" />
+              </button>
+            </div>
             {/* Primary action, last in the row (right of the date controls). */}
             <button
               type="button"
@@ -692,6 +774,14 @@ export default function DashboardPage() {
                           </div>
                         </Card>
                       </div>
+                    ) : block.kind === "gap" ? (
+                      <GapSlot
+                        key={block.id}
+                        id={block.id}
+                        span={spanOf(block.id, spans)}
+                        onAdd={() => setCustomizing(true)}
+                        onRemove={() => dropGap(block.id)}
+                      />
                     ) : (
                       <SortableWidget
                         key={block.id}
