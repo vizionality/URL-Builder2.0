@@ -15,7 +15,16 @@ import {
 } from "recharts";
 import { ChevronLeft, ChevronRight, Loader2, TrendingUp, TrendingDown } from "lucide-react";
 import { Card } from "@/components/Card";
-import { compact, metricLabel, pctDelta, type BreakdownMetric } from "@/lib/report";
+import {
+  bucketLabel,
+  bucketTrend,
+  compact,
+  metricLabel,
+  pctDelta,
+  TIME_GRAINS,
+  type BreakdownMetric,
+  type TimeGrain,
+} from "@/lib/report";
 import { MetricSelect } from "@/components/dashboard/MetricSelect";
 import { getCached, setCached } from "@/lib/response-cache";
 
@@ -176,6 +185,8 @@ export function Breakdowns({
   const [sourceMetric, setSourceMetric] = useState<BreakdownMetric>("totalUsers");
   // Table pages (Top Traffic Sources, Landing Pages), tied to the report it was chosen on: new data
   // (a filter, date or metric change) starts back at page one.
+  // Conversions chart grain; the rollup happens here from the daily series.
+  const [convGrain, setConvGrain] = useState<TimeGrain>("day");
   const [pages, setPages] = useState<{ data: Breakdowns | null; src: number; lp: number }>({ data: null, src: 0, lp: 0 });
   const [state, setState] = useState<{ loading: boolean; error: string | null; data: Breakdowns | null }>(
     { loading: false, error: null, data: null }
@@ -241,6 +252,7 @@ export function Breakdowns({
   const lp = slicePage(d.landingPages, fresh ? pages.lp : 0);
   const goTo = (which: "src" | "lp", n: number) =>
     setPages({ data: d, src: src.page, lp: lp.page, [which]: n });
+  const convData = bucketTrend(d.conversionTrend.data, convGrain);
   const maxConv = Math.max(0, ...d.conversions.map((c) => c.count));
 
   return (
@@ -346,19 +358,29 @@ export function Breakdowns({
           {d.conversionTrend.data.length === 0 ? (
             <p className="py-10 text-center text-sm text-zinc-400">No conversions in this range.</p>
           ) : (
-            <div className="h-full min-h-72 w-full">
+            <div className="flex h-full min-h-72 w-full flex-col">
+              <select
+                value={convGrain}
+                onChange={(e) => setConvGrain(e.target.value as TimeGrain)}
+                aria-label="Conversions time grain"
+                className="mb-2 self-end rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-700"
+              >
+                {TIME_GRAINS.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
+              </select>
+              <div className="min-h-64 flex-1">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={d.conversionTrend.data} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
+                <BarChart data={convData} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
                   <CartesianGrid stroke="#f1f5f4" vertical={false} />
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={shortDate} minTickGap={24} />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => bucketLabel(String(v), convGrain)} minTickGap={24} />
                   <YAxis tick={{ fontSize: 11 }} width={36} allowDecimals={false} />
-                  <Tooltip labelFormatter={(l) => shortDate(String(l))} />
+                  <Tooltip labelFormatter={(l) => bucketLabel(String(l), convGrain)} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   {d.conversionTrend.series.map((s, i) => (
                     <Bar key={s.key} dataKey={s.key} name={s.label} fill={LINE_COLORS[i % LINE_COLORS.length]} isAnimationActive={false} />
                   ))}
                 </BarChart>
               </ResponsiveContainer>
+              </div>
             </div>
           )}
         </div>

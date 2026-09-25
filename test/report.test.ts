@@ -144,3 +144,33 @@ describe("breakdown metrics", () => {
     expect(metricLabel("engagedSessions")).toBe("Engaged sessions");
   });
 });
+
+describe("trend time grain", () => {
+  it("buckets dates by week (Sunday start), month and quarter", async () => {
+    const { bucketStart } = await import("@/lib/report");
+    // 2026-09-24 is a Thursday.
+    expect(bucketStart("2026-09-24", "week")).toBe("2026-09-20");
+    expect(bucketStart("2026-09-24", "month")).toBe("2026-09-01");
+    expect(bucketStart("2026-09-24", "quarter")).toBe("2026-07-01");
+    expect(bucketStart("2026-09-24", "day")).toBe("2026-09-24");
+    // A week can straddle a year boundary.
+    expect(bucketStart("2026-01-01", "week")).toBe("2025-12-28");
+  });
+
+  it("sums each series per bucket and keeps order", async () => {
+    const { bucketTrend, bucketLabel } = await import("@/lib/report");
+    const daily = [
+      { date: "2026-08-30", s0: 1, s1: 2 },
+      { date: "2026-08-31", s0: 3, s1: 0 },
+      { date: "2026-09-01", s0: 5, s1: 1 },
+    ];
+    expect(bucketTrend(daily, "month")).toEqual([
+      { date: "2026-08-01", s0: 4, s1: 2 },
+      { date: "2026-09-01", s0: 5, s1: 1 },
+    ]);
+    expect(bucketTrend(daily, "week")).toEqual([{ date: "2026-08-30", s0: 9, s1: 3 }]);
+    expect(bucketTrend(daily, "day")).toBe(daily);
+    expect(bucketLabel("2026-07-01", "quarter")).toBe("Q3 2026");
+    expect(bucketLabel("2026-08-30", "week")).toBe("Wk of Aug 30");
+  });
+});

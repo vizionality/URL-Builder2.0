@@ -255,3 +255,56 @@ export function metricLabel(id: BreakdownMetric): string {
 }
 
 export type MetricValues = Record<BreakdownMetric, number>;
+
+// ---- Trend time grain --------------------------------------------------------
+
+export type TimeGrain = "day" | "week" | "month" | "quarter";
+
+export const TIME_GRAINS: { id: TimeGrain; label: string }[] = [
+  { id: "day", label: "Day" },
+  { id: "week", label: "Week" },
+  { id: "month", label: "Month" },
+  { id: "quarter", label: "Quarter" },
+];
+
+// First day (ISO) of the bucket an ISO date falls in. Weeks start Sunday,
+// like Looker Studio's default.
+export function bucketStart(iso: string, grain: TimeGrain): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (grain === "day") return iso;
+  if (grain === "month") return ymd(y, m, 1);
+  if (grain === "quarter") return ymd(y, Math.floor((m - 1) / 3) * 3 + 1, 1);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return addDaysIso(iso, -dow);
+}
+
+// Roll daily rows ({ date, s0, s1, ... }) up to the grain by summing each
+// series. Suited to counts (events); summing daily users would overcount.
+// A partial first or last bucket covers only the days in range.
+export function bucketTrend(
+  data: Record<string, number | string>[],
+  grain: TimeGrain
+): Record<string, number | string>[] {
+  if (grain === "day") return data;
+  const out = new Map<string, Record<string, number | string>>();
+  for (const row of data) {
+    const key = bucketStart(String(row.date), grain);
+    const acc = out.get(key) ?? { date: key };
+    for (const [k, v] of Object.entries(row)) {
+      if (k === "date" || typeof v !== "number") continue;
+      acc[k] = (Number(acc[k]) || 0) + v;
+    }
+    out.set(key, acc);
+  }
+  return [...out.values()].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+}
+
+// Axis/tooltip label for a bucket's start date.
+export function bucketLabel(iso: string, grain: TimeGrain): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const mon = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][m - 1];
+  if (grain === "quarter") return `Q${Math.floor((m - 1) / 3) + 1} ${y}`;
+  if (grain === "month") return `${mon} ${y}`;
+  if (grain === "week") return `Wk of ${mon} ${d}`;
+  return `${mon} ${d}`;
+}
