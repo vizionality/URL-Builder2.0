@@ -43,3 +43,11 @@ describe("applyDrop", () => {
     expect(applyDrop(l, "new:bogus", DASHBOARD_DROP)).toBe(l);
   });
 });
+
+describe("extra widget parts", () => {
+  it("extra scorecards don't pull in the overview summary", async () => {
+    const { overviewParts, extraParts } = await import("@/lib/dashboard-widgets");
+    expect(overviewParts(["sc.bounceRate", "device"])).toEqual([]);
+    expect(extraParts(["device", "geo", "sc.bounceRate"])).toEqual(["sc.bounceRate", "device"]);
+  });
+});
