@@ -16,6 +16,7 @@ import {
 } from "recharts";
 import { LayoutGrid, Loader2, Redo2, TrendingUp, TrendingDown, Undo2, X } from "lucide-react";
 import { Header } from "@/components/Header";
+import { DashboardTabs } from "@/components/dashboard/DashboardTabs";
 import { Card } from "@/components/Card";
 import { useGa4PropertyId } from "@/lib/storage";
 import {
@@ -614,6 +615,7 @@ export default function DashboardPage() {
   return (
     <>
       <Header title="Dashboard" subtitle="GA4 performance overview" />
+      <DashboardTabs />
       <DndContext
         sensors={dndSensors}
         collisionDetection={dropCollision}

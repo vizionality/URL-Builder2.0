@@ -91,6 +91,10 @@ with real GA4 reporting.
   Top Pages and Campaigns tables. Specs in `lib/extra-widgets.ts` (unit-tested), served by
   `GET /api/ga4/widgets?ids=` (one report each, batched, only for widgets on the layout).
 - No property connected -> a connect-GA4 prompt, not sample data.
+- Pages: tabs under the header (`components/dashboard/DashboardTabs.tsx`): Google Analytics (/dashboard),
+  SEO Dashboard (/dashboard/seo), Social Media (/dashboard/social), and a More menu to create, name and
+  delete custom pages (/dashboard/p/[id], names kept in localStorage `dashboardPages`). Pages other than
+  Google Analytics are blank for now: grey dashed outlines where the GA cards sit.
 
 ### Integrations (/integrations)
 - Google Analytics 4 card: GA4 Property ID input (numeric, e.g. 123456789).
