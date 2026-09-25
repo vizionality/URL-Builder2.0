@@ -34,8 +34,8 @@ const BAR = "#12b795";
 type Series = { key: string; label: string };
 type Trend = { data: Record<string, number | string>[]; series: Series[] };
 type Breakdowns = {
-  sources: { source: string; medium: string; users: number; prev: number }[];
-  sourceTotal: { users: number; prev: number };
+  sources: { source: string; medium: string; users: number; prev: number; engagementRate?: number }[];
+  sourceTotal: { users: number; prev: number; engagementRate?: number };
   sourceCount: number;
   sourceTrend: Trend;
   // "day" = daily rows; otherwise already bucketed by GA4 (total users).
@@ -186,6 +186,8 @@ function Pager({
 }
 // Key events are covered by the Conversions card below.
 const NO_KEY_EVENTS: BreakdownMetric[] = ["keyEvents"];
+// Engagement rate, or a dash for an older cached response without it.
+const pct = (v: number | undefined) => (v == null ? "—" : `${v.toFixed(1)}%`);
 const pickable = "max-w-full truncate text-left hover:text-green-700 hover:underline";
 
 export type BreakdownPart = "sources" | "pages" | "conversions";
@@ -325,6 +327,7 @@ export function Breakdowns({
                   <th className={th}>Medium</th>
                   <th className={`${th} text-right`}>{metricLabel(sourceMetric)}</th>
                   <th className={`${th} text-right`}>%Δ</th>
+                  <th className={`${th} text-right`}>Engagement rate</th>
                 </tr>
               </thead>
               <tbody>
@@ -339,12 +342,14 @@ export function Breakdowns({
                     </td>
                     <td className={`${td} text-right tabular-nums`}>{s.users.toLocaleString("en-US")}</td>
                     <td className={`${td} text-right text-xs`}><Delta value={pctDelta(s.users, s.prev)} /></td>
+                    <td className={`${td} text-right tabular-nums`}>{pct(s.engagementRate)}</td>
                   </tr>
                 ))}
                 <tr>
                   <td className={`${td} font-semibold`} colSpan={2}>Grand total</td>
                   <td className={`${td} text-right font-semibold tabular-nums`}>{d.sourceTotal.users.toLocaleString("en-US")}</td>
                   <td className={`${td} text-right text-xs`}><Delta value={pctDelta(d.sourceTotal.users, d.sourceTotal.prev)} /></td>
+                  <td className={`${td} text-right font-semibold tabular-nums`}>{pct(d.sourceTotal.engagementRate)}</td>
                 </tr>
               </tbody>
             </table>
