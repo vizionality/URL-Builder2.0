@@ -88,3 +88,35 @@ export function overviewParts(layout: string[]): string[] {
 export function breakdownParts(layout: string[]): string[] {
   return ["sources", "pages", "conversions"].filter((p) => layout.includes(p));
 }
+
+// ---- Drag and drop -----------------------------------------------------------
+
+// Drag ids: a widget on the dashboard is its own id; a catalog item in the
+// sidebar is "new:<id>". Drop targets: another widget, the dashboard area, or
+// the sidebar.
+export const NEW_PREFIX = "new:";
+export const DASHBOARD_DROP = "drop:dashboard";
+export const SIDEBAR_DROP = "drop:sidebar";
+
+// The layout after dropping `active` on `over`, or the same array if nothing changes.
+export function applyDrop(layout: string[], active: string, over: string | null): string[] {
+  if (!over) return layout;
+  if (active.startsWith(NEW_PREFIX)) {
+    const id = active.slice(NEW_PREFIX.length);
+    if (!WIDGET_BY_ID.has(id) || layout.includes(id)) return layout;
+    const at = layout.indexOf(over);
+    if (at >= 0) return [...layout.slice(0, at), id, ...layout.slice(at)];
+    if (over === DASHBOARD_DROP) return [...layout, id];
+    return layout;
+  }
+  if (!layout.includes(active)) return layout;
+  // Dragged back to the sidebar: remove it.
+  if (over === SIDEBAR_DROP || over.startsWith(NEW_PREFIX)) return layout.filter((w) => w !== active);
+  const from = layout.indexOf(active);
+  const to = layout.indexOf(over);
+  if (to < 0 || from === to) return layout;
+  const next = [...layout];
+  next.splice(from, 1);
+  next.splice(to, 0, active);
+  return next;
+}
