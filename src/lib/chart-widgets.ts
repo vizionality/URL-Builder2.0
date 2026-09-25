@@ -272,6 +272,33 @@ export function chartSpec(
   };
 }
 
+// World map extra: the chosen metric by US state, so the US can be shaded by
+// state when the map zooms to North America (us-atlas has the state shapes).
+export function usRegionsSpec(
+  metricId: string | null,
+  ctx: ChartCtx
+): { body: unknown; parse: (rows: RawRow[]) => { label: string; value: number }[] } {
+  const m = METRIC_BY_ID.get(metricId ?? "") ?? METRIC_BY_ID.get("sessions")!;
+  const scale = m.scale ?? 1;
+  const filter = ctx.filter as { dimensionFilter?: unknown };
+  const us = { filter: { fieldName: "country", stringFilter: { value: "United States", matchType: "EXACT" } } };
+  // AND the US clause onto the page's filters (if any).
+  const dimensionFilter = filter.dimensionFilter ? { andGroup: { expressions: [filter.dimensionFilter, us] } } : us;
+  return {
+    body: {
+      dateRanges: ctx.current,
+      dimensions: [{ name: "region" }],
+      metrics: [{ name: gaName(m, ctx) }],
+      limit: 100,
+      dimensionFilter,
+    },
+    parse: (rows) =>
+      rows
+        .map((r) => ({ label: dv(r), value: mv(r) * scale }))
+        .filter((x) => x.label && !x.label.startsWith("(") && x.value > 0),
+  };
+}
+
 // Request ids carry the card's choices: "c.donut.channel~keyEvents" (metric),
 // "c.line.sessions@week" (time grain).
 export function splitRequestId(requestId: string): { id: string; metric: string | null; grain: TimeGrain } {

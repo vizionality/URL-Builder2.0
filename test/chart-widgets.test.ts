@@ -95,3 +95,19 @@ describe("time chart grain", () => {
     expect(d.kind === "stack" && d.rows).toEqual([{ date: "2026-01-01", s0: 5, s1: 2 }]);
   });
 });
+
+describe("world map US states", () => {
+  it("asks for the metric by US region, ANDed with the page's filters", async () => {
+    const { usRegionsSpec } = await import("@/lib/chart-widgets");
+    const pageFilter = { filter: { fieldName: "sessionMedium", inListFilter: { values: ["cpc"] } } };
+    const spec = usRegionsSpec("newUsers", { ...ctx, filter: { dimensionFilter: pageFilter } });
+    const body = spec.body as { dimensions: { name: string }[]; dimensionFilter: { andGroup: { expressions: unknown[] } } };
+    expect(body.dimensions[0].name).toBe("region");
+    expect(body.dimensionFilter.andGroup.expressions[0]).toEqual(pageFilter);
+    const rows = [
+      { dimensionValues: [{ value: "Massachusetts" }], metricValues: [{ value: "12" }] },
+      { dimensionValues: [{ value: "(not set)" }], metricValues: [{ value: "3" }] },
+    ];
+    expect(spec.parse(rows)).toEqual([{ label: "Massachusetts", value: 12 }]);
+  });
+});
