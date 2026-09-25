@@ -165,7 +165,8 @@ export function GapSlot({
   id: string;
   span: number;
   onAdd: () => void;
-  onRemove: () => void;
+  // Omitted for a slot at the end of its row (removing it would change nothing).
+  onRemove?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging, isOver } =
     useSortable({ id });
@@ -204,6 +205,7 @@ export function GapSlot({
         >
           <GripVertical className="h-4 w-4" />
         </button>
+        {onRemove && (
         <button
           type="button"
           onClick={onRemove}
@@ -212,6 +214,7 @@ export function GapSlot({
         >
           <X className="h-4 w-4" />
         </button>
+        )}
       </div>
     </div>
   );

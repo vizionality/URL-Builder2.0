@@ -73,7 +73,11 @@ describe("widths", () => {
   it("a widget dropped on a full-width one pairs them 50/50; full on full just reorders", async () => {
     const { dropWithSpans } = await import("@/lib/dashboard-widgets");
     const added = dropWithSpans(["monthly", "geo"], {}, "new:device", "monthly");
-    expect(added).toEqual({ ids: ["device", "monthly", "geo"], spans: { monthly: 6, device: 6 } });
+    // Geo's row has 8 columns free, shown as an empty slot.
+    expect(added).toEqual({
+      ids: ["device", "monthly", "geo", "gap:1"],
+      spans: { monthly: 6, device: 6, "gap:1": 8 },
+    });
     const moved = dropWithSpans(["monthly", "geo"], {}, "geo", "monthly");
     expect(moved).toEqual({ ids: ["geo", "monthly"], spans: { monthly: 6, geo: 6 } });
     const reorder = dropWithSpans(["monthly", "sources"], {}, "sources", "monthly");
@@ -101,8 +105,8 @@ describe("empty slots", () => {
     const { dropWithSpans } = await import("@/lib/dashboard-widgets");
     const base = { ids: ["monthly", "gap:1", "geo"], spans: { monthly: 6, "gap:1": 6 } };
     expect(dropWithSpans(base.ids, base.spans, "new:device", "gap:1")).toEqual({
-      ids: ["monthly", "device", "geo"],
-      spans: { monthly: 6, device: 6 },
+      ids: ["monthly", "device", "geo", "gap:1"],
+      spans: { monthly: 6, device: 6, "gap:1": 8 },
     });
     expect(dropWithSpans(base.ids, base.spans, "geo", "gap:1")).toEqual({
       ids: ["monthly", "geo"],
@@ -133,5 +137,46 @@ describe("version history", () => {
     expect(versionDiff(current, version)).toEqual({ added: ["Top Traffic Sources"], removed: ["Device category"] });
     expect(versionDiff(current, ["geo", "monthly|12", "device"])).toEqual({ added: [], removed: [] });
     expect(widgetCount(current)).toBe(3);
+  });
+});
+
+describe("rows keep their shape", () => {
+  it("fills unused width in every row with one slot, merging neighbours and dropping empty rows", async () => {
+    const { normalizeLayout } = await import("@/lib/dashboard-widgets");
+    // monthly 8 + channel 4 = full; states 4 + geo 4 leaves 4.
+    expect(normalizeLayout(["monthly", "channel", "states", "geo"], { monthly: 8 })).toEqual({
+      ids: ["monthly", "channel", "states", "geo", "gap:1"],
+      spans: { monthly: 8, "gap:1": 4 },
+    });
+    // Two slots side by side merge; a row of only slots disappears.
+    expect(
+      normalizeLayout(["monthly", "gap:a", "gap:b", "sources", "gap:c"], { monthly: 6, "gap:a": 3, "gap:b": 3, "gap:c": 12 })
+    ).toEqual({ ids: ["monthly", "gap:1", "sources"], spans: { monthly: 6, "gap:1": 6 } });
+    // The Summary row is always full and later scorecards stay with it.
+    expect(normalizeLayout(["sc.views", "geo", "sc.sessions"], {})).toEqual({
+      ids: ["sc.views", "geo", "sc.sessions", "gap:1"],
+      spans: { "gap:1": 8 },
+    });
+  });
+
+  it("moving a widget to another row leaves its old spot empty", async () => {
+    const { dropWithSpans } = await import("@/lib/dashboard-widgets");
+    // Row 1: monthly 8 + channel 4. Row 2: states 4 + geo 4 (+ 4 empty).
+    const ids = ["monthly", "channel", "states", "geo", "gap:1"];
+    const spans = { monthly: 8, "gap:1": 4 };
+    expect(dropWithSpans(ids, spans, "channel", "states")).toEqual({
+      ids: ["monthly", "gap:1", "channel", "states", "geo"],
+      spans: { monthly: 8, "gap:1": 4 },
+    });
+    // Within one row it's a plain reorder.
+    expect(dropWithSpans(ids, spans, "geo", "states").ids).toEqual(["monthly", "channel", "geo", "states", "gap:1"]);
+  });
+
+  it("removing a widget leaves its space empty", async () => {
+    const { removeWidget } = await import("@/lib/dashboard-widgets");
+    expect(removeWidget(["channel", "states", "geo"], {}, "states")).toEqual({
+      ids: ["channel", "gap:1", "geo"],
+      spans: { "gap:1": 4 },
+    });
   });
 });
