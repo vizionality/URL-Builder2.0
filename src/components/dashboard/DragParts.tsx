@@ -116,20 +116,22 @@ export function SortableWidget({
   );
 }
 
-// A catalog item in the sidebar that can be dragged onto the dashboard.
+// A catalog item in the sidebar that can be dragged onto the dashboard by
+// grabbing anywhere on its card. A drag starts after a small move, so a plain
+// click (e.g. on Add) still clicks.
 export function CatalogDraggable({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `${NEW_PREFIX}${id}` });
   return (
-    <div ref={setNodeRef} className={`flex items-start gap-1 ${isDragging ? "opacity-40" : ""}`}>
-      <button
-        type="button"
-        {...attributes}
-        {...listeners}
-        aria-label={`Drag ${title} onto the dashboard`}
-        className="mt-2.5 cursor-grab touch-none rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 active:cursor-grabbing"
-      >
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      aria-label={`Drag ${title} onto the dashboard`}
+      className={`flex cursor-grab touch-manipulation items-start gap-1 rounded-lg active:cursor-grabbing ${isDragging ? "opacity-40" : ""}`}
+    >
+      <span className="mt-2.5 rounded p-0.5 text-zinc-400" aria-hidden>
         <GripVertical className="h-4 w-4" />
-      </button>
+      </span>
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
