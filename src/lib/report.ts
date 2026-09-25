@@ -52,3 +52,30 @@ export function shiftYear(iso: string, years = -1): string {
   const [y, m, d] = iso.split("-").map(Number);
   return `${y + years}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
+
+// Pivot long rows (date, series, value) into one object per date for a
+// multi-line chart. Series get safe keys s0..sN (recharts reads a dotted
+// dataKey as a nested path, so a label like "go.example.com" can't be a key),
+// and every date carries every series, zero-filled, so lines don't break.
+export function pivotDaily(
+  rows: { date: string; series: string; value: number }[],
+  seriesOrder: string[]
+): { data: Record<string, number | string>[]; series: { key: string; label: string }[] } {
+  const series = seriesOrder.map((label, i) => ({ key: `s${i}`, label }));
+  const keyOf = new Map(series.map((s) => [s.label, s.key]));
+  const byDate = new Map<string, Record<string, number | string>>();
+  for (const r of rows) {
+    const k = keyOf.get(r.series);
+    if (!k) continue;
+    const row = byDate.get(r.date) ?? { date: r.date };
+    row[k] = ((row[k] as number) ?? 0) + r.value;
+    byDate.set(r.date, row);
+  }
+  const data = [...byDate.values()]
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+    .map((row) => {
+      for (const s of series) if (row[s.key] == null) row[s.key] = 0;
+      return row;
+    });
+  return { data, series };
+}

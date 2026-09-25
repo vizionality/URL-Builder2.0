@@ -6,6 +6,7 @@ import {
   formatYearMonth,
   previousPeriod,
   shiftYear,
+  pivotDaily,
 } from "@/lib/report";
 
 describe("report formatters", () => {
@@ -45,5 +46,26 @@ describe("report formatters", () => {
   it("shiftYear moves back a calendar year", () => {
     expect(shiftYear("2026-09-23")).toBe("2025-09-23");
     expect(shiftYear("2026-01-01", -1)).toBe("2025-01-01");
+  });
+
+  it("pivotDaily builds zero-filled rows with safe series keys", () => {
+    const { data, series } = pivotDaily(
+      [
+        { date: "2026-01-02", series: "go.example.com", value: 5 },
+        { date: "2026-01-01", series: "google", value: 3 },
+        { date: "2026-01-01", series: "go.example.com", value: 2 },
+        { date: "2026-01-01", series: "ignored", value: 99 },
+      ],
+      ["google", "go.example.com"]
+    );
+    expect(series).toEqual([
+      { key: "s0", label: "google" },
+      { key: "s1", label: "go.example.com" },
+    ]);
+    // Sorted by date, every series present, unknown series dropped.
+    expect(data).toEqual([
+      { date: "2026-01-01", s0: 3, s1: 2 },
+      { date: "2026-01-02", s0: 0, s1: 5 },
+    ]);
   });
 });
