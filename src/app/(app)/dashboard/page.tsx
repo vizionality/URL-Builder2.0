@@ -166,6 +166,15 @@ export default function DashboardPage() {
   }, [propertyId, startDate, endDate, compare, medium, campaign, source, page, retry]);
 
   const d = state.data;
+  // Date range + page filters, for the Geo Map's city drill-down.
+  const geoQuery = useMemo(() => {
+    const p = new URLSearchParams({ startDate, endDate });
+    for (const m of medium) p.append("medium", m);
+    for (const c of campaign) p.append("campaign", c);
+    for (const x of source) p.append("source", x);
+    for (const x of page) p.append("page", x);
+    return p.toString();
+  }, [startDate, endDate, medium, campaign, source, page]);
   const s = d?.scorecards;
   const mediums = options?.mediums ?? [];
   const campaigns = options?.campaigns ?? [];
@@ -322,7 +331,7 @@ export default function DashboardPage() {
                 {d.geo.length === 0 ? (
                   <p className="py-10 text-center text-sm text-zinc-400">No US state data in this range.</p>
                 ) : (
-                  <GeoMap data={d.geo} />
+                  <GeoMap data={d.geo} query={geoQuery} />
                 )}
               </Card>
             </div>
