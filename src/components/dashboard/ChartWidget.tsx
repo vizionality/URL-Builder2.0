@@ -21,8 +21,8 @@ import {
 import { ComposableMap, Geographies, Geography } from "react-simple-maps";
 import { feature } from "topojson-client";
 import type { GeometryCollection, Topology } from "topojson-specification";
-import type { Feature, FeatureCollection, Geometry } from "geojson";
-import { geoAlbersUsa, geoCentroid, geoEqualEarth, geoMercator, type GeoProjection } from "d3-geo";
+import type { FeatureCollection, Geometry } from "geojson";
+import { geoEqualEarth, geoMercator, type GeoProjection } from "d3-geo";
 // World country shapes (world-atlas, ISC), bundled so the map never fetches at runtime.
 import worldCountries from "world-atlas/countries-110m.json";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
@@ -71,6 +71,8 @@ export function ChartWidgetCard({
   grain: TimeGrain;
   onGrain: (g: TimeGrain) => void;
 }) {
+  // World map: which part of the world it's zoomed to.
+  const [region, setRegion] = useState("world");
   const def = CHART_WIDGET_BY_ID.get(id);
   if (!def) return null;
   const picks = METRIC_PICK_CHARTS.includes(def.chart);
@@ -95,7 +97,7 @@ export function ChartWidgetCard({
   } else if (data.kind === "list") {
     body =
       data.rows.length === 0 ? <Empty /> :
-      def.chart === "map" ? <WorldMap data={data} format={format} /> :
+      def.chart === "map" ? <WorldMap data={data} format={format} region={region} /> :
       def.chart === "hbar" ? <HBars data={data} format={format} label={metricLabel} /> :
       <Round data={data} donut={def.chart === "donut"} format={format} />;
   } else if (data.kind === "table") {
@@ -105,31 +107,45 @@ export function ChartWidgetCard({
   return (
     <div className={`h-full transition-opacity ${loading && data ? "opacity-60" : ""}`}>
       <Card title={title} description={def.description}>
-        {timed && (
-          <select
-            value={grain}
-            onChange={(e) => onGrain(e.target.value as TimeGrain)}
-            aria-label={`${def.title} time grain`}
-            className="-mt-2 mb-3 rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-700"
-          >
-            {TIME_GRAINS.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
-          </select>
-        )}
-        {picks && (
-          <select
-            value={metric}
-            onChange={(e) => onMetric(e.target.value)}
-            aria-label={`${def.title} metric`}
-            className="-mt-2 mb-3 rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-700"
-          >
-            {CHART_METRICS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-          </select>
-        )}
+        <div className="-mt-2 mb-3 flex flex-wrap items-center gap-2">
+          {timed && (
+            <select
+              value={grain}
+              onChange={(e) => onGrain(e.target.value as TimeGrain)}
+              aria-label={`${def.title} time grain`}
+              className={selectClass}
+            >
+              {TIME_GRAINS.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
+            </select>
+          )}
+          {picks && (
+            <select
+              value={metric}
+              onChange={(e) => onMetric(e.target.value)}
+              aria-label={`${def.title} metric`}
+              className={selectClass}
+            >
+              {CHART_METRICS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </select>
+          )}
+          {def.chart === "map" && (
+            <select
+              value={region}
+              onChange={(e) => setRegion(e.target.value)}
+              aria-label="Zoom to region"
+              className={selectClass}
+            >
+              {WORLD_REGIONS.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+            </select>
+          )}
+        </div>
         {body}
       </Card>
     </div>
   );
 }
+
+const selectClass = "rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-700";
 
 function Empty() {
   return <p className="py-10 text-center text-sm text-zinc-400">No data in this range.</p>;
@@ -263,46 +279,49 @@ function HBars({ data, format, label }: { data: ListData; format: MetricFormat; 
 
 const worldGeography = worldCountries as unknown as React.ComponentProps<typeof Geographies>["geography"];
 
-// Country shapes as GeoJSON, for fitting the map to the whole world or one country.
-type CountryFeature = Feature<Geometry, { name: string }>;
+// Country shapes as GeoJSON, to fit the whole world in the frame.
 const worldTopo = worldCountries as unknown as Topology<{ countries: GeometryCollection<{ name: string }> }>;
 const WORLD_FEATURES = feature(worldTopo, worldTopo.objects.countries) as FeatureCollection<Geometry, { name: string }>;
-const COUNTRY_FEATURES = new Map<string, CountryFeature>(WORLD_FEATURES.features.map((f) => [f.properties.name, f]));
-export const WORLD_COUNTRY_NAMES = [...COUNTRY_FEATURES.keys()].sort((a, b) => a.localeCompare(b));
 
 const MAP_W = 800;
 const MAP_H = 420;
 const PAD = 12;
-// The whole world, fitted to the frame so nothing (Alaska, Canada) is cut off.
-const WORLD_PROJECTION = geoEqualEarth().fitExtent([[PAD, PAD], [MAP_W - PAD, MAP_H - PAD]], WORLD_FEATURES);
+const EXTENT: [[number, number], [number, number]] = [[PAD, PAD], [MAP_W - PAD, MAP_H - PAD]];
 
-// A projection fitted to one country. The US uses Albers USA (Alaska and
-// Hawaii inset); others are Mercator rotated to the country's centre, so a
-// country crossing the date line (e.g. Russia) stays in one piece.
-function countryProjection(name: string): GeoProjection | null {
-  const f = COUNTRY_FEATURES.get(name);
-  if (!f) return null;
-  const extent: [[number, number], [number, number]] = [[PAD, PAD], [MAP_W - PAD, MAP_H - PAD]];
-  if (name === "United States of America") return geoAlbersUsa().fitExtent(extent, f);
-  const [lon] = geoCentroid(f);
-  return geoMercator().rotate([-lon, 0]).fitExtent(extent, f);
+// Regions to zoom to, as lon/lat boxes [west, south, east, north].
+export const WORLD_REGIONS: { id: string; label: string; box?: [number, number, number, number] }[] = [
+  { id: "world", label: "World" },
+  { id: "northAmerica", label: "North America", box: [-168, 7, -52, 72] },
+  { id: "centralAmerica", label: "Central America & Caribbean", box: [-118, 5, -59, 33] },
+  { id: "southAmerica", label: "South America", box: [-82, -56, -34, 13] },
+  { id: "europe", label: "Europe", box: [-25, 34, 45, 71] },
+  { id: "middleEast", label: "Middle East", box: [25, 12, 63, 42] },
+  { id: "africa", label: "Africa", box: [-19, -35, 52, 38] },
+  { id: "asia", label: "Asia", box: [60, -11, 150, 56] },
+  { id: "southeastAsia", label: "Southeast Asia", box: [92, -11, 142, 29] },
+  { id: "oceania", label: "Oceania", box: [110, -48, 180, 0] },
+];
+
+// The whole world fitted to the frame (so the far north isn't cut off), or a
+// region's box fitted with Mercator.
+function regionProjection(regionId: string): GeoProjection {
+  const box = WORLD_REGIONS.find((r) => r.id === regionId)?.box;
+  if (!box) return geoEqualEarth().fitExtent(EXTENT, WORLD_FEATURES);
+  const [w, s, e, n] = box;
+  return geoMercator().fitExtent(EXTENT, { type: "MultiPoint", coordinates: [[w, s], [e, n], [w, n], [e, s]] });
 }
 
 // Memoized: react-simple-maps re-serializes the geography on every render.
 const WorldLayer = memo(function WorldLayer({
   values,
   max,
-  focus,
   projection,
   onHover,
-  onPick,
 }: {
   values: Map<string, number>;
   max: number;
-  focus: string | null;
   projection: GeoProjection;
   onHover: (h: { name: string; value: number } | null) => void;
-  onPick: (name: string) => void;
 }) {
   return (
     <ComposableMap projection={projection} width={MAP_W} height={MAP_H} style={{ width: "100%", height: "auto" }}>
@@ -311,19 +330,16 @@ const WorldLayer = memo(function WorldLayer({
           geographies.map((geo) => {
             const name = String(geo.properties?.name ?? "");
             const value = values.get(name) ?? 0;
-            // Zoomed in: other countries fade to grey for context.
-            const faded = focus != null && focus !== name;
             return (
               <Geography
                 key={geo.rsmKey}
                 geography={geo}
-                fill={faded ? "#f1f1f3" : shade(value, max)}
+                fill={shade(value, max)}
                 stroke="#ffffff"
-                strokeWidth={focus ? 1 : 0.5}
-                className="cursor-pointer outline-none hover:fill-[#f59e0b]"
+                strokeWidth={0.5}
+                className="outline-none hover:fill-[#f59e0b]"
                 onMouseEnter={() => onHover({ name, value })}
                 onMouseLeave={() => onHover(null)}
-                onClick={() => onPick(name)}
               />
             );
           })
@@ -333,64 +349,19 @@ const WorldLayer = memo(function WorldLayer({
   );
 });
 
-function WorldMap({ data, format }: { data: ListData; format: MetricFormat }) {
+function WorldMap({ data, format, region }: { data: ListData; format: MetricFormat; region: string }) {
   const [hover, setHover] = useState<{ name: string; value: number } | null>(null);
-  // The country zoomed into (a world-atlas name), or null for the whole world.
-  const [focus, setFocus] = useState<string | null>(null);
   const values = useMemo(
     () => new Map(data.rows.map((r) => [COUNTRY_ALIASES[r.label] ?? r.label, r.value])),
     [data]
   );
   const max = Math.max(0, ...data.rows.map((r) => r.value));
-  const projection = useMemo(() => (focus && countryProjection(focus)) || WORLD_PROJECTION, [focus]);
-  // Countries with data first (highest first), then every other country A-Z.
-  const withData = [...values.entries()]
-    .filter(([name, v]) => v > 0 && COUNTRY_FEATURES.has(name))
-    .sort((a, b) => b[1] - a[1]);
-  const rest = WORLD_COUNTRY_NAMES.filter((n) => !values.get(n));
-  const focusValue = focus ? values.get(focus) ?? 0 : null;
-
+  const projection = useMemo(() => regionProjection(region), [region]);
   return (
-    <div>
-      <div className="-mt-1 mb-2 flex flex-wrap items-center gap-2">
-        <select
-          value={focus ?? ""}
-          onChange={(e) => setFocus(e.target.value || null)}
-          aria-label="Zoom to country"
-          className="max-w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-700"
-        >
-          <option value="">World</option>
-          {withData.length > 0 && (
-            <optgroup label="With data">
-              {withData.map(([name, v]) => (
-                <option key={name} value={name}>{name} ({formatMetric(v, format)})</option>
-              ))}
-            </optgroup>
-          )}
-          <optgroup label="All countries">
-            {rest.map((name) => <option key={name} value={name}>{name}</option>)}
-          </optgroup>
-        </select>
-        {focus && (
-          <button type="button" onClick={() => setFocus(null)} className="text-xs font-medium text-green-700 hover:underline">
-            Back to world
-          </button>
-        )}
-      </div>
-      <WorldLayer
-        values={values}
-        max={max}
-        focus={focus}
-        projection={projection}
-        onHover={setHover}
-        onPick={(name) => setFocus((cur) => (cur === name ? null : name))}
-      />
+    <div className="overflow-hidden">
+      <WorldLayer values={values} max={max} projection={projection} onHover={setHover} />
       <p className="mt-1 text-right text-xs text-zinc-600">
-        {hover
-          ? `${hover.name}: ${formatMetric(hover.value, format)}`
-          : focus
-            ? `${focus}: ${formatMetric(focusValue ?? 0, format)}`
-            : "Hover a country, click to zoom"}
+        {hover ? `${hover.name}: ${formatMetric(hover.value, format)}` : "Hover a country"}
       </p>
     </div>
   );
