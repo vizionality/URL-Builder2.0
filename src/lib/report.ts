@@ -308,3 +308,27 @@ export function bucketLabel(iso: string, grain: TimeGrain): string {
   if (grain === "week") return `Wk of ${mon} ${d}`;
   return `${mon} ${d}`;
 }
+
+// The grain's buckets covering [start, end], each clipped to the range and
+// keyed by its bucket start (matching bucketTrend's keys).
+export function bucketRanges(
+  start: string,
+  end: string,
+  grain: TimeGrain
+): { key: string; startDate: string; endDate: string }[] {
+  const out: { key: string; startDate: string; endDate: string }[] = [];
+  let cur = start;
+  while (cur <= end) {
+    const key = bucketStart(cur, grain);
+    const [y, m] = key.split("-").map(Number);
+    const next =
+      grain === "day" ? addDaysIso(key, 1)
+      : grain === "week" ? addDaysIso(key, 7)
+      : grain === "month" ? monthFirst(y, m, 1)
+      : monthFirst(y, m, 3);
+    const last = addDaysIso(next, -1);
+    out.push({ key, startDate: cur, endDate: last < end ? last : end });
+    cur = next;
+  }
+  return out;
+}

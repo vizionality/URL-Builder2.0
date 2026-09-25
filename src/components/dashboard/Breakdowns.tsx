@@ -38,16 +38,13 @@ type Breakdowns = {
   sourceTotal: { users: number; prev: number };
   sourceCount: number;
   sourceTrend: Trend;
+  // "day" = daily rows; otherwise already bucketed by GA4 (total users).
+  sourceTrendGrain?: TimeGrain;
   landingPages: { page: string; sessions: number; engagementRate: number }[];
   pageTrend: Trend;
   conversions: { event: string; count: number; prev: number }[];
   conversionTrend: Trend;
 };
-
-function shortDate(iso: string): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-}
 
 function Delta({ value }: { value: number | null }) {
   if (value == null) return <span className="text-zinc-400">—</span>;
@@ -73,18 +70,48 @@ function CellBar({ value, max }: { value: number; max: number }) {
   );
 }
 
-function TrendLines({ trend }: { trend: Trend }) {
+// Day / Week / Month / Quarter picker for a trend chart.
+function GrainSelect({ value, onChange, label }: { value: TimeGrain; onChange: (g: TimeGrain) => void; label: string }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value as TimeGrain)}
+      aria-label={label}
+      className="mb-2 self-end rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-700"
+    >
+      {TIME_GRAINS.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
+    </select>
+  );
+}
+
+function TrendLines({
+  trend,
+  grain,
+  selected = grain,
+  onGrain,
+  label,
+}: {
+  trend: Trend;
+  // Grain the data is in (for labels) and the one picked (for the dropdown);
+  // they differ only while a newly picked grain loads.
+  grain: TimeGrain;
+  selected?: TimeGrain;
+  onGrain: (g: TimeGrain) => void;
+  label: string;
+}) {
   if (trend.data.length === 0) {
     return <p className="py-10 text-center text-sm text-zinc-400">No trend data in this range.</p>;
   }
   return (
-    <div className="h-full min-h-72 w-full">
+    <div className="flex h-full min-h-72 w-full flex-col">
+      <GrainSelect value={selected} onChange={onGrain} label={label} />
+      <div className="min-h-64 flex-1">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={trend.data} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
           <CartesianGrid stroke="#f1f5f4" vertical={false} />
-          <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={shortDate} minTickGap={32} />
+          <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => bucketLabel(String(v), grain)} minTickGap={32} />
           <YAxis tick={{ fontSize: 11 }} width={40} tickFormatter={(v) => compact(Number(v))} />
-          <Tooltip labelFormatter={(l) => shortDate(String(l))} />
+          <Tooltip labelFormatter={(l) => bucketLabel(String(l), grain)} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           {trend.series.map((s, i) => (
             <Line
@@ -99,6 +126,7 @@ function TrendLines({ trend }: { trend: Trend }) {
           ))}
         </LineChart>
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }
@@ -187,6 +215,11 @@ export function Breakdowns({
   // (a filter, date or metric change) starts back at page one.
   // Conversions chart grain; the rollup happens here from the daily series.
   const [convGrain, setConvGrain] = useState<TimeGrain>("day");
+  const [srcGrain, setSrcGrain] = useState<TimeGrain>("day");
+  const [pageGrain, setPageGrain] = useState<TimeGrain>("day");
+  // Total users can't be summed from days, so GA4 buckets that trend (a refetch);
+  // everything else rolls up in the browser.
+  const serverGrain = sourceMetric === "totalUsers" ? srcGrain : "day";
   const [pages, setPages] = useState<{ data: Breakdowns | null; src: number; lp: number }>({ data: null, src: 0, lp: 0 });
   const [state, setState] = useState<{ loading: boolean; error: string | null; data: Breakdowns | null }>(
     { loading: false, error: null, data: null }
@@ -200,6 +233,7 @@ export function Breakdowns({
     p.set("endDate", endDate);
     p.set("compare", compare);
     p.set("sourceMetric", sourceMetric);
+    if (serverGrain !== "day") p.set("sourceGrain", serverGrain);
     const url = `/api/ga4/breakdowns?${p.toString()}`;
     // A filter combination seen in the last few minutes shows instantly.
     const cached = getCached<Breakdowns>(url);
@@ -230,7 +264,7 @@ export function Breakdowns({
       cancelled = true;
       ac.abort();
     };
-  }, [propertyId, startDate, endDate, compare, filterQs, sourceMetric]);
+  }, [propertyId, startDate, endDate, compare, filterQs, sourceMetric, serverGrain]);
 
   if (state.loading && !state.data) {
     return (
@@ -253,6 +287,16 @@ export function Breakdowns({
   const goTo = (which: "src" | "lp", n: number) =>
     setPages({ data: d, src: src.page, lp: lp.page, [which]: n });
   const convData = bucketTrend(d.conversionTrend.data, convGrain);
+  // Already-bucketed total users shows as is (labeled by its own grain while a
+  // new grain loads); daily rows roll up to the chosen grain.
+  const srcDataGrain = d.sourceTrendGrain ?? "day";
+  const srcTrend =
+    srcDataGrain !== "day"
+      ? { trend: d.sourceTrend, grain: srcDataGrain }
+      : sourceMetric === "totalUsers"
+        ? { trend: d.sourceTrend, grain: "day" as TimeGrain }
+        : { trend: { ...d.sourceTrend, data: bucketTrend(d.sourceTrend.data, srcGrain) }, grain: srcGrain };
+  const pageTrend = { ...d.pageTrend, data: bucketTrend(d.pageTrend.data, pageGrain) };
   const maxConv = Math.max(0, ...d.conversions.map((c) => c.count));
 
   return (
@@ -294,7 +338,7 @@ export function Breakdowns({
             </table>
             <Pager page={src} noun="source / medium pairs" onGo={(n) => goTo("src", n)} />
           </div>
-          <TrendLines trend={d.sourceTrend} />
+          <TrendLines trend={srcTrend.trend} grain={srcTrend.grain} selected={srcGrain} onGrain={setSrcGrain} label="Traffic sources time grain" />
         </div>
       </Card>
 
@@ -324,7 +368,7 @@ export function Breakdowns({
             </table>
             <Pager page={lp} noun="landing pages" onGo={(n) => goTo("lp", n)} />
           </div>
-          <TrendLines trend={d.pageTrend} />
+          <TrendLines trend={pageTrend} grain={pageGrain} onGrain={setPageGrain} label="Landing pages time grain" />
         </div>
       </Card>
 
@@ -359,14 +403,7 @@ export function Breakdowns({
             <p className="py-10 text-center text-sm text-zinc-400">No conversions in this range.</p>
           ) : (
             <div className="flex h-full min-h-72 w-full flex-col">
-              <select
-                value={convGrain}
-                onChange={(e) => setConvGrain(e.target.value as TimeGrain)}
-                aria-label="Conversions time grain"
-                className="mb-2 self-end rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-700"
-              >
-                {TIME_GRAINS.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
-              </select>
+              <GrainSelect value={convGrain} onChange={setConvGrain} label="Conversions time grain" />
               <div className="min-h-64 flex-1">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={convData} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
