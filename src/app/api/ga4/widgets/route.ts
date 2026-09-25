@@ -4,10 +4,10 @@ import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
 import { comparisonRange } from "@/lib/report";
 import { pageFilterExpr, parsePageFilters } from "@/lib/ga4-filters";
-import { batchRunReports, detectKeyMetric, ga4FailureMessage, Ga4Error } from "@/lib/ga4-api";
+import { batchRunReports, detectKeyMetric, ga4FailureMessage, Ga4Error, type RawRow } from "@/lib/ga4-api";
 import { EXTRA_WIDGET_IDS } from "@/lib/dashboard-widgets";
 import { EXTRA_SPECS, finishPageTitles, type TableData, type WidgetData } from "@/lib/extra-widgets";
-import { chartSpec, isChartWidget, splitRequestId, type ChartData } from "@/lib/chart-widgets";
+import { bucketedTimeSpec, chartSpec, isChartWidget, isTimeChart, splitRequestId, type ChartData } from "@/lib/chart-widgets";
 
 function isoDay(v: string | null, fallback: string): string {
   return v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : fallback;
@@ -55,16 +55,26 @@ export async function GET(request: Request) {
       keyMetric,
       filter: pageFilterExpr(filters),
     };
-    const specs = ids.map((id) => {
-      if (EXTRA_SPECS[id]) return { body: EXTRA_SPECS[id].body(ctx), parse: EXTRA_SPECS[id].parse };
-      const { id: chartId, metric } = splitRequestId(id);
-      return chartSpec(chartId, metric, ctx)!;
+    // Each widget is one or more reports (a bucketed time chart runs one per 4
+    // buckets); all are batched together, then each widget parses its own.
+    const specs = ids.map((id): { bodies: unknown[]; parse: (reports: RawRow[][]) => WidgetData | ChartData } => {
+      if (EXTRA_SPECS[id]) {
+        const spec = EXTRA_SPECS[id];
+        return { bodies: [spec.body(ctx)], parse: (r) => spec.parse(r[0] ?? []) };
+      }
+      const { id: chartId, metric, grain } = splitRequestId(id);
+      if (grain !== "day" && isTimeChart(chartId)) return bucketedTimeSpec(chartId, grain, ctx)!;
+      const spec = chartSpec(chartId, metric, ctx)!;
+      return { bodies: [spec.body], parse: (r) => spec.parse(r[0] ?? []) };
     });
-    const results = await batchRunReports(conn.property_id, token, specs.map((sp) => sp.body), request.signal);
-    // Keyed by the request id, so a card's data follows its chosen metric.
+    const results = await batchRunReports(conn.property_id, token, specs.flatMap((sp) => sp.bodies), request.signal);
+    // Keyed by the request id, so a card's data follows its chosen metric and grain.
     const widgets: Record<string, WidgetData | ChartData> = {};
+    let at = 0;
     ids.forEach((id, i) => {
-      const data = specs[i].parse(results[i] ?? []);
+      const reports = results.slice(at, at + specs[i].bodies.length);
+      at += specs[i].bodies.length;
+      const data = specs[i].parse(reports);
       widgets[id] = id === "pageTitles" ? finishPageTitles(data as TableData) : data;
     });
     return NextResponse.json({ widgets });

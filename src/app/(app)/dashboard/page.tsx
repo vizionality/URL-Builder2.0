@@ -27,6 +27,7 @@ import {
   metricLabel,
   type BreakdownMetric,
   type MetricValues,
+  type TimeGrain,
   type CompareMode,
 } from "@/lib/report";
 import { DateRangePicker, resolveRange, type DateValue } from "@/components/dashboard/DateRangePicker";
@@ -47,7 +48,7 @@ import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } fro
 import { DashboardDropZone, GapSlot, SortableWidget } from "@/components/dashboard/DragParts";
 import { ExtraWidgetCard, useExtraWidgets } from "@/components/dashboard/ExtraWidgets";
 import { ChartWidgetCard, formatMetric } from "@/components/dashboard/ChartWidget";
-import { CHART_WIDGET_BY_ID, isChartWidget, METRIC_PICK_CHARTS, type ChartData } from "@/lib/chart-widgets";
+import { CHART_WIDGET_BY_ID, isChartWidget, METRIC_PICK_CHARTS, TIME_CHART_TYPES, type ChartData } from "@/lib/chart-widgets";
 import type { WidgetData } from "@/lib/extra-widgets";
 import {
   DASHBOARD_DROP,
@@ -457,13 +458,35 @@ export default function DashboardPage() {
       return next;
     });
   }, []);
-  // Request id for a chart widget: carries its metric when the card picks one.
+  // Each time chart's grain (day / week / month / quarter), remembered the same way.
+  const [chartGrains, setChartGrains] = useState<Record<string, TimeGrain>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("dashboardChartGrains") ?? "{}");
+    } catch {
+      return {};
+    }
+  });
+  const setChartGrain = useCallback((id: string, grain: TimeGrain) => {
+    setChartGrains((cur) => {
+      const next = { ...cur, [id]: grain };
+      try {
+        localStorage.setItem("dashboardChartGrains", JSON.stringify(next));
+      } catch {
+        // Storage blocked: the choice just won't survive a reload.
+      }
+      return next;
+    });
+  }, []);
+  // Request id for a chart widget: carries its metric and grain when the card has them.
   const chartRequestId = useCallback(
     (id: string) => {
       const def = CHART_WIDGET_BY_ID.get(id);
-      return def && METRIC_PICK_CHARTS.includes(def.chart) ? `${id}~${chartMetrics[id] ?? "sessions"}` : id;
+      if (!def) return id;
+      if (METRIC_PICK_CHARTS.includes(def.chart)) return `${id}~${chartMetrics[id] ?? "sessions"}`;
+      const grain = chartGrains[id] ?? "day";
+      return TIME_CHART_TYPES.includes(def.chart) && grain !== "day" ? `${id}@${grain}` : id;
     },
-    [chartMetrics]
+    [chartMetrics, chartGrains]
   );
   const extras = useExtraWidgets(
     layout ? extraParts(layout).map(chartRequestId) : [],
@@ -833,6 +856,8 @@ export default function DashboardPage() {
                         error={extras.error}
                         metric={chartMetrics[id] ?? "sessions"}
                         onMetric={(m) => setChartMetric(id, m)}
+                        grain={chartGrains[id] ?? "day"}
+                        onGrain={(g) => setChartGrain(id, g)}
                       />,
                     ])
                 ),

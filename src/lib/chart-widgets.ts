@@ -5,6 +5,7 @@
 
 import type { RawRow } from "@/lib/ga4-api";
 import type { ListData, Range, ScoreData, TableData } from "@/lib/extra-widgets";
+import { bucketRanges, type TimeGrain } from "@/lib/report";
 
 export type ChartType =
   | "number" | "line" | "area" | "bar" | "donut" | "pie" | "map" | "stacked" | "hbar" | "table";
@@ -57,6 +58,7 @@ export const CHART_DIMENSIONS: ChartDimension[] = [
 export const DIMENSION_BY_ID = new Map(CHART_DIMENSIONS.map((d) => [d.id, d]));
 
 const TIME_CHARTS: ChartType[] = ["line", "area", "bar", "stacked"];
+export const TIME_CHART_TYPES = TIME_CHARTS;
 const BREAKDOWN_CHARTS: ChartType[] = ["donut", "pie", "hbar", "table"];
 // Breakdown charts whose card has a metric dropdown (a table shows several metrics).
 export const METRIC_PICK_CHARTS: ChartType[] = ["donut", "pie", "hbar", "map"];
@@ -128,10 +130,13 @@ export function isChartWidget(id: string): boolean {
 
 // ---- Reports -------------------------------------------------------------------
 
-export type SeriesData = { kind: "series"; format: MetricFormat; rows: { date: string; value: number }[] };
+// `grain` is what each row's date stands for (a day, or the start of a week /
+// month / quarter).
+export type SeriesData = { kind: "series"; format: MetricFormat; grain?: TimeGrain; rows: { date: string; value: number }[] };
 export type StackData = {
   kind: "stack";
   format: MetricFormat;
+  grain?: TimeGrain;
   series: string[];
   rows: Record<string, number | string>[]; // { date, s0, s1, ... }
 };
@@ -267,10 +272,89 @@ export function chartSpec(
   };
 }
 
-// Request ids carry the chosen metric: "c.donut.channel~keyEvents".
-export function splitRequestId(requestId: string): { id: string; metric: string | null } {
-  const [id, metric] = requestId.split("~");
-  return { id, metric: metric && METRIC_BY_ID.has(metric) ? metric : null };
+// Request ids carry the card's choices: "c.donut.channel~keyEvents" (metric),
+// "c.line.sessions@week" (time grain).
+export function splitRequestId(requestId: string): { id: string; metric: string | null; grain: TimeGrain } {
+  const [head, rawGrain] = requestId.split("@");
+  const [id, metric] = head.split("~");
+  const grain = (["week", "month", "quarter"] as const).find((g) => g === rawGrain) ?? "day";
+  return { id, metric: metric && METRIC_BY_ID.has(metric) ? metric : null, grain };
+}
+
+export function isTimeChart(id: string): boolean {
+  const def = CHART_WIDGET_BY_ID.get(id);
+  return Boolean(def && TIME_CHARTS.includes(def.chart));
+}
+
+// A time chart by week / month / quarter: one GA4 date range per bucket (at
+// most 4 per report), so every metric is right for its bucket, users and
+// rates included (they can't be summed from days).
+export function bucketedTimeSpec(
+  id: string,
+  grain: Exclude<TimeGrain, "day">,
+  ctx: ChartCtx
+): { bodies: unknown[]; parse: (reports: RawRow[][]) => ChartData } | null {
+  const def = CHART_WIDGET_BY_ID.get(id);
+  const m = def && METRIC_BY_ID.get(def.subject);
+  if (!def || !m || !TIME_CHARTS.includes(def.chart)) return null;
+  const { startDate, endDate } = ctx.current[0];
+  const buckets = bucketRanges(startDate, endDate, grain);
+  const scale = m.scale ?? 1;
+  const stacked = def.chart === "stacked";
+  const bodies: unknown[] = [];
+  for (let i = 0; i < buckets.length; i += 4) {
+    bodies.push({
+      dateRanges: buckets.slice(i, i + 4).map(({ startDate: s, endDate: e }) => ({ startDate: s, endDate: e })),
+      ...(stacked ? { dimensions: [{ name: "sessionDefaultChannelGroup" }] } : {}),
+      metrics: [{ name: gaName(m, ctx) }],
+      limit: 10000,
+      ...ctx.filter,
+    });
+  }
+  // The bucket a row belongs to: GA4 appends "date_range_N" (N within its report).
+  const rowsWithBucket = (reports: RawRow[][]) =>
+    reports.flatMap((rows, r) =>
+      rows.map((row) => {
+        const range = row.dimensionValues?.[row.dimensionValues.length - 1]?.value ?? "";
+        const bucket = buckets[r * 4 + Number(range.replace("date_range_", ""))];
+        return { row, key: bucket?.key };
+      })
+    ).filter((x): x is { row: RawRow; key: string } => Boolean(x.key));
+
+  if (!stacked) {
+    return {
+      bodies,
+      parse: (reports) => {
+        const byKey = new Map(rowsWithBucket(reports).map(({ row, key }) => [key, mv(row) * scale]));
+        return {
+          kind: "series",
+          format: m.format,
+          grain,
+          rows: buckets.map((b) => ({ date: b.key, value: byKey.get(b.key) ?? 0 })),
+        };
+      },
+    };
+  }
+  return {
+    bodies,
+    parse: (reports) => {
+      const all = rowsWithBucket(reports);
+      const totals = new Map<string, number>();
+      for (const { row } of all) totals.set(dv(row, 0), (totals.get(dv(row, 0)) ?? 0) + mv(row));
+      const top = [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, STACK_SERIES).map(([k]) => k);
+      const series = totals.size > top.length ? [...top, "Other"] : top;
+      const byKey = new Map(
+        buckets.map((b) => [b.key, Object.fromEntries([["date", b.key], ...series.map((_, i) => [`s${i}`, 0])])])
+      );
+      for (const { row, key } of all) {
+        const out = byKey.get(key)!;
+        const i = top.indexOf(dv(row, 0));
+        const k = `s${i >= 0 ? i : series.length - 1}`;
+        out[k] = Number(out[k]) + mv(row) * scale;
+      }
+      return { kind: "stack", format: m.format, grain, series, rows: [...byKey.values()] };
+    },
+  };
 }
 
 // GA4 country names that differ from the world-atlas shape names.
