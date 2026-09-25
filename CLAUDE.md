@@ -75,7 +75,8 @@ with real GA4 reporting.
   stacked area, horizontal bar, table). Picking one lists every card in that chart: metrics as numbers
   or over time, breakdowns (channel, source, device, country, ...) as donut/pie/bars/table, and US /
   world maps. Generated in `lib/chart-widgets.ts` (ids `c.<chart>.<subject>`, unit-tested), fetched via
-  `/api/ga4/widgets` (request id `id~metric` for cards with a metric dropdown). World shapes: world-atlas.
+  `/api/ga4/widgets` (request id `id~metric` for cards with a metric dropdown, `id@week` etc. for a time
+  chart's grain, bucketed by GA4 date ranges so users and rates stay correct). World shapes: world-atlas.
   Undo/redo (buttons, Cmd/Ctrl+Z, Shift+Cmd/Ctrl+Z) covers the last 50 layout changes this visit.
   Version history: `dashboard_layout_versions` (migration `20260926_dashboard_layout_versions.sql`,
   RLS-no-policies) snapshots each save, grouping edits within 10 minutes into one version and keeping

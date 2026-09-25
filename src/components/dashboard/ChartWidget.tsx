@@ -23,13 +23,14 @@ import { ComposableMap, Geographies, Geography } from "react-simple-maps";
 import worldCountries from "world-atlas/countries-110m.json";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Card } from "@/components/Card";
-import { compact, formatDuration, shade } from "@/lib/report";
+import { bucketLabel, compact, formatDuration, shade, TIME_GRAINS, type TimeGrain } from "@/lib/report";
 import {
   CHART_METRICS,
   CHART_WIDGET_BY_ID,
   COUNTRY_ALIASES,
   METRIC_BY_ID,
   METRIC_PICK_CHARTS,
+  TIME_CHART_TYPES,
   type ChartData,
   type MetricFormat,
 } from "@/lib/chart-widgets";
@@ -45,11 +46,6 @@ export function formatMetric(v: number, format: MetricFormat): string {
   return compact(v);
 }
 
-const shortDate = (iso: string) => {
-  const [, m, d] = iso.split("-").map(Number);
-  return `${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][m - 1]} ${d}`;
-};
-
 // A chart-type widget card: its chart, and a metric dropdown where it applies.
 export function ChartWidgetCard({
   id,
@@ -58,6 +54,8 @@ export function ChartWidgetCard({
   error,
   metric,
   onMetric,
+  grain,
+  onGrain,
 }: {
   id: string;
   data: ChartData | undefined;
@@ -65,10 +63,14 @@ export function ChartWidgetCard({
   error: string | null;
   metric: string;
   onMetric: (m: string) => void;
+  // Time charts: the picked grain (the data may lag behind while it loads).
+  grain: TimeGrain;
+  onGrain: (g: TimeGrain) => void;
 }) {
   const def = CHART_WIDGET_BY_ID.get(id);
   if (!def) return null;
   const picks = METRIC_PICK_CHARTS.includes(def.chart);
+  const timed = TIME_CHART_TYPES.includes(def.chart);
   const metricLabel = METRIC_BY_ID.get(metric)?.label ?? "Sessions";
   const format = METRIC_BY_ID.get(picks ? metric : def.subject)?.format ?? "number";
   const title = picks ? `${def.title} by ${metricLabel.toLowerCase()}` : def.title;
@@ -83,9 +85,9 @@ export function ChartWidgetCard({
       </div>
     );
   } else if (data.kind === "series") {
-    body = <TimeChart kind={def.chart} rows={data.rows} format={data.format} label={title} />;
+    body = <TimeChart kind={def.chart} rows={data.rows} format={data.format} label={title} grain={data.grain ?? "day"} />;
   } else if (data.kind === "stack") {
-    body = <StackChart rows={data.rows} series={data.series} format={data.format} />;
+    body = <StackChart rows={data.rows} series={data.series} format={data.format} grain={data.grain ?? "day"} />;
   } else if (data.kind === "list") {
     body =
       data.rows.length === 0 ? <Empty /> :
@@ -99,6 +101,16 @@ export function ChartWidgetCard({
   return (
     <div className={`h-full transition-opacity ${loading && data ? "opacity-60" : ""}`}>
       <Card title={title} description={def.description}>
+        {timed && (
+          <select
+            value={grain}
+            onChange={(e) => onGrain(e.target.value as TimeGrain)}
+            aria-label={`${def.title} time grain`}
+            className="-mt-2 mb-3 rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-700"
+          >
+            {TIME_GRAINS.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
+          </select>
+        )}
         {picks && (
           <select
             value={metric}
@@ -124,19 +136,21 @@ function TimeChart({
   rows,
   format,
   label,
+  grain,
 }: {
   kind: string;
   rows: { date: string; value: number }[];
   format: MetricFormat;
   label: string;
+  grain: TimeGrain;
 }) {
   if (rows.length === 0) return <Empty />;
   const axis = (
     <>
       <CartesianGrid stroke="#f1f5f4" vertical={false} />
-      <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={shortDate} minTickGap={28} />
+      <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => bucketLabel(String(v), grain)} minTickGap={28} />
       <YAxis tick={{ fontSize: 11 }} width={44} tickFormatter={(v) => formatMetric(Number(v), format)} />
-      <Tooltip labelFormatter={(l) => shortDate(String(l))} formatter={(v) => formatMetric(Number(v), format)} />
+      <Tooltip labelFormatter={(l) => bucketLabel(String(l), grain)} formatter={(v) => formatMetric(Number(v), format)} />
     </>
   );
   return (
@@ -163,16 +177,26 @@ function TimeChart({
   );
 }
 
-function StackChart({ rows, series, format }: { rows: Record<string, number | string>[]; series: string[]; format: MetricFormat }) {
+function StackChart({
+  rows,
+  series,
+  format,
+  grain,
+}: {
+  rows: Record<string, number | string>[];
+  series: string[];
+  format: MetricFormat;
+  grain: TimeGrain;
+}) {
   if (rows.length === 0) return <Empty />;
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={rows} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
           <CartesianGrid stroke="#f1f5f4" vertical={false} />
-          <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={shortDate} minTickGap={28} />
+          <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => bucketLabel(String(v), grain)} minTickGap={28} />
           <YAxis tick={{ fontSize: 11 }} width={44} tickFormatter={(v) => formatMetric(Number(v), format)} />
-          <Tooltip labelFormatter={(l) => shortDate(String(l))} formatter={(v) => formatMetric(Number(v), format)} />
+          <Tooltip labelFormatter={(l) => bucketLabel(String(l), grain)} formatter={(v) => formatMetric(Number(v), format)} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           {series.map((name, i) => (
             <Area

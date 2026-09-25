@@ -25,8 +25,8 @@ describe("chart widgets", () => {
   });
 
   it("request ids carry a valid metric only", () => {
-    expect(splitRequestId("c.pie.device~keyEvents")).toEqual({ id: "c.pie.device", metric: "keyEvents" });
-    expect(splitRequestId("c.pie.device~bogus")).toEqual({ id: "c.pie.device", metric: null });
+    expect(splitRequestId("c.pie.device~keyEvents")).toEqual({ id: "c.pie.device", metric: "keyEvents", grain: "day" });
+    expect(splitRequestId("c.pie.device~bogus")).toEqual({ id: "c.pie.device", metric: null, grain: "day" });
   });
 
   it("builds GA4 reports: time series by date, breakdowns by the chosen metric, key events resolved", () => {
@@ -57,5 +57,41 @@ describe("chart widgets", () => {
     const d = spec.parse(rows);
     expect(d.kind === "stack" && d.series).toEqual(["A", "B", "C", "D", "E", "Other"]);
     expect(d.kind === "stack" && d.rows[0].s5).toBe(5 + 4); // F + G
+  });
+});
+
+describe("time chart grain", () => {
+  it("request ids carry a valid grain", () => {
+    expect(splitRequestId("c.line.sessions@week")).toEqual({ id: "c.line.sessions", metric: null, grain: "week" });
+    expect(splitRequestId("c.line.sessions@hour").grain).toBe("day");
+    expect(splitRequestId("c.pie.device~sessions").grain).toBe("day");
+  });
+
+  it("buckets by GA4 date ranges, 4 per report, mapping rows back to bucket starts", async () => {
+    const { bucketedTimeSpec } = await import("@/lib/chart-widgets");
+    const qctx = { ...ctx, current: [{ startDate: "2026-01-01", endDate: "2026-06-30" }] };
+    const spec = bucketedTimeSpec("c.line.totalUsers", "month", qctx)!;
+    expect(spec.bodies).toHaveLength(2); // 6 months -> 4 + 2 ranges
+    const r = (range: number, v: number) => ({ dimensionValues: [{ value: `date_range_${range}` }], metricValues: [{ value: String(v) }] });
+    const d = spec.parse([[r(0, 10), r(3, 40)], [r(1, 60)]]);
+    expect(d.kind === "series" && d.rows).toEqual([
+      { date: "2026-01-01", value: 10 },
+      { date: "2026-02-01", value: 0 },
+      { date: "2026-03-01", value: 0 },
+      { date: "2026-04-01", value: 40 },
+      { date: "2026-05-01", value: 0 },
+      { date: "2026-06-01", value: 60 },
+    ]);
+    expect(d.kind === "series" && d.grain).toBe("month");
+  });
+
+  it("stacked charts bucket per channel too", async () => {
+    const { bucketedTimeSpec } = await import("@/lib/chart-widgets");
+    const qctx = { ...ctx, current: [{ startDate: "2026-01-01", endDate: "2026-03-31" }] };
+    const spec = bucketedTimeSpec("c.stacked.sessions", "quarter", qctx)!;
+    const row = (ch: string, v: number) => ({ dimensionValues: [{ value: ch }, { value: "date_range_0" }], metricValues: [{ value: String(v) }] });
+    const d = spec.parse([[row("Direct", 5), row("Email", 2)]]);
+    expect(d.kind === "stack" && d.series).toEqual(["Direct", "Email"]);
+    expect(d.kind === "stack" && d.rows).toEqual([{ date: "2026-01-01", s0: 5, s1: 2 }]);
   });
 });
