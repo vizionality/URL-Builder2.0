@@ -57,7 +57,7 @@ describe("widths", () => {
     const { parseLayout, serializeLayout, sanitizeLayout } = await import("@/lib/dashboard-widgets");
     // Any width 1-12 is kept (a widget filling a slot takes the slot's width); out of range is dropped.
     expect(sanitizeLayout(["monthly|6", "geo|7", "channel|13", "sc.views|6", "monthly"])).toEqual([
-      "monthly|6", "geo|7", "channel", "sc.views",
+      "monthly|6", "geo|7", "channel", "sc.views|6",
     ]);
     const { ids, spans } = parseLayout(["monthly|6", "geo|4", "channel|12"]);
     expect(ids).toEqual(["monthly", "geo", "channel"]);
@@ -112,8 +112,11 @@ describe("empty slots", () => {
       ids: ["monthly", "geo"],
       spans: { monthly: 6, geo: 6 },
     });
-    // Scorecards live in the Summary row, not in slots.
-    expect(dropWithSpans(base.ids, base.spans, "new:sc.bounceRate", "gap:1")).toEqual(base);
+    // A scorecard dropped in a slot sits on its own there, at the slot's width.
+    expect(dropWithSpans(base.ids, base.spans, "new:sc.bounceRate", "gap:1")).toEqual({
+      ids: ["monthly", "sc.bounceRate", "geo", "gap:1"],
+      spans: { monthly: 6, "sc.bounceRate": 6, "gap:1": 8 },
+    });
   });
 
   it("slots survive save and load, and group as their own blocks", async () => {
@@ -178,5 +181,39 @@ describe("rows keep their shape", () => {
       ids: ["channel", "gap:1", "geo"],
       spans: { "gap:1": 4 },
     });
+  });
+});
+
+describe("standalone scorecards", () => {
+  it("a scorecard with a width is its own block and round-trips", async () => {
+    const { layoutBlocks, parseLayout, serializeLayout } = await import("@/lib/dashboard-widgets");
+    const spans = { "sc.keyEvents": 12 };
+    expect(layoutBlocks(["sc.views", "monthly", "sc.keyEvents"], spans)).toEqual([
+      { kind: "scorecards", ids: ["sc.views"] },
+      { kind: "widget", id: "monthly" },
+      { kind: "widget", id: "sc.keyEvents" },
+    ]);
+    // Even at full width the span is kept, since it marks "on its own".
+    expect(serializeLayout(["sc.keyEvents"], spans)).toEqual(["sc.keyEvents|12"]);
+    expect(parseLayout(["sc.keyEvents|12"]).spans).toEqual(spans);
+  });
+
+  it("dropping it on a Summary scorecard puts it back in the Summary row", async () => {
+    const { dropWithSpans } = await import("@/lib/dashboard-widgets");
+    const out = dropWithSpans(["sc.views", "monthly", "sc.keyEvents"], { monthly: 6, "sc.keyEvents": 6 }, "sc.keyEvents", "sc.views");
+    expect(out.spans["sc.keyEvents"]).toBeUndefined();
+    expect(out.ids.slice(0, 2)).toEqual(["sc.keyEvents", "sc.views"]);
+  });
+});
+
+describe("any card fits anywhere", () => {
+  it("a scorecard dropped beside a widget stands on its own at 25%", async () => {
+    const { dropWithSpans } = await import("@/lib/dashboard-widgets");
+    const out = dropWithSpans(["sc.views", "channel", "states", "geo"], {}, "new:sc.keyEvents", "states");
+    expect(out.ids).toContain("sc.keyEvents");
+    expect(out.spans["sc.keyEvents"]).toBe(3);
+    // A Summary scorecard dragged out next to Geo Map leaves the Summary row.
+    const moved = dropWithSpans(["sc.views", "sc.sessions", "geo"], {}, "sc.sessions", "geo");
+    expect(moved.spans["sc.sessions"]).toBe(3);
   });
 });

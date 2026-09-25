@@ -69,6 +69,8 @@ with real GA4 reporting.
   pulling the next widget up (`resizeWithGap`); dropping a widget on a slot fills it at its width.
   `normalizeLayout` keeps rows explicit after every change: unused row width is a slot, neighbouring
   slots merge, slot-only rows disappear. Moving a widget to another row or removing it leaves a slot.
+  Any card fits anywhere: a scorecard dropped in a slot or beside a widget stands on its own (it gets a
+  width, `inSummary` false); dropped on a Summary scorecard or added with Add, it joins the Summary row.
   Undo/redo (buttons, Cmd/Ctrl+Z, Shift+Cmd/Ctrl+Z) covers the last 50 layout changes this visit.
   Version history: `dashboard_layout_versions` (migration `20260926_dashboard_layout_versions.sql`,
   RLS-no-policies) snapshots each save, grouping edits within 10 minutes into one version and keeping
