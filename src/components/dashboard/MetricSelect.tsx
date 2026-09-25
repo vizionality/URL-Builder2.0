@@ -7,10 +7,13 @@ export function MetricSelect({
   value,
   onChange,
   label,
+  exclude = [],
 }: {
   value: BreakdownMetric;
   onChange: (m: BreakdownMetric) => void;
   label: string;
+  // Metrics to leave out of this card's list.
+  exclude?: BreakdownMetric[];
 }) {
   return (
     <select
@@ -19,7 +22,7 @@ export function MetricSelect({
       aria-label={label}
       className="-mt-2 mb-3 rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-700"
     >
-      {BREAKDOWN_METRICS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+      {BREAKDOWN_METRICS.filter((m) => !exclude.includes(m.id)).map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
     </select>
   );
 }

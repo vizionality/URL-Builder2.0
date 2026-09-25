@@ -96,6 +96,8 @@ function TrendLines({ trend }: { trend: Trend }) {
 
 const th = "py-2 pr-3 text-left text-xs font-semibold text-zinc-500";
 const td = "py-2 pr-3 text-sm text-zinc-700";
+// Key events are covered by the Conversions card below.
+const NO_KEY_EVENTS: BreakdownMetric[] = ["keyEvents"];
 const pickable = "max-w-full truncate text-left hover:text-green-700 hover:underline";
 
 export function Breakdowns({
@@ -186,7 +188,7 @@ export function Breakdowns({
     <div className={`space-y-6 transition-opacity ${state.loading ? "opacity-60" : ""}`}>
       {/* Top Traffic Sources */}
       <Card title="Top Traffic Sources" description={`Ranked by ${metricLabel(sourceMetric).toLowerCase()}. Click a source or medium to filter.`}>
-        <MetricSelect value={sourceMetric} onChange={setSourceMetric} label="Top Traffic Sources metric" />
+        <MetricSelect value={sourceMetric} onChange={setSourceMetric} label="Top Traffic Sources metric" exclude={NO_KEY_EVENTS} />
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="overflow-x-auto">
             <table className="w-full">
