@@ -27,3 +27,19 @@ describe("dashboard layout", () => {
     expect(overviewParts(DEFAULT_LAYOUT)).toEqual(["channel", "geo", "monthly", "states", "summary"]);
   });
 });
+
+describe("applyDrop", () => {
+  it("reorders, adds from the sidebar, and removes to the sidebar", async () => {
+    const { applyDrop, DASHBOARD_DROP, SIDEBAR_DROP } = await import("@/lib/dashboard-widgets");
+    const l = ["monthly", "channel", "geo"];
+    expect(applyDrop(l, "geo", "monthly")).toEqual(["geo", "monthly", "channel"]);
+    expect(applyDrop(l, "monthly", "geo")).toEqual(["channel", "geo", "monthly"]);
+    expect(applyDrop(l, "new:states", "channel")).toEqual(["monthly", "states", "channel", "geo"]);
+    expect(applyDrop(l, "new:states", DASHBOARD_DROP)).toEqual(["monthly", "channel", "geo", "states"]);
+    expect(applyDrop(l, "channel", SIDEBAR_DROP)).toEqual(["monthly", "geo"]);
+    // No-ops: nowhere, already present, unknown widget.
+    expect(applyDrop(l, "geo", null)).toBe(l);
+    expect(applyDrop(l, "new:geo", DASHBOARD_DROP)).toBe(l);
+    expect(applyDrop(l, "new:bogus", DASHBOARD_DROP)).toBe(l);
+  });
+});

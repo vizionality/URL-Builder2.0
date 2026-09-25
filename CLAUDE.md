@@ -60,7 +60,9 @@ with real GA4 reporting.
   unit-tested) with search, add/remove and Reset to default. The ordered widget ids save per user +
   property in `dashboard_layouts` (migration `20260925_dashboard_layouts.sql`, RLS-no-policies) via
   `GET/PUT/DELETE /api/dashboard/layout`. The overview and breakdowns routes take `parts` so hidden
-  widgets cost no GA4 requests. Drag and drop (@dnd-kit) and new GA4 widgets are planned follow-ups.
+  widgets cost no GA4 requests. Drag and drop (@dnd-kit): grip handles reorder widgets, catalog items
+  drag onto the dashboard, and widgets drag back to the sidebar to remove (`applyDrop`, unit-tested).
+  New GA4 widgets are a planned follow-up.
 - No property connected -> a connect-GA4 prompt, not sample data.
 
 ### Integrations (/integrations)

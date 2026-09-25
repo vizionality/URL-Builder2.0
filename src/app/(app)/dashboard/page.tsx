@@ -32,8 +32,24 @@ import {
 import { DateRangePicker, resolveRange, type DateValue } from "@/components/dashboard/DateRangePicker";
 import { WidgetSidebar, type SaveStatus } from "@/components/dashboard/WidgetSidebar";
 import {
+  closestCenter,
+  pointerWithin,
+  type CollisionDetection,
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import { DashboardDropZone, SortableWidget } from "@/components/dashboard/DragParts";
+import {
+  applyDrop,
   breakdownParts,
   DEFAULT_LAYOUT,
+  NEW_PREFIX,
   layoutBlocks,
   overviewParts,
   WIDGET_BY_ID,
@@ -81,6 +97,20 @@ const MONTHLY_OPTIONS: { id: MonthlyMetric; label: string }[] = [
   { id: "sessions", label: "Sessions" },
   { id: "engagedSessions", label: "Engaged sessions" },
 ];
+
+// Prefer the widget under the pointer, then the sidebar or dashboard area under
+// it; with the keyboard (no pointer), the nearest widget. The big drop areas
+// never win over a widget, so a reorder can't land on "the dashboard" by accident.
+const dropCollision: CollisionDetection = (args) => {
+  const hits = pointerWithin(args);
+  const widgets = hits.filter((h) => !String(h.id).startsWith("drop:"));
+  if (widgets.length) return widgets;
+  if (hits.length) return hits;
+  return closestCenter({
+    ...args,
+    droppableContainers: args.droppableContainers.filter((c) => !String(c.id).startsWith("drop:")),
+  });
+};
 
 type Scorecards = Overview["scorecards"];
 // One summary scorecard by widget id.
@@ -223,6 +253,13 @@ export default function DashboardPage() {
       .catch(() => setSaveStatus("error"));
   }, []);
   const closeSidebar = useCallback(() => setCustomizing(false), []);
+  // Drag and drop: mouse (after a small move), touch (press and hold), keyboard.
+  const [dragging, setDragging] = useState<string | null>(null);
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
   const partsKey = layout ? overviewParts(layout).join(",") : null;
 
   useEffect(() => {
@@ -345,7 +382,20 @@ export default function DashboardPage() {
   return (
     <>
       <Header title="Dashboard" subtitle="GA4 performance overview" />
-      <main className="flex-1 px-4 py-6 sm:px-6">
+      <DndContext
+        sensors={dndSensors}
+        collisionDetection={dropCollision}
+        onDragStart={(e) => setDragging(String(e.active.id))}
+        onDragCancel={() => setDragging(null)}
+        onDragEnd={(e) => {
+          setDragging(null);
+          if (!layout) return;
+          const next = applyDrop(layout, String(e.active.id), e.over ? String(e.over.id) : null);
+          if (next !== layout) persistLayout(next);
+        }}
+      >
+      {/* Leave room for the Customize panel on wide screens so both stay usable while dragging. */}
+      <main className={`flex-1 px-4 py-6 sm:px-6 ${customizing ? "lg:pr-[25rem]" : ""}`}>
         {/* Filters */}
         <div className="mb-6 flex flex-wrap items-center gap-2">
           <MultiSelect label="Session medium" options={mediums} selected={medium} onChange={setMedium} />
@@ -537,6 +587,7 @@ export default function DashboardPage() {
               const blocks = layoutBlocks(layout);
               if (blocks.length === 0) {
                 return (
+                  <DashboardDropZone>
                   <Card>
                     <div className="py-10 text-center">
                       <p className="text-sm text-zinc-500">Your dashboard is empty.</p>
@@ -549,29 +600,40 @@ export default function DashboardPage() {
                       </button>
                     </div>
                   </Card>
+                  </DashboardDropZone>
                 );
               }
               return (
+                <DashboardDropZone>
+                <SortableContext items={layout} strategy={rectSortingStrategy}>
                 <div className={`grid gap-6 lg:grid-cols-3 ${state.loading ? "[&>*]:opacity-60" : ""}`}>
                   {blocks.map((block) =>
                     block.kind === "scorecards" ? (
                       <div key={`sc-${block.ids[0]}`} className="lg:col-span-3">
                         <Card title="Summary">
                           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-                            {block.ids.map((id) => s && <ScorecardFor key={id} id={id} s={s} />)}
+                            {block.ids.map((id) => (
+                              <SortableWidget key={id} id={id} title={WIDGET_BY_ID.get(id)?.title ?? id}>
+                                {s && <ScorecardFor id={id} s={s} />}
+                              </SortableWidget>
+                            ))}
                           </div>
                         </Card>
                       </div>
                     ) : (
-                      <div
+                      <SortableWidget
                         key={block.id}
+                        id={block.id}
+                        title={WIDGET_BY_ID.get(block.id)?.title ?? block.id}
                         className={WIDGET_BY_ID.get(block.id)?.size === "third" ? "min-w-0" : "min-w-0 lg:col-span-3"}
                       >
                         {cards[block.id]}
-                      </div>
+                      </SortableWidget>
                     )
                   )}
                 </div>
+                </SortableContext>
+                </DashboardDropZone>
               );
             }}
           </Breakdowns>
@@ -585,6 +647,14 @@ export default function DashboardPage() {
         onClose={closeSidebar}
         status={saveStatus}
       />
+      <DragOverlay>
+        {dragging && (
+          <div className="rounded-lg border border-green-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 shadow-lg">
+            {WIDGET_BY_ID.get(dragging.replace(NEW_PREFIX, ""))?.title ?? "Widget"}
+          </div>
+        )}
+      </DragOverlay>
+      </DndContext>
     </>
   );
 }

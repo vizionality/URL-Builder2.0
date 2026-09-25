@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Check, Plus, RotateCcw, Search, X } from "lucide-react";
 import { WIDGETS, type WidgetCategory } from "@/lib/dashboard-widgets";
+import { CatalogDraggable, SidebarDropZone } from "@/components/dashboard/DragParts";
 
 const CATEGORIES: WidgetCategory[] = ["Summary", "Traffic", "Acquisition", "Geography", "Conversions"];
 
@@ -79,7 +80,11 @@ export function WidgetSidebar({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-3">
+        <SidebarDropZone className="flex-1 overflow-y-auto px-4 py-3 transition-colors">
+          <p className="mb-3 text-xs text-zinc-500">
+            Drag a widget onto the dashboard to add it where you drop it, or drag one from the dashboard back here to
+            remove it. Grab the ⋮⋮ handle on a widget to reorder.
+          </p>
           {CATEGORIES.map((cat) => {
             const items = WIDGETS.filter(
               (w) => w.category === cat && (!q || `${w.title} ${w.description}`.toLowerCase().includes(q))
@@ -92,12 +97,13 @@ export function WidgetSidebar({
                   {items.map((w) => {
                     const on = layout.includes(w.id);
                     return (
-                      <li
-                        key={w.id}
-                        className={`flex items-start gap-3 rounded-lg border px-3 py-2 ${
-                          on ? "border-green-200 bg-green-50/60" : "border-zinc-200"
-                        }`}
-                      >
+                      <li key={w.id}>
+                        {on ? (
+                          <div
+                          className={`flex items-start gap-3 rounded-lg border px-3 py-2 ${
+                            on ? "border-green-200 bg-green-50/60" : "border-zinc-200 bg-white"
+                          }`}
+                        >
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-zinc-800">{w.title}</p>
                           <p className="text-xs text-zinc-500">{w.description}</p>
@@ -114,6 +120,33 @@ export function WidgetSidebar({
                         >
                           {on ? <><Check className="h-3.5 w-3.5" /> Added</> : <><Plus className="h-3.5 w-3.5" /> Add</>}
                         </button>
+</div>
+                        ) : (
+                          <CatalogDraggable id={w.id} title={w.title}>
+                            <div
+                          className={`flex items-start gap-3 rounded-lg border px-3 py-2 ${
+                            on ? "border-green-200 bg-green-50/60" : "border-zinc-200 bg-white"
+                          }`}
+                        >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-zinc-800">{w.title}</p>
+                          <p className="text-xs text-zinc-500">{w.description}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => onToggle(w.id)}
+                          aria-label={on ? `Remove ${w.title}` : `Add ${w.title}`}
+                          className={`mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ${
+                            on
+                              ? "text-green-700 hover:bg-red-50 hover:text-red-600"
+                              : "border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+                          }`}
+                        >
+                          {on ? <><Check className="h-3.5 w-3.5" /> Added</> : <><Plus className="h-3.5 w-3.5" /> Add</>}
+                        </button>
+</div>
+                          </CatalogDraggable>
+                        )}
                       </li>
                     );
                   })}
@@ -121,7 +154,7 @@ export function WidgetSidebar({
               </section>
             );
           })}
-        </div>
+        </SidebarDropZone>
 
         <div className="border-t border-zinc-200 px-4 py-3">
           <button
