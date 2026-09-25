@@ -117,12 +117,14 @@ export function Breakdowns({
   useEffect(() => {
     if (!propertyId) return;
     let cancelled = false;
+    // Abort the previous request on a filter change so it stops using GA4 quota.
+    const ac = new AbortController();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- mark loading before the async fetch
     setState((s) => ({ ...s, loading: true, error: null }));
     const p = new URLSearchParams({ startDate, endDate, compare });
     if (medium) p.set("medium", medium);
     if (campaign) p.set("campaign", campaign);
-    fetch(`/api/ga4/breakdowns?${p.toString()}`)
+    fetch(`/api/ga4/breakdowns?${p.toString()}`, { signal: ac.signal })
       .then(async (r) => {
         const d = await r.json();
         if (!r.ok) throw new Error(d.error ?? "Failed to load breakdowns.");
@@ -132,7 +134,10 @@ export function Breakdowns({
       .catch((e) => {
         if (!cancelled) setState({ loading: false, error: e instanceof Error ? e.message : "Failed to load breakdowns.", data: null });
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
   }, [propertyId, startDate, endDate, compare, medium, campaign]);
 
   if (state.loading && !state.data) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -45,7 +45,8 @@ type Overview = {
   topStates: { region: string; newUsers: number }[];
   geo: { region: string; newUsers: number }[];
   monthly: { month: string; current: number; previousYear: number }[];
-  filters: { mediums: string[]; campaigns: string[] };
+  // Present only when requested with options=1.
+  filters: { mediums: string[]; campaigns: string[] } | null;
   range: { startDate: string; endDate: string };
 };
 
@@ -101,30 +102,52 @@ export default function DashboardPage() {
   const [state, setState] = useState<{ loading: boolean; error: string | null; data: Overview | null }>(
     { loading: false, error: null, data: null }
   );
+  // Dropdown lists load once and persist across filter changes (they don't
+  // depend on the filters), which also saves two GA4 requests per change.
+  const [options, setOptions] = useState<{ mediums: string[]; campaigns: string[] } | null>(null);
+  const optionsLoaded = useRef(false);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     if (!propertyId) return;
     let cancelled = false;
+    // Abort the previous request when filters change, so a stale report stops
+    // using GA4 quota instead of competing with the new one.
+    const ac = new AbortController();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- mark loading before the async fetch
     setState((s) => ({ ...s, loading: true, error: null }));
     const p = new URLSearchParams({ startDate, endDate, compare });
     if (medium) p.set("medium", medium);
     if (campaign) p.set("campaign", campaign);
-    fetch(`/api/ga4/overview?${p.toString()}`)
+    if (!optionsLoaded.current) p.set("options", "1");
+    fetch(`/api/ga4/overview?${p.toString()}`, { signal: ac.signal })
       .then(async (r) => {
         const d = await r.json();
         if (!r.ok) throw new Error(d.error ?? "Failed to load report.");
         return d as Overview;
       })
-      .then((d) => { if (!cancelled) setState({ loading: false, error: null, data: d }); })
-      .catch((e) => { if (!cancelled) setState({ loading: false, error: e instanceof Error ? e.message : "Failed to load report.", data: null }); });
-    return () => { cancelled = true; };
-  }, [propertyId, startDate, endDate, compare, medium, campaign]);
+      .then((d) => {
+        if (cancelled) return;
+        if (d.filters) {
+          optionsLoaded.current = true;
+          setOptions(d.filters);
+        }
+        setState({ loading: false, error: null, data: d });
+      })
+      .catch((e) => {
+        if (cancelled) return; // superseded or aborted, not a real failure
+        setState({ loading: false, error: e instanceof Error ? e.message : "Failed to load report.", data: null });
+      });
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, [propertyId, startDate, endDate, compare, medium, campaign, retry]);
 
   const d = state.data;
   const s = d?.scorecards;
-  const mediums = d?.filters.mediums ?? [];
-  const campaigns = d?.filters.campaigns ?? [];
+  const mediums = options?.mediums ?? [];
+  const campaigns = options?.campaigns ?? [];
 
   const channelData = useMemo(
     () => (d?.channelGroup ?? []).map((c) => ({ name: c.channel, value: c.users })),
@@ -195,7 +218,18 @@ export default function DashboardPage() {
             </div>
           </Card>
         ) : state.error ? (
-          <Card><p className="py-6 text-sm text-red-600">{state.error}</p></Card>
+          <Card>
+            <div className="flex flex-wrap items-center justify-between gap-3 py-4">
+              <p className="text-sm text-red-600">{state.error}</p>
+              <button
+                type="button"
+                onClick={() => setRetry((n) => n + 1)}
+                className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              >
+                Retry
+              </button>
+            </div>
+          </Card>
         ) : !s || !d ? null : (
           <div className="space-y-6">
             {/* Summary scorecards */}
