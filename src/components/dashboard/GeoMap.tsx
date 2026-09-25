@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useEffect, useMemo, useState } from "react";
-import { ComposableMap, Geographies, Geography } from "react-simple-maps";
+import { ComposableMap, Geographies, Geography, Marker } from "react-simple-maps";
 import { geoMercator, type GeoPermissibleObjects, type GeoProjection } from "d3-geo";
 import { ArrowLeft, Loader2 } from "lucide-react";
 // US state shapes, bundled at build time so the map never fetches at runtime.
@@ -27,12 +27,14 @@ const MapLayer = memo(function MapLayer({
   byState,
   max,
   selected,
+  points,
   onHover,
   onSelect,
 }: {
   byState: Map<string, number>;
   max: number;
   selected: Selected;
+  points: CityPoint[];
   onHover: (h: Hover) => void;
   onSelect: (name: string, geo: GeoPermissibleObjects) => void;
 }) {
@@ -55,7 +57,7 @@ const MapLayer = memo(function MapLayer({
               <Geography
                 key={geo.rsmKey}
                 geography={geo}
-                fill={isOther ? "#f4f4f5" : shade(value, max)}
+                fill={isOther ? "#f4f4f5" : selected ? "#e8f3ef" : shade(value, max)}
                 stroke={isOther ? "#e4e4e7" : "#ffffff"}
                 strokeWidth={selected ? 1.5 : 0.75}
                 className={isOther || selected ? "outline-none" : "cursor-pointer outline-none hover:fill-[#f59e0b]"}
@@ -67,15 +69,58 @@ const MapLayer = memo(function MapLayer({
           })
         }
       </Geographies>
+      {/* City heat: a soft blurred glow per city plus a crisp dot. Bigger and
+          hotter means more new users. Biggest drawn first so small ones stay on top. */}
+      {points.length > 0 && (
+        <defs>
+          <filter id="city-heat" x="-100%" y="-100%" width="300%" height="300%">
+            <feGaussianBlur stdDeviation="8" />
+          </filter>
+        </defs>
+      )}
+      {points.map((p) => (
+        <Marker key={`g-${p.city}`} coordinates={[p.lng, p.lat]}>
+          <circle r={p.r * 2.2} fill={heat(p.t)} opacity={0.45} filter="url(#city-heat)" pointerEvents="none" />
+        </Marker>
+      ))}
+      {points.map((p) => (
+        <Marker key={p.city} coordinates={[p.lng, p.lat]}>
+          <circle
+            r={p.r}
+            fill={heat(p.t)}
+            fillOpacity={0.75}
+            stroke="#ffffff"
+            strokeWidth={1}
+            className="cursor-pointer"
+            onMouseEnter={() => onHover({ name: p.city, value: p.newUsers })}
+            onMouseLeave={() => onHover(null)}
+          />
+        </Marker>
+      ))}
     </ComposableMap>
   );
 });
 
-type Cities = { region: string; cities: { city: string; newUsers: number }[] };
+type City = { city: string; newUsers: number; lat?: number; lng?: number };
+type Cities = { region: string; cities: City[] };
+// A plotted city: `t` is 0..1 intensity, `r` the dot radius in map units.
+type CityPoint = { city: string; newUsers: number; lat: number; lng: number; t: number; r: number };
+
+// Yellow -> orange -> red as intensity rises.
+function heat(t: number): string {
+  const stops = [[250, 204, 21], [249, 115, 22], [220, 38, 38]];
+  const x = Math.min(1, Math.max(0, t)) * 2;
+  const i = Math.min(1, Math.floor(x));
+  const f = x - i;
+  const [a, b] = [stops[i], stops[i + 1]];
+  return `rgb(${a.map((v, k) => Math.round(v + (b[k] - v) * f)).join(",")})`;
+}
+const NO_POINTS: CityPoint[] = [];
 
 // Choropleth of new users by US state. Clicking a state zooms into it and
-// lists new users by city (GA4 has no city coordinates, so cities are a list,
-// not dots). `query` carries the dashboard's date range and filters.
+// shows a city heat map plus a ranked list. GA4 has no city coordinates; the
+// server attaches them from a bundled gazetteer, and unmatched cities are
+// listed but not plotted. `query` carries the dashboard's date range and filters.
 export function GeoMap({ data, query }: { data: { region: string; newUsers: number }[]; query: string }) {
   const [hover, setHover] = useState<Hover>(null);
   const [selected, setSelected] = useState<Selected>(null);
@@ -129,8 +174,20 @@ export function GeoMap({ data, query }: { data: { region: string; newUsers: numb
     };
   }, [stateName, query]);
 
-  const cityList = cities.data?.cities ?? [];
+  const cityList = useMemo(() => cities.data?.cities ?? [], [cities.data]);
   const cityMax = Math.max(0, ...cityList.map((c) => c.newUsers));
+  const points = useMemo(() => {
+    if (!selected || cityList.length === 0) return NO_POINTS;
+    const top = Math.max(1, ...cityList.map((c) => c.newUsers));
+    return cityList
+      .filter((c): c is City & { lat: number; lng: number } => c.lat != null && c.lng != null)
+      .map((c) => {
+        const t = Math.sqrt(c.newUsers / top);
+        return { city: c.city, newUsers: c.newUsers, lat: c.lat, lng: c.lng, t, r: 4 + t * 18 };
+      })
+      .sort((a, b) => b.newUsers - a.newUsers);
+  }, [selected, cityList]);
+  const unplotted = cityList.length - points.length;
 
   return (
     <div>
@@ -144,7 +201,7 @@ export function GeoMap({ data, query }: { data: { region: string; newUsers: numb
         </button>
       )}
 
-      <MapLayer byState={byState} max={max} selected={selected} onHover={setHover} onSelect={onSelect} />
+      <MapLayer byState={byState} max={max} selected={selected} points={points} onHover={setHover} onSelect={onSelect} />
 
       {!selected ? (
         <div className="mt-1 flex items-center justify-between gap-3 text-xs text-zinc-500">
@@ -165,7 +222,9 @@ export function GeoMap({ data, query }: { data: { region: string; newUsers: numb
           <div className="mb-2 flex items-baseline justify-between text-sm">
             <span className="font-medium text-zinc-800">{selected.name} by city</span>
             <span className="text-xs text-zinc-500">
-              {(byState.get(selected.name) ?? 0).toLocaleString("en-US")} new users
+              {hover
+                ? `${hover.name}: ${hover.value.toLocaleString("en-US")} new users`
+                : `${(byState.get(selected.name) ?? 0).toLocaleString("en-US")} new users`}
             </span>
           </div>
           {cities.loading && (
@@ -176,6 +235,11 @@ export function GeoMap({ data, query }: { data: { region: string; newUsers: numb
           {cities.error && <p className="py-2 text-xs text-red-600">{cities.error}</p>}
           {!cities.loading && !cities.error && cityList.length === 0 && (
             <p className="py-2 text-xs text-zinc-500">No city data for this state in this range.</p>
+          )}
+          {unplotted > 0 && !cities.loading && (
+            <p className="mb-2 text-[11px] text-zinc-400">
+              {unplotted} {unplotted === 1 ? "city has" : "cities have"} no known location and {unplotted === 1 ? "is" : "are"} listed only.
+            </p>
           )}
           {cityList.length > 0 && (
             <ul className="max-h-56 space-y-1 overflow-y-auto pr-1">
