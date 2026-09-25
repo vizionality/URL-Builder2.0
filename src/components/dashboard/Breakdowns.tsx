@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { ChevronLeft, ChevronRight, Loader2, TrendingUp, TrendingDown } from "lucide-react";
 import { Card } from "@/components/Card";
+import { KeyEventSuggestions } from "@/components/dashboard/KeyEventSuggestions";
 import {
   bucketLabel,
   bucketTrend,
@@ -408,7 +409,7 @@ export function Breakdowns({
   const cvTableEl = (
     <div className="overflow-x-auto">
       {d.conversions.length === 0 ? (
-        <p className="py-6 text-sm text-zinc-400">No key events recorded in this range.</p>
+        <KeyEventSuggestions startDate={startDate} endDate={endDate} />
       ) : (
         <table className="w-full">
           <thead>
