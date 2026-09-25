@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
-import { previousPeriod, formatYearMonth } from "@/lib/report";
+import { comparisonRange, formatYearMonth } from "@/lib/report";
 
 const DATA_API = "https://analyticsdata.googleapis.com/v1beta";
 
@@ -73,6 +73,8 @@ export async function GET(request: Request) {
   const start = isoDay(url.searchParams.get("startDate"), defaultStart);
   const medium = url.searchParams.get("medium") ?? "";
   const campaign = url.searchParams.get("campaign") ?? "";
+  // %Δ baseline: "year" = same dates last year, otherwise the previous period.
+  const compare = url.searchParams.get("compare") === "year" ? "year" : "period";
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -91,14 +93,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Google auth expired. Reconnect Google Analytics." }, { status: 401 });
   }
 
-  const prev = previousPeriod(start, end);
+  const prev = comparisonRange(start, end, compare);
   const filt = filterExpr(medium, campaign);
   // Monthly window: 13 displayed months plus 12 more for the prior-year series.
   const displayStart = monthStart(end, 12);
   const windowStart = monthStart(end, 24);
 
   try {
-    const [scoreRes, leadRes, channelRes, statesRes, monthlyRes, medRes, campRes] = await Promise.all([
+    const [scoreRes, leadRes, channelRes, statesRes, monthlyRes, medRes, campRes, geoRes] = await Promise.all([
       // Scorecards: two date ranges -> GA4 appends a dateRange dimension.
       runReport(propertyId, token, {
         dateRanges: [{ startDate: start, endDate: end }, { startDate: prev.start, endDate: prev.end }],
@@ -146,6 +148,14 @@ export async function GET(request: Request) {
         orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
         limit: 100,
       }),
+      // Geo map: new users for every US state (not just the top few).
+      runReport(propertyId, token, {
+        dateRanges: [{ startDate: start, endDate: end }],
+        dimensions: [{ name: "region" }],
+        metrics: [{ name: "newUsers" }],
+        limit: 100,
+        ...filterExpr(medium, campaign, { fieldName: "country", value: "United States" }),
+      }),
     ]);
 
     // Scorecards: match rows by their dateRange dimension value.
@@ -174,6 +184,10 @@ export async function GET(request: Request) {
       .map((r) => ({ region: r.dimensionValues?.[0]?.value ?? "(not set)", newUsers: num(r) }))
       .filter((s) => s.newUsers > 0);
 
+    const geo = geoRes.rows
+      .map((r) => ({ region: r.dimensionValues?.[0]?.value ?? "", newUsers: num(r) }))
+      .filter((s) => s.region && !s.region.startsWith("(") && s.newUsers > 0);
+
     // Monthly: map yearMonth -> users, then align current vs prior year.
     const usersByYm = new Map<string, number>();
     for (const r of monthlyRes.rows) usersByYm.set(r.dimensionValues?.[0]?.value ?? "", num(r));
@@ -199,6 +213,7 @@ export async function GET(request: Request) {
       scorecards,
       channelGroup,
       topStates,
+      geo,
       monthly,
       filters: { mediums: names(medRes.rows), campaigns: names(campRes.rows) },
       range: { startDate: start, endDate: end },
