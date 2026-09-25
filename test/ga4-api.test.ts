@@ -132,3 +132,32 @@ describe("breakdown metric helpers", () => {
     expect(rowMetricValues(row)).toEqual({ totalUsers: 10, newUsers: 4, sessions: 12, engagedSessions: 8, keyEvents: 2 });
   });
 });
+
+describe("currentKeyEvents", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("collects marked event names across pages and caches them", async () => {
+    const { currentKeyEvents, clearKeyEventsCache } = await import("@/lib/ga4-api");
+    clearKeyEventsCache();
+    let calls = 0;
+    vi.stubGlobal("fetch", async (url: URL) => {
+      calls++;
+      const second = url.searchParams.get("pageToken") === "p2";
+      const body = second
+        ? { keyEvents: [{ eventName: "click_to_call" }] }
+        : { keyEvents: [{ eventName: "generate_lead" }], nextPageToken: "p2" };
+      return { ok: true, json: async () => body } as unknown as Response;
+    });
+    const names = await currentKeyEvents("1", "tok", undefined, 0);
+    expect([...names!].sort()).toEqual(["click_to_call", "generate_lead"]);
+    await currentKeyEvents("1", "tok", undefined, 1000);
+    expect(calls).toBe(2); // second call served from cache
+  });
+
+  it("returns null when the Admin API can't be read", async () => {
+    const { currentKeyEvents, clearKeyEventsCache } = await import("@/lib/ga4-api");
+    clearKeyEventsCache();
+    vi.stubGlobal("fetch", async () => ({ ok: false, text: async () => "denied" }) as unknown as Response);
+    expect(await currentKeyEvents("1", "tok")).toBeNull();
+  });
+});

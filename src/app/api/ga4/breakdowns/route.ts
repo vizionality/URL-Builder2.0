@@ -5,7 +5,7 @@ import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
 import { parseGa4Date } from "@/lib/indicators/dates";
 import { comparisonRange, parseBreakdownMetric, pivotDaily } from "@/lib/report";
-import { batchRunReports, detectKeyMetric, ga4FailureMessage, Ga4Error, type RawRow } from "@/lib/ga4-api";
+import { batchRunReports, currentKeyEvents, detectKeyMetric, ga4FailureMessage, Ga4Error, type RawRow } from "@/lib/ga4-api";
 
 // Top Traffic Sources, Landing Pages, and Conversions for the Dashboard: each a
 // table plus a daily trend for its top items. Same filters and date range as
@@ -63,7 +63,10 @@ export async function GET(request: Request) {
   const cur = [{ startDate: start, endDate: end }];
 
   try {
-    const keyMetric = await detectKeyMetric(propertyId, token, request.signal);
+    const [keyMetric, markedKeyEvents] = await Promise.all([
+      detectKeyMetric(propertyId, token, request.signal),
+      currentKeyEvents(propertyId, token, request.signal),
+    ]);
     const srcMetric = sourceMetric === "keyEvents" ? keyMetric : sourceMetric;
 
     // Wave 1: the three tables in one batch call (and which items to trend).
@@ -131,6 +134,10 @@ export async function GET(request: Request) {
     }
     const conversions = [...convMap.values()]
       .filter((c) => c.count > 0 || c.prev > 0)
+      // Only events marked as key events in GA4 today (e.g. drops a page_view
+      // that was marked for part of the range). Unfiltered if GA4 Admin
+      // couldn't be read.
+      .filter((c) => !markedKeyEvents || markedKeyEvents.has(c.event))
       .sort((a, b) => b.count - a.count);
     const trendEvents = conversions.filter((c) => c.count > 0).map((c) => c.event).slice(0, TREND_EVENTS);
 
