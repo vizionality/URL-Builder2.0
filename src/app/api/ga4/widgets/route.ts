@@ -7,7 +7,7 @@ import { pageFilterExpr, parsePageFilters } from "@/lib/ga4-filters";
 import { batchRunReports, detectKeyMetric, ga4FailureMessage, Ga4Error, type RawRow } from "@/lib/ga4-api";
 import { EXTRA_WIDGET_IDS } from "@/lib/dashboard-widgets";
 import { EXTRA_SPECS, finishPageTitles, type ListData, type TableData, type WidgetData } from "@/lib/extra-widgets";
-import { bucketedTimeSpec, chartSpec, isChartWidget, isTimeChart, splitRequestId, usRegionsSpec, type ChartData } from "@/lib/chart-widgets";
+import { bucketedTimeSpec, chartSpec, isChartWidget, isTimeChart, splitRequestId, subdivisionsSpec, type ChartData } from "@/lib/chart-widgets";
 
 function isoDay(v: string | null, fallback: string): string {
   return v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : fallback;
@@ -66,8 +66,8 @@ export async function GET(request: Request) {
       if (grain !== "day" && isTimeChart(chartId)) return bucketedTimeSpec(chartId, grain, ctx)!;
       const spec = chartSpec(chartId, metric, ctx)!;
       if (chartId === "c.map.world") {
-        // Countries, plus US states for the zoomed North America view.
-        const states = usRegionsSpec(metric, ctx);
+        // Countries, plus US states and Canadian provinces for the North America view.
+        const states = subdivisionsSpec(metric, ctx);
         return {
           bodies: [spec.body, states.body],
           parse: (r) => ({ ...(spec.parse(r[0] ?? []) as ListData), regions: states.parse(r[1] ?? []) }),

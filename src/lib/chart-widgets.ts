@@ -274,29 +274,35 @@ export function chartSpec(
   };
 }
 
-// World map extra: the chosen metric by US state, so the US can be shaded by
-// state when the map zooms to North America (us-atlas has the state shapes).
-export function usRegionsSpec(
+// Countries whose states / provinces the world map can shade and drill into
+// (bundled shapes: us-atlas for the US, Natural Earth for Canada).
+export const SUBDIVIDED_COUNTRIES = ["United States", "Canada"] as const;
+
+// World map extra: the chosen metric by US state and Canadian province, so the
+// North America view can shade and drill into them.
+export function subdivisionsSpec(
   metricId: string | null,
   ctx: ChartCtx
-): { body: unknown; parse: (rows: RawRow[]) => { label: string; value: number }[] } {
+): { body: unknown; parse: (rows: RawRow[]) => { country: string; label: string; value: number }[] } {
   const m = METRIC_BY_ID.get(metricId ?? "") ?? METRIC_BY_ID.get("sessions")!;
   const scale = m.scale ?? 1;
   const filter = ctx.filter as { dimensionFilter?: unknown };
-  const us = { filter: { fieldName: "country", stringFilter: { value: "United States", matchType: "EXACT" } } };
-  // AND the US clause onto the page's filters (if any).
-  const dimensionFilter = filter.dimensionFilter ? { andGroup: { expressions: [filter.dimensionFilter, us] } } : us;
+  const countries = { filter: { fieldName: "country", inListFilter: { values: [...SUBDIVIDED_COUNTRIES] } } };
+  // AND the countries clause onto the page's filters (if any).
+  const dimensionFilter = filter.dimensionFilter
+    ? { andGroup: { expressions: [filter.dimensionFilter, countries] } }
+    : countries;
   return {
     body: {
       dateRanges: ctx.current,
-      dimensions: [{ name: "region" }],
+      dimensions: [{ name: "country" }, { name: "region" }],
       metrics: [{ name: gaName(m, ctx) }],
-      limit: 100,
+      limit: 200,
       dimensionFilter,
     },
     parse: (rows) =>
       rows
-        .map((r) => ({ label: dv(r), value: mv(r) * scale }))
+        .map((r) => ({ country: dv(r, 0), label: dv(r, 1), value: mv(r) * scale }))
         .filter((x) => x.label && !x.label.startsWith("(") && x.value > 0),
   };
 }
