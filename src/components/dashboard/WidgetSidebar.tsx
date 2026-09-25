@@ -47,7 +47,9 @@ export function WidgetSidebar({
   status,
   savedLayout,
   onRestore,
+  layoutQuery = "",
 }: {
+  layoutQuery?: string;
   open: boolean;
   layout: string[];
   // The on-screen layout as saved entries (with widths), for version history.
@@ -130,7 +132,7 @@ export function WidgetSidebar({
 
         {tab === "history" ? (
           <div className="flex-1 overflow-y-auto px-4 py-3">
-            <VersionHistory current={savedLayout} refreshKey={status} onRestore={onRestore} />
+            <VersionHistory current={savedLayout} refreshKey={status} onRestore={onRestore} layoutQuery={layoutQuery} />
           </div>
         ) : (
         <>

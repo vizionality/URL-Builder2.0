@@ -53,6 +53,7 @@ export function useDashboardPages(): DashboardPage[] {
 
 const BUILT_IN = [
   { href: "/dashboard", name: "Google Analytics" },
+  { href: "/dashboard/ai", name: "AI Overview" },
   { href: "/dashboard/seo", name: "SEO Dashboard" },
   { href: "/dashboard/social", name: "Social Media" },
 ];

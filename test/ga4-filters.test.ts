@@ -21,3 +21,26 @@ describe("page filters", () => {
     expect((many.dimensionFilter as { andGroup: { expressions: unknown[] } }).andGroup.expressions).toHaveLength(2);
   });
 });
+
+describe("AI source filter", () => {
+  it("adds a case-insensitive regex on sessionSource when ai=1", async () => {
+    const { parsePageFilters, pageFilterExpr, AI_SOURCE_REGEX } = await import("@/lib/ga4-filters");
+    const f = parsePageFilters(new URLSearchParams("ai=1"));
+    expect(f.ai).toBe(true);
+    expect(pageFilterExpr(f)).toEqual({
+      dimensionFilter: {
+        filter: { fieldName: "sessionSource", stringFilter: { value: AI_SOURCE_REGEX, matchType: "FULL_REGEXP", caseSensitive: false } },
+      },
+    });
+    expect(parsePageFilters(new URLSearchParams("")).ai).toBe(false);
+  });
+
+  it("matches common AI referrers and not ordinary ones", async () => {
+    const { AI_SOURCE_REGEX } = await import("@/lib/ga4-filters");
+    const re = new RegExp(`^${AI_SOURCE_REGEX}$`, "i");
+    for (const s of ["chatgpt.com", "chat.openai.com", "perplexity.ai", "gemini.google.com", "copilot.microsoft.com", "claude.ai", "chat.deepseek.com"]) {
+      expect(re.test(s)).toBe(true);
+    }
+    for (const s of ["google", "facebook.com", "(direct)", "bing"]) expect(re.test(s)).toBe(false);
+  });
+});

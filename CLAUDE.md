@@ -101,6 +101,13 @@ with real GA4 reporting.
   `GET /api/gsc/report` (totals + previous period, daily, queries, pages, countries, devices). Pure helpers
   in `lib/gsc-report.ts` (unit-tested), API calls in `lib/gsc.ts`.
 
+- AI Overview (/dashboard/ai): the same GA4 report (`components/dashboard/GaDashboard.tsx`, `aiOnly`)
+  limited to sessions from AI assistants: every request carries `ai=1`, which `lib/ga4-filters.ts` turns
+  into a case-insensitive regex on sessionSource (`AI_SOURCE_PATTERNS`: chatgpt, openai, perplexity,
+  gemini, copilot, claude.ai, deepseek, ...). Its layout saves separately (property key "<id>:ai",
+  `?page=ai` on the layout routes). Search Console's API has no AI Overviews / AI Mode breakdown, so
+  nothing from GSC is shown there.
+
 ### Integrations (/integrations)
 - A tile per platform (icon, name, status) linking to its setup page: /integrations/google-analytics
   (GA4 connect, property, BigQuery link test, Reconnect) and /integrations/search-console. OAuth start takes
