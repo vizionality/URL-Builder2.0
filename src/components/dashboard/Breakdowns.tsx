@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Loader2, TrendingUp, TrendingDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, TrendingUp, TrendingDown } from "lucide-react";
 import { Card } from "@/components/Card";
 import { compact, metricLabel, pctDelta, type BreakdownMetric } from "@/lib/report";
 import { MetricSelect } from "@/components/dashboard/MetricSelect";
@@ -96,6 +96,57 @@ function TrendLines({ trend }: { trend: Trend }) {
 
 const th = "py-2 pr-3 text-left text-xs font-semibold text-zinc-500";
 const td = "py-2 pr-3 text-sm text-zinc-700";
+const PER_PAGE = 10;
+
+// One page of a table: rows, where it starts, and how many pages there are.
+function slicePage<T>(items: T[], requested: number) {
+  const count = Math.max(1, Math.ceil(items.length / PER_PAGE));
+  const page = Math.max(0, Math.min(requested, count - 1));
+  const start = page * PER_PAGE;
+  return { page, count, start, total: items.length, rows: items.slice(start, start + PER_PAGE) };
+}
+
+// "11-20 of 124 landing pages" with previous/next arrows when there is more than one page.
+function Pager({
+  page,
+  noun,
+  onGo,
+}: {
+  page: ReturnType<typeof slicePage>;
+  noun: string;
+  onGo: (n: number) => void;
+}) {
+  return (
+    <div className="mt-2 flex items-center justify-between gap-2 text-xs text-zinc-500">
+      <span>
+        {page.total === 0 ? `No ${noun}` : `${page.start + 1}-${page.start + page.rows.length} of ${page.total} ${noun}`}
+      </span>
+      {page.count > 1 && (
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => onGo(page.page - 1)}
+            disabled={page.page === 0}
+            aria-label="Previous page"
+            className="rounded p-1 hover:bg-zinc-100 disabled:opacity-30"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="tabular-nums">Page {page.page + 1} of {page.count}</span>
+          <button
+            type="button"
+            onClick={() => onGo(page.page + 1)}
+            disabled={page.page >= page.count - 1}
+            aria-label="Next page"
+            className="rounded p-1 hover:bg-zinc-100 disabled:opacity-30"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 // Key events are covered by the Conversions card below.
 const NO_KEY_EVENTS: BreakdownMetric[] = ["keyEvents"];
 const pickable = "max-w-full truncate text-left hover:text-green-700 hover:underline";
@@ -123,6 +174,9 @@ export function Breakdowns({
 }) {
   // What Top Traffic Sources ranks and trends by; changing it re-queries.
   const [sourceMetric, setSourceMetric] = useState<BreakdownMetric>("totalUsers");
+  // Table pages (Top Traffic Sources, Landing Pages), tied to the report it was chosen on: new data
+  // (a filter, date or metric change) starts back at page one.
+  const [pages, setPages] = useState<{ data: Breakdowns | null; src: number; lp: number }>({ data: null, src: 0, lp: 0 });
   const [state, setState] = useState<{ loading: boolean; error: string | null; data: Breakdowns | null }>(
     { loading: false, error: null, data: null }
   );
@@ -182,6 +236,11 @@ export function Breakdowns({
   if (!d) return null;
 
   const maxPage = Math.max(0, ...d.landingPages.map((p) => p.sessions));
+  const fresh = pages.data === d;
+  const src = slicePage(d.sources, fresh ? pages.src : 0);
+  const lp = slicePage(d.landingPages, fresh ? pages.lp : 0);
+  const goTo = (which: "src" | "lp", n: number) =>
+    setPages({ data: d, src: src.page, lp: lp.page, [which]: n });
   const maxConv = Math.max(0, ...d.conversions.map((c) => c.count));
 
   return (
@@ -201,10 +260,10 @@ export function Breakdowns({
                 </tr>
               </thead>
               <tbody>
-                {d.sources.map((s, i) => (
+                {src.rows.map((s, i) => (
                   <tr key={`${s.source}-${s.medium}`} className="border-b border-zinc-100">
                     <td className={`${td} max-w-[160px] truncate`} title={s.source}>
-                      <span className="mr-1.5 text-zinc-400">{i + 1}.</span>
+                      <span className="mr-1.5 text-zinc-400">{src.start + i + 1}.</span>
                       <button type="button" onClick={() => onSource(s.source)} className={pickable}>{s.source}</button>
                     </td>
                     <td className={td}>
@@ -221,9 +280,7 @@ export function Breakdowns({
                 </tr>
               </tbody>
             </table>
-            <p className="mt-2 text-xs text-zinc-400">
-              Top {d.sources.length} of {d.sourceCount} source / medium pairs
-            </p>
+            <Pager page={src} noun="source / medium pairs" onGo={(n) => goTo("src", n)} />
           </div>
           <TrendLines trend={d.sourceTrend} />
         </div>
@@ -242,7 +299,7 @@ export function Breakdowns({
                 </tr>
               </thead>
               <tbody>
-                {d.landingPages.map((p) => (
+                {lp.rows.map((p) => (
                   <tr key={p.page} className="border-b border-zinc-100">
                     <td className={`${td} max-w-[200px] truncate`} title={p.page}>
                       <button type="button" onClick={() => onLanding(p.page)} className={pickable}>{p.page}</button>
@@ -253,6 +310,7 @@ export function Breakdowns({
                 ))}
               </tbody>
             </table>
+            <Pager page={lp} noun="landing pages" onGo={(n) => goTo("lp", n)} />
           </div>
           <TrendLines trend={d.pageTrend} />
         </div>
