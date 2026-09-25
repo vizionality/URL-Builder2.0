@@ -101,6 +101,10 @@ with real GA4 reporting.
   `GET /api/gsc/report` (totals + previous period, daily, queries, pages, countries, devices). Pure helpers
   in `lib/gsc-report.ts` (unit-tested), API calls in `lib/gsc.ts`.
 
+- Key event suggestions: when Conversions is empty, the card lists the property's own events that look like
+  conversions (`lib/key-event-suggestions.ts`, unit-tested rules) with a "Mark as key event" button.
+  `GET /api/ga4/key-events` (events + suggestions), `POST` creates the key event via the Admin API
+  (needs the analytics.edit scope and Editor access).
 - AI Overview (/dashboard/ai): the same GA4 report (`components/dashboard/GaDashboard.tsx`, `aiOnly`)
   limited to sessions from AI assistants: every request carries `ai=1`, which `lib/ga4-filters.ts` turns
   into a case-insensitive regex on sessionSource (`AI_SOURCE_PATTERNS`: chatgpt, openai, perplexity,
