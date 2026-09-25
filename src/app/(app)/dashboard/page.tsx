@@ -23,11 +23,10 @@ import {
   formatDuration,
   pctDelta,
   presetRange,
-  DATE_PRESETS,
   DEFAULT_PRESET,
-  type DatePreset,
   type CompareMode,
 } from "@/lib/report";
+import { DateRangePicker, resolveRange, type DateValue } from "@/components/dashboard/DateRangePicker";
 import { MultiSelect, type FilterOption } from "@/components/dashboard/MultiSelect";
 import { Breakdowns } from "@/components/dashboard/Breakdowns";
 import { getCached, setCached } from "@/lib/response-cache";
@@ -62,12 +61,6 @@ function localToday(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function formatRangeLabel(iso: string): string {
-  return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", {
-    month: "short", day: "numeric", year: "numeric", timeZone: "UTC",
-  });
-}
-
 function Delta({ value, invert = false }: { value: number | null; invert?: boolean }) {
   if (value == null) return <span className="text-xs text-zinc-400">—</span>;
   const up = value >= 0;
@@ -95,10 +88,17 @@ export default function DashboardPage() {
   const [today] = useState(localToday);
   // Looker Studio-style date control: a preset (default Last 28 days) or a
   // custom range, plus the %Δ comparison (previous period or previous year).
-  const [preset, setPreset] = useState<DatePreset>(DEFAULT_PRESET);
-  const [custom, setCustom] = useState(() => presetRange(DEFAULT_PRESET, today)!);
+  const [dates, setDates] = useState<DateValue>(() => ({
+    preset: DEFAULT_PRESET,
+    includeToday: false,
+    custom: presetRange(DEFAULT_PRESET, today)!,
+  }));
   const [compare, setCompare] = useState<CompareMode>("period");
-  const { startDate, endDate } = preset === "custom" ? custom : presetRange(preset, today)!;
+  const shownRange = resolveRange(dates, today);
+  const startDate = shownRange.startDate;
+  // Whole-period presets ("This month") reach past today; GA4 has nothing
+  // there yet, so query through today while the picker shows the full period.
+  const endDate = shownRange.endDate > today ? today : shownRange.endDate;
   // Empty selection means "all" (no filter), like Looker's all-checked state.
   const [medium, setMedium] = useState<string[]>([]);
   const [campaign, setCampaign] = useState<string[]>([]);
@@ -229,30 +229,7 @@ export default function DashboardPage() {
           <MultiSelect label="Session source" options={sources} selected={source} onChange={setSource} />
           <MultiSelect label="Page path" options={pages} selected={page} onChange={setPage} />
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <select
-              value={preset}
-              onChange={(e) => {
-                const next = e.target.value as DatePreset;
-                // Switching to Custom starts from the range currently shown.
-                if (next === "custom") setCustom({ startDate, endDate });
-                setPreset(next);
-              }}
-              className={inputClass}
-              aria-label="Date range"
-            >
-              {DATE_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-            </select>
-            {preset === "custom" ? (
-              <>
-                <input type="date" value={custom.startDate} max={custom.endDate} onChange={(e) => e.target.value && setCustom((r) => ({ ...r, startDate: e.target.value }))} className={inputClass} />
-                <span className="text-sm text-zinc-400">to</span>
-                <input type="date" value={custom.endDate} min={custom.startDate} onChange={(e) => e.target.value && setCustom((r) => ({ ...r, endDate: e.target.value }))} className={inputClass} />
-              </>
-            ) : (
-              <span className="text-sm text-zinc-600">
-                {formatRangeLabel(startDate)} – {formatRangeLabel(endDate)}
-              </span>
-            )}
+            <DateRangePicker value={dates} today={today} onChange={setDates} />
             <select value={compare} onChange={(e) => setCompare(e.target.value as CompareMode)} className={inputClass} aria-label="Compare to">
               <option value="period">vs. previous period</option>
               <option value="year">vs. previous year</option>

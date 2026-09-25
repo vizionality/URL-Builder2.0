@@ -38,7 +38,7 @@ with real GA4 reporting.
 
 ### Dashboard (/dashboard)
 - A GA4 report modeled on the Hearthside Looker Studio dashboard. Header: session medium
-  and session campaign dropdowns plus a date range (default year to date).
+  and session campaign dropdowns plus a Looker-style date picker (presets with This/Last submenus, Include today, Start/End calendars; default This year to date).
 - Tiles: seven summary scorecards (Views, Total users, New users, Sessions, Engagement rate,
   Avg session duration, Generate Lead) with %Δ vs the previous period; Total Users Overview
   (monthly, this year vs previous year); Channel Group pie; Top States bar; US Geo Map
