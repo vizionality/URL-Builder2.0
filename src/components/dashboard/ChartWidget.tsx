@@ -19,6 +19,10 @@ import {
   YAxis,
 } from "recharts";
 import { ComposableMap, Geographies, Geography } from "react-simple-maps";
+import { feature } from "topojson-client";
+import type { GeometryCollection, Topology } from "topojson-specification";
+import type { Feature, FeatureCollection, Geometry } from "geojson";
+import { geoAlbersUsa, geoCentroid, geoEqualEarth, geoMercator, type GeoProjection } from "d3-geo";
 // World country shapes (world-atlas, ISC), bundled so the map never fetches at runtime.
 import worldCountries from "world-atlas/countries-110m.json";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
@@ -259,33 +263,67 @@ function HBars({ data, format, label }: { data: ListData; format: MetricFormat; 
 
 const worldGeography = worldCountries as unknown as React.ComponentProps<typeof Geographies>["geography"];
 
+// Country shapes as GeoJSON, for fitting the map to the whole world or one country.
+type CountryFeature = Feature<Geometry, { name: string }>;
+const worldTopo = worldCountries as unknown as Topology<{ countries: GeometryCollection<{ name: string }> }>;
+const WORLD_FEATURES = feature(worldTopo, worldTopo.objects.countries) as FeatureCollection<Geometry, { name: string }>;
+const COUNTRY_FEATURES = new Map<string, CountryFeature>(WORLD_FEATURES.features.map((f) => [f.properties.name, f]));
+export const WORLD_COUNTRY_NAMES = [...COUNTRY_FEATURES.keys()].sort((a, b) => a.localeCompare(b));
+
+const MAP_W = 800;
+const MAP_H = 420;
+const PAD = 12;
+// The whole world, fitted to the frame so nothing (Alaska, Canada) is cut off.
+const WORLD_PROJECTION = geoEqualEarth().fitExtent([[PAD, PAD], [MAP_W - PAD, MAP_H - PAD]], WORLD_FEATURES);
+
+// A projection fitted to one country. The US uses Albers USA (Alaska and
+// Hawaii inset); others are Mercator rotated to the country's centre, so a
+// country crossing the date line (e.g. Russia) stays in one piece.
+function countryProjection(name: string): GeoProjection | null {
+  const f = COUNTRY_FEATURES.get(name);
+  if (!f) return null;
+  const extent: [[number, number], [number, number]] = [[PAD, PAD], [MAP_W - PAD, MAP_H - PAD]];
+  if (name === "United States of America") return geoAlbersUsa().fitExtent(extent, f);
+  const [lon] = geoCentroid(f);
+  return geoMercator().rotate([-lon, 0]).fitExtent(extent, f);
+}
+
 // Memoized: react-simple-maps re-serializes the geography on every render.
 const WorldLayer = memo(function WorldLayer({
   values,
   max,
+  focus,
+  projection,
   onHover,
+  onPick,
 }: {
   values: Map<string, number>;
   max: number;
+  focus: string | null;
+  projection: GeoProjection;
   onHover: (h: { name: string; value: number } | null) => void;
+  onPick: (name: string) => void;
 }) {
   return (
-    <ComposableMap projection="geoEqualEarth" width={800} height={400} style={{ width: "100%", height: "auto" }}>
+    <ComposableMap projection={projection} width={MAP_W} height={MAP_H} style={{ width: "100%", height: "auto" }}>
       <Geographies geography={worldGeography}>
         {({ geographies }) =>
           geographies.map((geo) => {
             const name = String(geo.properties?.name ?? "");
             const value = values.get(name) ?? 0;
+            // Zoomed in: other countries fade to grey for context.
+            const faded = focus != null && focus !== name;
             return (
               <Geography
                 key={geo.rsmKey}
                 geography={geo}
-                fill={shade(value, max)}
+                fill={faded ? "#f1f1f3" : shade(value, max)}
                 stroke="#ffffff"
-                strokeWidth={0.5}
-                className="outline-none hover:fill-[#f59e0b]"
+                strokeWidth={focus ? 1 : 0.5}
+                className="cursor-pointer outline-none hover:fill-[#f59e0b]"
                 onMouseEnter={() => onHover({ name, value })}
                 onMouseLeave={() => onHover(null)}
+                onClick={() => onPick(name)}
               />
             );
           })
@@ -297,16 +335,62 @@ const WorldLayer = memo(function WorldLayer({
 
 function WorldMap({ data, format }: { data: ListData; format: MetricFormat }) {
   const [hover, setHover] = useState<{ name: string; value: number } | null>(null);
+  // The country zoomed into (a world-atlas name), or null for the whole world.
+  const [focus, setFocus] = useState<string | null>(null);
   const values = useMemo(
     () => new Map(data.rows.map((r) => [COUNTRY_ALIASES[r.label] ?? r.label, r.value])),
     [data]
   );
   const max = Math.max(0, ...data.rows.map((r) => r.value));
+  const projection = useMemo(() => (focus && countryProjection(focus)) || WORLD_PROJECTION, [focus]);
+  // Countries with data first (highest first), then every other country A-Z.
+  const withData = [...values.entries()]
+    .filter(([name, v]) => v > 0 && COUNTRY_FEATURES.has(name))
+    .sort((a, b) => b[1] - a[1]);
+  const rest = WORLD_COUNTRY_NAMES.filter((n) => !values.get(n));
+  const focusValue = focus ? values.get(focus) ?? 0 : null;
+
   return (
     <div>
-      <WorldLayer values={values} max={max} onHover={setHover} />
+      <div className="-mt-1 mb-2 flex flex-wrap items-center gap-2">
+        <select
+          value={focus ?? ""}
+          onChange={(e) => setFocus(e.target.value || null)}
+          aria-label="Zoom to country"
+          className="max-w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-700"
+        >
+          <option value="">World</option>
+          {withData.length > 0 && (
+            <optgroup label="With data">
+              {withData.map(([name, v]) => (
+                <option key={name} value={name}>{name} ({formatMetric(v, format)})</option>
+              ))}
+            </optgroup>
+          )}
+          <optgroup label="All countries">
+            {rest.map((name) => <option key={name} value={name}>{name}</option>)}
+          </optgroup>
+        </select>
+        {focus && (
+          <button type="button" onClick={() => setFocus(null)} className="text-xs font-medium text-green-700 hover:underline">
+            Back to world
+          </button>
+        )}
+      </div>
+      <WorldLayer
+        values={values}
+        max={max}
+        focus={focus}
+        projection={projection}
+        onHover={setHover}
+        onPick={(name) => setFocus((cur) => (cur === name ? null : name))}
+      />
       <p className="mt-1 text-right text-xs text-zinc-600">
-        {hover ? `${hover.name}: ${formatMetric(hover.value, format)}` : "Hover a country"}
+        {hover
+          ? `${hover.name}: ${formatMetric(hover.value, format)}`
+          : focus
+            ? `${focus}: ${formatMetric(focusValue ?? 0, format)}`
+            : "Hover a country, click to zoom"}
       </p>
     </div>
   );

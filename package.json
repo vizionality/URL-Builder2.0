@@ -17,6 +17,7 @@
     "@google-analytics/data": "^6.1.0",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
+    "@types/topojson-client": "^3.1.5",
     "d3-geo": "^3.1.1",
     "lucide-react": "^1.20.0",
     "next": "16.2.9",
@@ -24,6 +25,7 @@
     "react-dom": "19.2.4",
     "react-simple-maps": "^5.0.5",
     "recharts": "^3.8.1",
+    "topojson-client": "^3.1.0",
     "us-atlas": "^3.0.1",
     "world-atlas": "^2.0.2"
   },
