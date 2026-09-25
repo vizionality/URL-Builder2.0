@@ -181,3 +181,43 @@ export function rowMetricValues(r: RawRow): Record<(typeof BREAKDOWN_METRIC_IDS)
   BREAKDOWN_METRIC_IDS.forEach((id, i) => (out[id] = Number(r.metricValues?.[i]?.value ?? 0)));
   return out;
 }
+
+// Events currently marked as key events in GA4 Admin, cached per property for
+// a few minutes. GA4's keyEvents metric counts an event on every day it was
+// marked, so an event unmarked mid-range still shows up; this list is what
+// the property treats as a key event today. Null when the Admin API can't be
+// read (the caller then shows GA4's counts unfiltered).
+const KEY_EVENTS_TTL_MS = 10 * 60 * 1000;
+const keyEventsCache = new Map<string, { at: number; names: Set<string> }>();
+
+export async function currentKeyEvents(
+  propertyId: string,
+  token: string,
+  signal?: AbortSignal,
+  now = Date.now()
+): Promise<Set<string> | null> {
+  const hit = keyEventsCache.get(propertyId);
+  if (hit && now - hit.at < KEY_EVENTS_TTL_MS) return hit.names;
+  try {
+    const names = new Set<string>();
+    let pageToken = "";
+    do {
+      const url = new URL(`https://analyticsadmin.googleapis.com/v1beta/properties/${propertyId}/keyEvents`);
+      url.searchParams.set("pageSize", "200");
+      if (pageToken) url.searchParams.set("pageToken", pageToken);
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal });
+      if (!res.ok) return null;
+      const data = (await res.json()) as { keyEvents?: { eventName?: string }[]; nextPageToken?: string };
+      for (const k of data.keyEvents ?? []) if (k.eventName) names.add(k.eventName);
+      pageToken = data.nextPageToken ?? "";
+    } while (pageToken);
+    keyEventsCache.set(propertyId, { at: now, names });
+    return names;
+  } catch {
+    return null;
+  }
+}
+
+export function clearKeyEventsCache(): void {
+  keyEventsCache.clear();
+}
