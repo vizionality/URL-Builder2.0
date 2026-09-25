@@ -17,18 +17,15 @@ const TREND_PAGES = 3;
 const TREND_EVENTS = 5;
 
 type Expr = Record<string, unknown>;
-const exact = (fieldName: string, value: string): Expr => ({
-  filter: { fieldName, stringFilter: { value, matchType: "EXACT" } },
-});
 const inList = (fieldName: string, values: string[]): Expr => ({
   filter: { fieldName, inListFilter: { values } },
 });
 
 // AND of the page filters plus any extra expressions, or {} when there are none.
-function filterOf(medium: string, campaign: string, extra: Expr[] = []) {
+function filterOf(medium: string[], campaign: string[], extra: Expr[] = []) {
   const expressions: Expr[] = [];
-  if (medium) expressions.push(exact("sessionMedium", medium));
-  if (campaign) expressions.push(exact("sessionCampaignName", campaign));
+  if (medium.length) expressions.push(inList("sessionMedium", medium));
+  if (campaign.length) expressions.push(inList("sessionCampaignName", campaign));
   expressions.push(...extra);
   if (expressions.length === 0) return {};
   if (expressions.length === 1) return { dimensionFilter: expressions[0] };
@@ -47,8 +44,8 @@ export async function GET(request: Request) {
   const today = new Date().toISOString().slice(0, 10);
   const end = isoDay(url.searchParams.get("endDate"), today);
   const start = isoDay(url.searchParams.get("startDate"), `${end.slice(0, 4)}-01-01`);
-  const medium = url.searchParams.get("medium") ?? "";
-  const campaign = url.searchParams.get("campaign") ?? "";
+  const medium = url.searchParams.getAll("medium").filter(Boolean);
+  const campaign = url.searchParams.getAll("campaign").filter(Boolean);
   // %Δ baseline: "year" = same dates last year, otherwise the previous period.
   const compare = url.searchParams.get("compare") === "year" ? "year" : "period";
 
