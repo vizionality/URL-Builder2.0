@@ -5,6 +5,32 @@ import { Check, ChevronDown, Plus, RotateCcw, Search, X } from "lucide-react";
 import { WIDGETS, type WidgetCategory } from "@/lib/dashboard-widgets";
 import { CatalogDraggable, SidebarDropZone } from "@/components/dashboard/DragParts";
 import { VersionHistory } from "@/components/dashboard/VersionHistory";
+import { CHART_TYPES, type ChartType } from "@/lib/chart-widgets";
+import {
+  ChartArea,
+  ChartBarBig,
+  ChartColumn,
+  ChartLine,
+  ChartPie,
+  Circle,
+  Globe,
+  Hash,
+  Layers,
+  Table,
+} from "lucide-react";
+
+const CHART_ICONS: Record<ChartType, React.ComponentType<{ className?: string }>> = {
+  number: Hash,
+  line: ChartLine,
+  area: ChartArea,
+  bar: ChartColumn,
+  donut: Circle,
+  pie: ChartPie,
+  map: Globe,
+  stacked: Layers,
+  hbar: ChartBarBig,
+  table: Table,
+};
 
 const CATEGORIES: WidgetCategory[] = ["Summary", "Traffic", "Acquisition", "Geography", "Conversions"];
 
@@ -34,6 +60,7 @@ export function WidgetSidebar({
 }) {
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"widgets" | "history">("widgets");
+  const [chart, setChart] = useState<ChartType | null>(null);
   // Category accordions start collapsed; a search opens every matching one.
   const [expanded, setExpanded] = useState<Set<WidgetCategory>>(new Set());
   const toggleCategory = (cat: WidgetCategory) =>
@@ -67,7 +94,7 @@ export function WidgetSidebar({
           <div>
             <h2 className="text-sm font-semibold text-zinc-900">Customize dashboard</h2>
             <p className="text-xs text-zinc-500">
-              {shown} of {WIDGETS.length} widgets shown ·{" "}
+              {shown} widgets shown ·{" "}
               {status === "saving"
                 ? "Saving…"
                 : status === "saved"
@@ -107,6 +134,37 @@ export function WidgetSidebar({
           </div>
         ) : (
         <>
+        {/* Chart type: picking one lists the cards that come in that chart. */}
+        <div className="border-b border-zinc-200 px-4 py-2.5">
+          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Chart type">
+            {CHART_TYPES.map((c) => {
+              const Icon = CHART_ICONS[c.id];
+              const on = chart === c.id;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  title={c.label}
+                  aria-label={c.label}
+                  onClick={() => setChart(on ? null : c.id)}
+                  className={`rounded-md border p-2 ${
+                    on ? "border-green-600 bg-green-50 text-green-700" : "border-zinc-200 text-zinc-600 hover:bg-zinc-50"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-xs text-zinc-500">
+            {chart
+              ? <>Showing <span className="font-medium text-zinc-700">{CHART_TYPES.find((c) => c.id === chart)?.label}</span> cards. <button type="button" onClick={() => setChart(null)} className="text-green-700 hover:underline">Show all</button></>
+              : "Pick a chart type to see every card in that style."}
+          </p>
+        </div>
+
         <div className="border-b border-zinc-200 px-4 py-2">
           <div className="flex items-center gap-2 rounded-md border border-zinc-200 px-2 py-1.5">
             <Search className="h-4 w-4 text-zinc-400" />
@@ -125,13 +183,16 @@ export function WidgetSidebar({
             remove it. Grab the ⋮⋮ handle on a widget to reorder.
           </p>
           {CATEGORIES.map((cat) => {
-            const items = WIDGETS.filter(
+            // With a chart type picked: every card in that chart. Otherwise the
+            // hand-built widgets (the generated ones would swamp the list).
+            const inView = (w: (typeof WIDGETS)[number]) => (chart ? w.chart === chart : !w.generated);
+            const items = WIDGETS.filter(inView).filter(
               (w) => w.category === cat && (!q || `${w.title} ${w.description}`.toLowerCase().includes(q))
             );
             if (items.length === 0) return null;
-            const isOpen = Boolean(q) || expanded.has(cat);
-            const added = WIDGETS.filter((w) => w.category === cat && layout.includes(w.id)).length;
-            const total = WIDGETS.filter((w) => w.category === cat).length;
+            const isOpen = Boolean(q) || Boolean(chart) || expanded.has(cat);
+            const added = WIDGETS.filter((w) => inView(w) && w.category === cat && layout.includes(w.id)).length;
+            const total = WIDGETS.filter((w) => inView(w) && w.category === cat).length;
             return (
               <section key={cat} className="mb-1.5 rounded-lg border border-zinc-200">
                 <h3>
