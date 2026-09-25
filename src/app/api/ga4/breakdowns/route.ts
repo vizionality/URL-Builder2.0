@@ -104,13 +104,14 @@ export async function GET(request: Request) {
       srcMap.set(key, entry);
     }
     const allSources = [...srcMap.values()].sort((a, b) => b.users - a.users);
-    const sources = allSources.filter((s) => s.users > 0).slice(0, TOP_SOURCES);
+    // Every pair with a value, for the paginated table; the trend uses the top ones.
+    const sources = allSources.filter((s) => s.users > 0);
     const sourceTotal = {
       users: allSources.reduce((sum, s) => sum + s.users, 0),
       prev: allSources.reduce((sum, s) => sum + s.prev, 0),
     };
     // Trend the top distinct source names (a source can appear under two mediums).
-    const trendSources = [...new Set(sources.map((s) => s.source))].slice(0, TREND_SOURCES);
+    const trendSources = [...new Set(sources.slice(0, TOP_SOURCES).map((s) => s.source))].slice(0, TREND_SOURCES);
 
     const landingPages = pageRows.map((r) => ({
       page: dv(r, 0) || "(not set)",

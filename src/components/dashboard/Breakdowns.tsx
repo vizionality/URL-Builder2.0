@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Loader2, TrendingUp, TrendingDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, TrendingUp, TrendingDown } from "lucide-react";
 import { Card } from "@/components/Card";
 import { compact, metricLabel, pctDelta, type BreakdownMetric } from "@/lib/report";
 import { MetricSelect } from "@/components/dashboard/MetricSelect";
@@ -96,6 +96,7 @@ function TrendLines({ trend }: { trend: Trend }) {
 
 const th = "py-2 pr-3 text-left text-xs font-semibold text-zinc-500";
 const td = "py-2 pr-3 text-sm text-zinc-700";
+const SOURCES_PER_PAGE = 10;
 // Key events are covered by the Conversions card below.
 const NO_KEY_EVENTS: BreakdownMetric[] = ["keyEvents"];
 const pickable = "max-w-full truncate text-left hover:text-green-700 hover:underline";
@@ -123,6 +124,9 @@ export function Breakdowns({
 }) {
   // What Top Traffic Sources ranks and trends by; changing it re-queries.
   const [sourceMetric, setSourceMetric] = useState<BreakdownMetric>("totalUsers");
+  // Top Traffic Sources page, tied to the report it was chosen on: new data
+  // (a filter, date or metric change) starts back at page one.
+  const [srcPage, setSrcPage] = useState<{ data: Breakdowns | null; page: number }>({ data: null, page: 0 });
   const [state, setState] = useState<{ loading: boolean; error: string | null; data: Breakdowns | null }>(
     { loading: false, error: null, data: null }
   );
@@ -182,6 +186,11 @@ export function Breakdowns({
   if (!d) return null;
 
   const maxPage = Math.max(0, ...d.landingPages.map((p) => p.sessions));
+  const pageCount = Math.max(1, Math.ceil(d.sources.length / SOURCES_PER_PAGE));
+  const page = srcPage.data === d ? Math.min(srcPage.page, pageCount - 1) : 0;
+  const pageStart = page * SOURCES_PER_PAGE;
+  const pageSources = d.sources.slice(pageStart, pageStart + SOURCES_PER_PAGE);
+  const goTo = (n: number) => setSrcPage({ data: d, page: Math.max(0, Math.min(pageCount - 1, n)) });
   const maxConv = Math.max(0, ...d.conversions.map((c) => c.count));
 
   return (
@@ -201,10 +210,10 @@ export function Breakdowns({
                 </tr>
               </thead>
               <tbody>
-                {d.sources.map((s, i) => (
+                {pageSources.map((s, i) => (
                   <tr key={`${s.source}-${s.medium}`} className="border-b border-zinc-100">
                     <td className={`${td} max-w-[160px] truncate`} title={s.source}>
-                      <span className="mr-1.5 text-zinc-400">{i + 1}.</span>
+                      <span className="mr-1.5 text-zinc-400">{pageStart + i + 1}.</span>
                       <button type="button" onClick={() => onSource(s.source)} className={pickable}>{s.source}</button>
                     </td>
                     <td className={td}>
@@ -221,9 +230,36 @@ export function Breakdowns({
                 </tr>
               </tbody>
             </table>
-            <p className="mt-2 text-xs text-zinc-400">
-              Top {d.sources.length} of {d.sourceCount} source / medium pairs
-            </p>
+            <div className="mt-2 flex items-center justify-between gap-2 text-xs text-zinc-500">
+              <span>
+                {d.sources.length === 0
+                  ? "No source / medium pairs"
+                  : `${pageStart + 1}-${pageStart + pageSources.length} of ${d.sources.length} source / medium pairs`}
+              </span>
+              {pageCount > 1 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => goTo(page - 1)}
+                    disabled={page === 0}
+                    aria-label="Previous page"
+                    className="rounded p-1 hover:bg-zinc-100 disabled:opacity-30"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <span className="tabular-nums">Page {page + 1} of {pageCount}</span>
+                  <button
+                    type="button"
+                    onClick={() => goTo(page + 1)}
+                    disabled={page >= pageCount - 1}
+                    aria-label="Next page"
+                    className="rounded p-1 hover:bg-zinc-100 disabled:opacity-30"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           <TrendLines trend={d.sourceTrend} />
         </div>
