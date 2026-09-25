@@ -4,50 +4,17 @@ import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
 import { parseGa4Date } from "@/lib/indicators/dates";
 import { comparisonRange, pivotDaily } from "@/lib/report";
+import { runReport, detectKeyMetric, ga4FailureMessage, Ga4Error, type RawRow } from "@/lib/ga4-api";
 
 // Top Traffic Sources, Landing Pages, and Conversions for the Dashboard: each a
 // table plus a daily trend for its top items. Same filters and date range as
 // /api/ga4/overview. Per-user OAuth, computed on read.
 
-const DATA_API = "https://analyticsdata.googleapis.com/v1beta";
 const TOP_SOURCES = 10;
 const TREND_SOURCES = 5;
 const TOP_PAGES = 10;
 const TREND_PAGES = 3;
 const TREND_EVENTS = 5;
-
-type RawRow = { dimensionValues?: { value: string }[]; metricValues?: { value: string }[] };
-
-async function runReport(propertyId: string, token: string, body: unknown): Promise<RawRow[]> {
-  const res = await fetch(`${DATA_API}/properties/${propertyId}:runReport`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`GA4 runReport ${res.status}: ${await res.text()}`);
-  const data = await res.json();
-  return (data.rows ?? []) as RawRow[];
-}
-
-// GA4 renamed `conversions` to `keyEvents`; use whichever the property accepts.
-async function detectKeyMetric(propertyId: string, token: string): Promise<string> {
-  for (const name of ["keyEvents", "conversions"]) {
-    try {
-      const res = await fetch(`${DATA_API}/properties/${propertyId}:runReport`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
-        body: JSON.stringify({
-          dateRanges: [{ startDate: "7daysAgo", endDate: "yesterday" }],
-          metrics: [{ name }],
-        }),
-      });
-      if (res.ok) return name;
-    } catch {
-      // try next
-    }
-  }
-  return "keyEvents";
-}
 
 type Expr = Record<string, unknown>;
 const exact = (fieldName: string, value: string): Expr => ({
@@ -107,7 +74,7 @@ export async function GET(request: Request) {
   const cur = [{ startDate: start, endDate: end }];
 
   try {
-    const keyMetric = await detectKeyMetric(propertyId, token);
+    const keyMetric = await detectKeyMetric(propertyId, token, request.signal);
 
     // Wave 1: the tables (and which items to trend).
     const [srcRows, pageRows, convRows] = await Promise.all([
@@ -120,7 +87,7 @@ export async function GET(request: Request) {
         orderBys: [{ desc: true, metric: { metricName: "totalUsers" } }],
         limit: 1000,
         ...filterOf(medium, campaign),
-      }),
+      }, request.signal),
       runReport(propertyId, token, {
         dateRanges: cur,
         dimensions: [{ name: "landingPage" }],
@@ -128,14 +95,14 @@ export async function GET(request: Request) {
         orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
         limit: TOP_PAGES,
         ...filterOf(medium, campaign),
-      }),
+      }, request.signal),
       runReport(propertyId, token, {
         dateRanges: both,
         dimensions: [{ name: "eventName" }],
         metrics: [{ name: keyMetric }],
         limit: 200,
         ...filterOf(medium, campaign),
-      }),
+      }, request.signal),
     ]);
 
     // Sources: with two date ranges GA4 appends the range as the last dimension.
@@ -185,7 +152,7 @@ export async function GET(request: Request) {
             metrics: [{ name: "totalUsers" }],
             limit: 10000,
             ...filterOf(medium, campaign, [inList("sessionSource", trendSources)]),
-          })
+          }, request.signal)
         : Promise.resolve([] as RawRow[]),
       trendPages.length
         ? runReport(propertyId, token, {
@@ -194,7 +161,7 @@ export async function GET(request: Request) {
             metrics: [{ name: "sessions" }],
             limit: 10000,
             ...filterOf(medium, campaign, [inList("landingPage", trendPages)]),
-          })
+          }, request.signal)
         : Promise.resolve([] as RawRow[]),
       trendEvents.length
         ? runReport(propertyId, token, {
@@ -203,7 +170,7 @@ export async function GET(request: Request) {
             metrics: [{ name: keyMetric }],
             limit: 10000,
             ...filterOf(medium, campaign, [inList("eventName", trendEvents)]),
-          })
+          }, request.signal)
         : Promise.resolve([] as RawRow[]),
     ]);
 
@@ -229,7 +196,10 @@ export async function GET(request: Request) {
       range: { startDate: start, endDate: end },
     });
   } catch (err) {
+    // The browser moved on (filter changed / page left): not a failure.
+    if (request.signal.aborted) return new NextResponse(null, { status: 499 });
     console.error("breakdowns: GA4 report failed:", err);
-    return NextResponse.json({ error: "GA4 report failed. Try again shortly." }, { status: 502 });
+    const status = err instanceof Ga4Error && err.status === 429 ? 429 : 502;
+    return NextResponse.json({ error: ga4FailureMessage(err) }, { status });
   }
 }
