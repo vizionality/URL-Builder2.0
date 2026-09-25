@@ -1,3 +1,4 @@
+import { pageFilterExpr, parsePageFilters } from "@/lib/ga4-filters";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
@@ -21,19 +22,6 @@ const inList = (fieldName: string, values: string[]): Expr => ({
   filter: { fieldName, inListFilter: { values } },
 });
 
-// AND of the page filters plus any extra expressions, or {} when there are none.
-function filterOf(medium: string[], campaign: string[], source: string[], page: string[], extra: Expr[] = []) {
-  const expressions: Expr[] = [];
-  if (medium.length) expressions.push(inList("sessionMedium", medium));
-  if (campaign.length) expressions.push(inList("sessionCampaignName", campaign));
-  if (source.length) expressions.push(inList("sessionSource", source));
-  if (page.length) expressions.push(inList("pagePath", page));
-  expressions.push(...extra);
-  if (expressions.length === 0) return {};
-  if (expressions.length === 1) return { dimensionFilter: expressions[0] };
-  return { dimensionFilter: { andGroup: { expressions } } };
-}
-
 const dv = (r: RawRow, i: number) => r.dimensionValues?.[i]?.value ?? "";
 const mv = (r: RawRow, i = 0) => Number(r.metricValues?.[i]?.value ?? 0);
 
@@ -46,10 +34,7 @@ export async function GET(request: Request) {
   const today = new Date().toISOString().slice(0, 10);
   const end = isoDay(url.searchParams.get("endDate"), today);
   const start = isoDay(url.searchParams.get("startDate"), `${end.slice(0, 4)}-01-01`);
-  const medium = url.searchParams.getAll("medium").filter(Boolean);
-  const campaign = url.searchParams.getAll("campaign").filter(Boolean);
-  const source = url.searchParams.getAll("source").filter(Boolean);
-  const page = url.searchParams.getAll("page").filter(Boolean);
+  const filters = parsePageFilters(url.searchParams);
   // %Δ baseline: "year" = same dates last year, otherwise the previous period.
   const compare = url.searchParams.get("compare") === "year" ? "year" : "period";
 
@@ -87,7 +72,7 @@ export async function GET(request: Request) {
         // smallest source/medium rows are dropped.
         orderBys: [{ desc: true, metric: { metricName: "totalUsers" } }],
         limit: 1000,
-        ...filterOf(medium, campaign, source, page),
+        ...pageFilterExpr(filters),
       },
       {
         dateRanges: cur,
@@ -95,14 +80,14 @@ export async function GET(request: Request) {
         metrics: [{ name: "sessions" }, { name: "engagementRate" }],
         orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
         limit: TOP_PAGES,
-        ...filterOf(medium, campaign, source, page),
+        ...pageFilterExpr(filters),
       },
       {
         dateRanges: both,
         dimensions: [{ name: "eventName" }],
         metrics: [{ name: keyMetric }],
         limit: 200,
-        ...filterOf(medium, campaign, source, page),
+        ...pageFilterExpr(filters),
       },
     ], request.signal);
 
@@ -153,7 +138,7 @@ export async function GET(request: Request) {
         dimensions: [{ name: "date" }, { name: "sessionSource" }],
         metrics: [{ name: "totalUsers" }],
         limit: 10000,
-        ...filterOf(medium, campaign, source, page, [inList("sessionSource", trendSources)]),
+        ...pageFilterExpr(filters, [inList("sessionSource", trendSources)]),
       } });
     }
     if (trendPages.length) {
@@ -162,7 +147,7 @@ export async function GET(request: Request) {
         dimensions: [{ name: "date" }, { name: "landingPage" }],
         metrics: [{ name: "sessions" }],
         limit: 10000,
-        ...filterOf(medium, campaign, source, page, [inList("landingPage", trendPages)]),
+        ...pageFilterExpr(filters, [inList("landingPage", trendPages)]),
       } });
     }
     if (trendEvents.length) {
@@ -171,7 +156,7 @@ export async function GET(request: Request) {
         dimensions: [{ name: "date" }, { name: "eventName" }],
         metrics: [{ name: keyMetric }],
         limit: 10000,
-        ...filterOf(medium, campaign, source, page, [inList("eventName", trendEvents)]),
+        ...pageFilterExpr(filters, [inList("eventName", trendEvents)]),
       } });
     }
     const trendRows = await batchRunReports(

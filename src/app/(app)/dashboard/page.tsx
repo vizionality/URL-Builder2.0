@@ -14,7 +14,7 @@ import {
   YAxis,
   Legend,
 } from "recharts";
-import { Loader2, TrendingUp, TrendingDown } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, X } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/Card";
 import { useGa4PropertyId } from "@/lib/storage";
@@ -104,6 +104,23 @@ export default function DashboardPage() {
   const [campaign, setCampaign] = useState<string[]>([]);
   const [source, setSource] = useState<string[]>([]);
   const [page, setPage] = useState<string[]>([]);
+  // Cross-filters set by clicking a chart (no dropdown of their own).
+  const [channel, setChannel] = useState<string[]>([]);
+  const [landing, setLanding] = useState<string[]>([]);
+  const [region, setRegion] = useState<string[]>([]);
+  // Every active filter as query params (dates and compare added per request).
+  const filterQs = useMemo(() => {
+    const p = new URLSearchParams();
+    const add = (k: string, vs: string[]) => vs.forEach((v) => p.append(k, v));
+    add("medium", medium);
+    add("campaign", campaign);
+    add("source", source);
+    add("page", page);
+    add("channel", channel);
+    add("landing", landing);
+    add("region", region);
+    return p.toString();
+  }, [medium, campaign, source, page, channel, landing, region]);
   const [state, setState] = useState<{ loading: boolean; error: string | null; data: Overview | null }>(
     { loading: false, error: null, data: null }
   );
@@ -116,11 +133,10 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!propertyId) return;
     let cancelled = false;
-    const p = new URLSearchParams({ startDate, endDate, compare });
-    for (const m of medium) p.append("medium", m);
-    for (const c of campaign) p.append("campaign", c);
-    for (const x of source) p.append("source", x);
-    for (const x of page) p.append("page", x);
+    const p = new URLSearchParams(filterQs);
+    p.set("startDate", startDate);
+    p.set("endDate", endDate);
+    p.set("compare", compare);
     // A filter combination seen in the last few minutes shows instantly.
     const cacheKey = `/api/ga4/overview?${p.toString()}`;
     const cached = getCached<Overview>(cacheKey);
@@ -163,18 +179,30 @@ export default function DashboardPage() {
       cancelled = true;
       ac.abort();
     };
-  }, [propertyId, startDate, endDate, compare, medium, campaign, source, page, retry]);
+  }, [propertyId, startDate, endDate, compare, filterQs, retry]);
 
   const d = state.data;
-  // Date range + page filters, for the Geo Map's city drill-down.
-  const geoQuery = useMemo(() => {
-    const p = new URLSearchParams({ startDate, endDate });
-    for (const m of medium) p.append("medium", m);
-    for (const c of campaign) p.append("campaign", c);
-    for (const x of source) p.append("source", x);
-    for (const x of page) p.append("page", x);
-    return p.toString();
-  }, [startDate, endDate, medium, campaign, source, page]);
+  // Date range + filters, for the Geo Map's city drill-down.
+  const geoQuery = `${filterQs}${filterQs ? "&" : ""}startDate=${startDate}&endDate=${endDate}`;
+
+  // Clicking a chart value filters the whole dashboard to it; clicking the
+  // same value again clears that filter.
+  const pick = (set: (v: string[]) => void, cur: string[]) => (v: string) =>
+    set(cur.length === 1 && cur[0] === v ? [] : [v]);
+  const chips: { label: string; value: string; clear: () => void }[] = [
+    ...medium.map((v) => ({ label: "Medium", value: v, clear: () => setMedium(medium.filter((x) => x !== v)) })),
+    ...campaign.map((v) => ({ label: "Campaign", value: v, clear: () => setCampaign(campaign.filter((x) => x !== v)) })),
+    ...source.map((v) => ({ label: "Source", value: v, clear: () => setSource(source.filter((x) => x !== v)) })),
+    ...page.map((v) => ({ label: "Page path", value: v, clear: () => setPage(page.filter((x) => x !== v)) })),
+    ...channel.map((v) => ({ label: "Channel", value: v, clear: () => setChannel([]) })),
+    ...landing.map((v) => ({ label: "Landing page", value: v, clear: () => setLanding([]) })),
+    ...region.map((v) => ({ label: "State", value: v, clear: () => setRegion([]) })),
+  ];
+  const pickChannel = pick(setChannel, channel);
+  const pickRegion = pick(setRegion, region);
+  const clearAll = () => {
+    [setMedium, setCampaign, setSource, setPage, setChannel, setLanding, setRegion].forEach((f) => f([]));
+  };
   const s = d?.scorecards;
   const mediums = options?.mediums ?? [];
   const campaigns = options?.campaigns ?? [];
@@ -237,6 +265,32 @@ export default function DashboardPage() {
           )}
         </div>
 
+        {/* Active filters, including ones set by clicking a chart */}
+        {chips.length > 0 && (
+          <div className="-mt-3 mb-6 flex flex-wrap items-center gap-2">
+            {chips.map((c) => (
+              <span
+                key={`${c.label}:${c.value}`}
+                className="inline-flex max-w-72 items-center gap-1 rounded-full border border-green-200 bg-green-50 py-0.5 pl-2.5 pr-1 text-xs text-green-800"
+              >
+                <span className="text-green-600">{c.label}:</span>
+                <span className="truncate font-medium">{c.value}</span>
+                <button
+                  type="button"
+                  onClick={c.clear}
+                  aria-label={`Remove ${c.label} filter`}
+                  className="rounded-full p-0.5 hover:bg-green-100"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+            <button type="button" onClick={clearAll} className="text-xs font-medium text-zinc-500 hover:text-zinc-800 hover:underline">
+              Clear all
+            </button>
+          </div>
+        )}
+
         {!propertyId ? (
           <Card>
             <p className="py-8 text-center text-sm text-zinc-500">
@@ -297,11 +351,20 @@ export default function DashboardPage() {
 
             <div className="grid gap-6 lg:grid-cols-3">
               {/* Channel Group */}
-              <Card title="Channel Group" description="Total users by default channel group.">
+              <Card title="Channel Group" description="Total users by default channel group. Click a slice to filter.">
                 <div className="h-72 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={channelData} dataKey="value" nameKey="name" cx="45%" cy="50%" outerRadius={90}>
+                      <Pie
+                        data={channelData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="45%"
+                        cy="50%"
+                        outerRadius={90}
+                        className="cursor-pointer"
+                        onClick={(e) => e?.name != null && pickChannel(String(e.name))}
+                      >
                         {channelData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                       </Pie>
                       <Tooltip />
@@ -312,7 +375,7 @@ export default function DashboardPage() {
               </Card>
 
               {/* Top States */}
-              <Card title="Top States" description="New users by region.">
+              <Card title="Top States" description="New users by region. Click a bar to filter.">
                 <div className="h-72 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={statesData} layout="vertical" margin={{ top: 8, right: 16, bottom: 4, left: 8 }}>
@@ -320,7 +383,16 @@ export default function DashboardPage() {
                       <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => compact(Number(v))} />
                       <YAxis type="category" dataKey="region" tick={{ fontSize: 11 }} width={90} />
                       <Tooltip />
-                      <Bar dataKey="newUsers" fill={GREEN} radius={[0, 3, 3, 0]} />
+                      <Bar
+                        dataKey="newUsers"
+                        fill={GREEN}
+                        radius={[0, 3, 3, 0]}
+                        className="cursor-pointer"
+                        onClick={(e) => {
+                          const r = (e as { payload?: { region?: string } })?.payload?.region;
+                          if (r) pickRegion(r);
+                        }}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -340,10 +412,10 @@ export default function DashboardPage() {
               propertyId={propertyId}
               startDate={startDate}
               endDate={endDate}
-              medium={medium}
-              campaign={campaign}
-              source={source}
-              page={page}
+              filterQs={filterQs}
+              onSource={pick(setSource, source)}
+              onMedium={pick(setMedium, medium)}
+              onLanding={pick(setLanding, landing)}
               compare={compare}
             />
           </div>

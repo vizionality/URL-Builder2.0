@@ -1,20 +1,32 @@
-// The dashboard's page filters (multi-select, repeated query params; none
-// means all) and how they become a GA4 dimensionFilter.
+// The dashboard's page filters (repeated query params; none means all) and how
+// they become a GA4 dimensionFilter. medium/campaign/source/page come from the
+// dropdowns; channel/landing/region are set by clicking a chart (cross-filter).
 
 type Expr = Record<string, unknown>;
 
-export type PageFilters = { medium: string[]; campaign: string[]; source: string[]; page: string[] };
+export type PageFilters = {
+  medium: string[];
+  campaign: string[];
+  source: string[];
+  page: string[];
+  channel: string[];
+  landing: string[];
+  region: string[];
+};
 
 const FIELDS: [keyof PageFilters, string][] = [
   ["medium", "sessionMedium"],
   ["campaign", "sessionCampaignName"],
   ["source", "sessionSource"],
   ["page", "pagePath"],
+  ["channel", "sessionDefaultChannelGroup"],
+  ["landing", "landingPage"],
+  ["region", "region"],
 ];
 
 export function parsePageFilters(params: URLSearchParams): PageFilters {
   const get = (k: string) => params.getAll(k).filter(Boolean);
-  return { medium: get("medium"), campaign: get("campaign"), source: get("source"), page: get("page") };
+  return Object.fromEntries(FIELDS.map(([key]) => [key, get(key)])) as PageFilters;
 }
 
 export const exactFilter = (fieldName: string, value: string): Expr => ({
