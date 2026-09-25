@@ -102,6 +102,8 @@ export function Breakdowns({
   endDate,
   medium,
   campaign,
+  source,
+  page,
   compare,
 }: {
   propertyId: string;
@@ -109,6 +111,8 @@ export function Breakdowns({
   endDate: string;
   medium: string[];
   campaign: string[];
+  source: string[];
+  page: string[];
   compare: "period" | "year";
 }) {
   const [state, setState] = useState<{ loading: boolean; error: string | null; data: Breakdowns | null }>(
@@ -121,6 +125,8 @@ export function Breakdowns({
     const p = new URLSearchParams({ startDate, endDate, compare });
     for (const m of medium) p.append("medium", m);
     for (const c of campaign) p.append("campaign", c);
+    for (const x of source) p.append("source", x);
+    for (const x of page) p.append("page", x);
     const url = `/api/ga4/breakdowns?${p.toString()}`;
     // A filter combination seen in the last few minutes shows instantly.
     const cached = getCached<Breakdowns>(url);
@@ -151,7 +157,7 @@ export function Breakdowns({
       cancelled = true;
       ac.abort();
     };
-  }, [propertyId, startDate, endDate, compare, medium, campaign]);
+  }, [propertyId, startDate, endDate, compare, medium, campaign, source, page]);
 
   if (state.loading && !state.data) {
     return (
