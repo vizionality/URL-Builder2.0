@@ -29,6 +29,7 @@ import {
   type CompareMode,
 } from "@/lib/report";
 import { Breakdowns } from "@/components/dashboard/Breakdowns";
+import { getCached, setCached } from "@/lib/response-cache";
 import { GeoMap } from "@/components/dashboard/GeoMap";
 
 const GREEN = "#12b795";
@@ -111,15 +112,28 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!propertyId) return;
     let cancelled = false;
-    // Abort the previous request when filters change, so a stale report stops
-    // using GA4 quota instead of competing with the new one.
-    const ac = new AbortController();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- mark loading before the async fetch
-    setState((s) => ({ ...s, loading: true, error: null }));
     const p = new URLSearchParams({ startDate, endDate, compare });
     if (medium) p.set("medium", medium);
     if (campaign) p.set("campaign", campaign);
+    // A filter combination seen in the last few minutes shows instantly.
+    const cacheKey = `/api/ga4/overview?${p.toString()}`;
+    const cached = getCached<Overview>(cacheKey);
+    // Use the cache unless the dropdown lists still need loading and this
+    // cached response doesn't carry them (e.g. after navigating back here).
+    if (cached && (optionsLoaded.current || cached.filters)) {
+      if (cached.filters && !optionsLoaded.current) {
+        optionsLoaded.current = true;
+        setOptions(cached.filters);
+      }
+      setState({ loading: false, error: null, data: cached });
+      return;
+    }
     if (!optionsLoaded.current) p.set("options", "1");
+    // Abort the previous request when filters change, so a stale report stops
+    // using GA4 quota instead of competing with the new one.
+    const ac = new AbortController();
+    // Keep the current numbers on screen (dimmed) while the new ones load.
+    setState((s) => ({ ...s, loading: true, error: null }));
     fetch(`/api/ga4/overview?${p.toString()}`, { signal: ac.signal })
       .then(async (r) => {
         const d = await r.json();
@@ -132,6 +146,7 @@ export default function DashboardPage() {
           optionsLoaded.current = true;
           setOptions(d.filters);
         }
+        setCached(cacheKey, d);
         setState({ loading: false, error: null, data: d });
       })
       .catch((e) => {
@@ -202,6 +217,11 @@ export default function DashboardPage() {
               <option value="year">vs. previous year</option>
             </select>
           </div>
+          {state.loading && state.data && (
+            <span className="inline-flex w-full items-center gap-1.5 text-xs text-zinc-500" role="status">
+              <Loader2 size={12} className="animate-spin" /> Updating…
+            </span>
+          )}
         </div>
 
         {!propertyId ? (
@@ -231,7 +251,7 @@ export default function DashboardPage() {
             </div>
           </Card>
         ) : !s || !d ? null : (
-          <div className="space-y-6">
+          <div className={`space-y-6 transition-opacity ${state.loading ? "opacity-60" : ""}`}>
             {/* Summary scorecards */}
             <Card title="Summary">
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">

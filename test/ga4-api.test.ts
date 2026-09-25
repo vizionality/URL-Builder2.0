@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { limitAll, withRetry, isTransient, Ga4Error, ga4FailureMessage } from "@/lib/ga4-api";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { limitAll, withRetry, isTransient, Ga4Error, ga4FailureMessage, batchRunReports, chunk } from "@/lib/ga4-api";
 
 const tick = () => new Promise((r) => setTimeout(r, 5));
 
@@ -75,5 +75,49 @@ describe("ga4FailureMessage", () => {
     expect(ga4FailureMessage(new Ga4Error(503, "x"))).toMatch(/temporarily unavailable/);
     expect(ga4FailureMessage(new Error("other"))).toBe("GA4 report failed. Try again shortly.");
     expect(ga4FailureMessage(new Ga4Error(429, "secret detail"))).not.toContain("secret");
+  });
+});
+
+describe("batchRunReports", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  // Fake GA4: each report's single row echoes its request's `tag`.
+  function fakeGa4(calls: { requests: { tag: number }[] }[], dropIndex?: number) {
+    vi.stubGlobal("fetch", async (_url: string, init: { body: string }) => {
+      const body = JSON.parse(init.body) as { requests: { tag: number }[] };
+      calls.push(body);
+      const reports = body.requests.map((r) => ({ rows: [{ dimensionValues: [{ value: String(r.tag) }] }] }));
+      if (dropIndex != null) reports.splice(dropIndex, 1);
+      return { ok: true, json: async () => ({ reports }) } as unknown as Response;
+    });
+  }
+
+  it("sends six reports as two batch calls and keeps them in order", async () => {
+    const calls: { requests: { tag: number }[] }[] = [];
+    fakeGa4(calls);
+    const bodies = Array.from({ length: 6 }, (_, i) => ({ tag: i }));
+    const out = await batchRunReports("123", "tok", bodies);
+    expect(calls.map((c) => c.requests.length)).toEqual([5, 1]);
+    expect(out.map((rows) => rows[0].dimensionValues?.[0].value)).toEqual(["0", "1", "2", "3", "4", "5"]);
+  });
+
+  it("a missing report becomes empty rows without shifting later results", async () => {
+    const calls: { requests: { tag: number }[] }[] = [];
+    fakeGa4(calls, 4); // GA4 returns only 4 of 5 reports in the batch
+    const out = await batchRunReports("123", "tok", Array.from({ length: 5 }, (_, i) => ({ tag: i })));
+    expect(out).toHaveLength(5);
+    expect(out[4]).toEqual([]);
+    expect(out[3][0].dimensionValues?.[0].value).toBe("3");
+  });
+
+  it("makes no request when there is nothing to run", async () => {
+    const calls: { requests: { tag: number }[] }[] = [];
+    fakeGa4(calls);
+    expect(await batchRunReports("123", "tok", [])).toEqual([]);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("chunk splits in order", () => {
+    expect(chunk([1, 2, 3, 4, 5, 6, 7], 5)).toEqual([[1, 2, 3, 4, 5], [6, 7]]);
   });
 });

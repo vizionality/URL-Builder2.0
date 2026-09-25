@@ -3,11 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
 import { comparisonRange, formatYearMonth } from "@/lib/report";
-import { runReport, limitAll, ga4FailureMessage, Ga4Error, type RawRow } from "@/lib/ga4-api";
+import { batchRunReports, ga4FailureMessage, Ga4Error, type RawRow } from "@/lib/ga4-api";
 
-// GA4 allows ~10 concurrent requests per property, shared with the breakdowns
-// route that loads at the same time, so run this route's reports 3 at a time.
-const CONCURRENCY = 3;
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -93,63 +90,70 @@ export async function GET(request: Request) {
   const windowStart = monthStart(end, 24);
 
   try {
-    const [scoreRes, leadRes, channelRes, statesRes, monthlyRes, medRes, campRes, geoRes] = await limitAll<RawRow[]>([
+    const current = [{ startDate: start, endDate: end }];
+    const withPrev = [...current, { startDate: prev.start, endDate: prev.end }];
+    const reports: unknown[] = [
       // Scorecards: two date ranges -> GA4 appends a dateRange dimension.
-      () => runReport(propertyId, token, {
-        dateRanges: [{ startDate: start, endDate: end }, { startDate: prev.start, endDate: prev.end }],
-        metrics: SCORECARD_METRICS,
-        ...filt,
-      }, request.signal),
-      () => runReport(propertyId, token, {
-        dateRanges: [{ startDate: start, endDate: end }, { startDate: prev.start, endDate: prev.end }],
+      { dateRanges: withPrev, metrics: SCORECARD_METRICS, ...filt },
+      {
+        dateRanges: withPrev,
         metrics: [{ name: "eventCount" }],
         ...filterExpr(medium, campaign, { fieldName: "eventName", value: "generate_lead" }),
-      }, request.signal),
-      () => runReport(propertyId, token, {
-        dateRanges: [{ startDate: start, endDate: end }],
+      },
+      {
+        dateRanges: current,
         dimensions: [{ name: "sessionDefaultChannelGroup" }],
         metrics: [{ name: "totalUsers" }],
         orderBys: [{ desc: true, metric: { metricName: "totalUsers" } }],
         limit: 12,
         ...filt,
-      }, request.signal),
-      () => runReport(propertyId, token, {
-        dateRanges: [{ startDate: start, endDate: end }],
+      },
+      {
+        dateRanges: current,
         dimensions: [{ name: "region" }],
         metrics: [{ name: "newUsers" }],
         orderBys: [{ desc: true, metric: { metricName: "newUsers" } }],
         limit: 8,
         ...filt,
-      }, request.signal),
-      () => runReport(propertyId, token, {
+      },
+      {
         dateRanges: [{ startDate: windowStart, endDate: end }],
         dimensions: [{ name: "yearMonth" }],
         metrics: [{ name: "totalUsers" }],
         ...filt,
-      }, request.signal),
-      () => !wantOptions ? Promise.resolve([]) : runReport(propertyId, token, {
-        dateRanges: [{ startDate: start, endDate: end }],
-        dimensions: [{ name: "sessionMedium" }],
-        metrics: [{ name: "sessions" }],
-        orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
-        limit: 50,
-      }, request.signal),
-      () => !wantOptions ? Promise.resolve([]) : runReport(propertyId, token, {
-        dateRanges: [{ startDate: start, endDate: end }],
-        dimensions: [{ name: "sessionCampaignName" }],
-        metrics: [{ name: "sessions" }],
-        orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
-        limit: 100,
-      }, request.signal),
+      },
       // Geo map: new users for every US state (not just the top few).
-      () => runReport(propertyId, token, {
-        dateRanges: [{ startDate: start, endDate: end }],
+      {
+        dateRanges: current,
         dimensions: [{ name: "region" }],
         metrics: [{ name: "newUsers" }],
         limit: 100,
         ...filterExpr(medium, campaign, { fieldName: "country", value: "United States" }),
-      }, request.signal),
-    ], CONCURRENCY);
+      },
+    ];
+    if (wantOptions) {
+      reports.push(
+        {
+          dateRanges: current,
+          dimensions: [{ name: "sessionMedium" }],
+          metrics: [{ name: "sessions" }],
+          orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
+          limit: 50,
+        },
+        {
+          dateRanges: current,
+          dimensions: [{ name: "sessionCampaignName" }],
+          metrics: [{ name: "sessions" }],
+          orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
+          limit: 100,
+        }
+      );
+    }
+
+    // Six (or eight) reports -> two batch calls running together: one round
+    // trip, and only two requests against GA4's concurrency limit.
+    const [scoreRes, leadRes, channelRes, statesRes, monthlyRes, geoRes, medRes = [], campRes = []] =
+      await batchRunReports(propertyId, token, reports, request.signal);
 
     // Scorecards: match rows by their dateRange dimension value.
     const byRange = (rows: RawRow[], range: string) =>

@@ -16,6 +16,7 @@ import {
 import { Loader2, TrendingUp, TrendingDown } from "lucide-react";
 import { Card } from "@/components/Card";
 import { compact, pctDelta } from "@/lib/report";
+import { getCached, setCached } from "@/lib/response-cache";
 
 const LINE_COLORS = ["#12b795", "#3b82f6", "#f59e0b", "#ec4899", "#8b5cf6"];
 const BAR = "#12b795";
@@ -117,20 +118,32 @@ export function Breakdowns({
   useEffect(() => {
     if (!propertyId) return;
     let cancelled = false;
-    // Abort the previous request on a filter change so it stops using GA4 quota.
-    const ac = new AbortController();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- mark loading before the async fetch
-    setState((s) => ({ ...s, loading: true, error: null }));
     const p = new URLSearchParams({ startDate, endDate, compare });
     if (medium) p.set("medium", medium);
     if (campaign) p.set("campaign", campaign);
-    fetch(`/api/ga4/breakdowns?${p.toString()}`, { signal: ac.signal })
+    const url = `/api/ga4/breakdowns?${p.toString()}`;
+    // A filter combination seen in the last few minutes shows instantly.
+    const cached = getCached<Breakdowns>(url);
+    if (cached) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- serve a cached report synchronously
+      setState({ loading: false, error: null, data: cached });
+      return;
+    }
+    // Abort the previous request on a filter change so it stops using GA4 quota.
+    const ac = new AbortController();
+    // Keep the current tables on screen (dimmed) while the new ones load.
+    setState((s) => ({ ...s, loading: true, error: null }));
+    fetch(url, { signal: ac.signal })
       .then(async (r) => {
         const d = await r.json();
         if (!r.ok) throw new Error(d.error ?? "Failed to load breakdowns.");
         return d as Breakdowns;
       })
-      .then((d) => { if (!cancelled) setState({ loading: false, error: null, data: d }); })
+      .then((d) => {
+        if (cancelled) return;
+        setCached(url, d);
+        setState({ loading: false, error: null, data: d });
+      })
       .catch((e) => {
         if (!cancelled) setState({ loading: false, error: e instanceof Error ? e.message : "Failed to load breakdowns.", data: null });
       });
@@ -158,7 +171,7 @@ export function Breakdowns({
   const maxConv = Math.max(0, ...d.conversions.map((c) => c.count));
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 transition-opacity ${state.loading ? "opacity-60" : ""}`}>
       {/* Top Traffic Sources */}
       <Card title="Top Traffic Sources">
         <div className="grid gap-6 lg:grid-cols-2">

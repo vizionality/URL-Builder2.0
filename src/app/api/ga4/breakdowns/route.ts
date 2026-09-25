@@ -4,7 +4,7 @@ import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
 import { parseGa4Date } from "@/lib/indicators/dates";
 import { comparisonRange, pivotDaily } from "@/lib/report";
-import { runReport, detectKeyMetric, ga4FailureMessage, Ga4Error, type RawRow } from "@/lib/ga4-api";
+import { batchRunReports, detectKeyMetric, ga4FailureMessage, Ga4Error, type RawRow } from "@/lib/ga4-api";
 
 // Top Traffic Sources, Landing Pages, and Conversions for the Dashboard: each a
 // table plus a daily trend for its top items. Same filters and date range as
@@ -76,9 +76,9 @@ export async function GET(request: Request) {
   try {
     const keyMetric = await detectKeyMetric(propertyId, token, request.signal);
 
-    // Wave 1: the tables (and which items to trend).
-    const [srcRows, pageRows, convRows] = await Promise.all([
-      runReport(propertyId, token, {
+    // Wave 1: the three tables in one batch call (and which items to trend).
+    const [srcRows, pageRows, convRows] = await batchRunReports(propertyId, token, [
+      {
         dateRanges: both,
         dimensions: [{ name: "sessionSource" }, { name: "sessionMedium" }],
         metrics: [{ name: "totalUsers" }],
@@ -87,23 +87,23 @@ export async function GET(request: Request) {
         orderBys: [{ desc: true, metric: { metricName: "totalUsers" } }],
         limit: 1000,
         ...filterOf(medium, campaign),
-      }, request.signal),
-      runReport(propertyId, token, {
+      },
+      {
         dateRanges: cur,
         dimensions: [{ name: "landingPage" }],
         metrics: [{ name: "sessions" }, { name: "engagementRate" }],
         orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
         limit: TOP_PAGES,
         ...filterOf(medium, campaign),
-      }, request.signal),
-      runReport(propertyId, token, {
+      },
+      {
         dateRanges: both,
         dimensions: [{ name: "eventName" }],
         metrics: [{ name: keyMetric }],
         limit: 200,
         ...filterOf(medium, campaign),
-      }, request.signal),
-    ]);
+      },
+    ], request.signal);
 
     // Sources: with two date ranges GA4 appends the range as the last dimension.
     const srcMap = new Map<string, { source: string; medium: string; users: number; prev: number }>();
@@ -143,36 +143,44 @@ export async function GET(request: Request) {
       .sort((a, b) => b.count - a.count);
     const trendEvents = conversions.filter((c) => c.count > 0).map((c) => c.event).slice(0, TREND_EVENTS);
 
-    // Wave 2: daily trends for the top items (skipped when there is nothing to trend).
-    const [srcTrendRows, pageTrendRows, convTrendRows] = await Promise.all([
-      trendSources.length
-        ? runReport(propertyId, token, {
-            dateRanges: cur,
-            dimensions: [{ name: "date" }, { name: "sessionSource" }],
-            metrics: [{ name: "totalUsers" }],
-            limit: 10000,
-            ...filterOf(medium, campaign, [inList("sessionSource", trendSources)]),
-          }, request.signal)
-        : Promise.resolve([] as RawRow[]),
-      trendPages.length
-        ? runReport(propertyId, token, {
-            dateRanges: cur,
-            dimensions: [{ name: "date" }, { name: "landingPage" }],
-            metrics: [{ name: "sessions" }],
-            limit: 10000,
-            ...filterOf(medium, campaign, [inList("landingPage", trendPages)]),
-          }, request.signal)
-        : Promise.resolve([] as RawRow[]),
-      trendEvents.length
-        ? runReport(propertyId, token, {
-            dateRanges: cur,
-            dimensions: [{ name: "date" }, { name: "eventName" }],
-            metrics: [{ name: keyMetric }],
-            limit: 10000,
-            ...filterOf(medium, campaign, [inList("eventName", trendEvents)]),
-          }, request.signal)
-        : Promise.resolve([] as RawRow[]),
-    ]);
+    // Wave 2: daily trends for the top items, in one batch call. A trend with
+    // nothing to show is left out rather than sent as an empty report.
+    const trendReports: { key: "src" | "page" | "conv"; body: unknown }[] = [];
+    if (trendSources.length) {
+      trendReports.push({ key: "src", body: {
+        dateRanges: cur,
+        dimensions: [{ name: "date" }, { name: "sessionSource" }],
+        metrics: [{ name: "totalUsers" }],
+        limit: 10000,
+        ...filterOf(medium, campaign, [inList("sessionSource", trendSources)]),
+      } });
+    }
+    if (trendPages.length) {
+      trendReports.push({ key: "page", body: {
+        dateRanges: cur,
+        dimensions: [{ name: "date" }, { name: "landingPage" }],
+        metrics: [{ name: "sessions" }],
+        limit: 10000,
+        ...filterOf(medium, campaign, [inList("landingPage", trendPages)]),
+      } });
+    }
+    if (trendEvents.length) {
+      trendReports.push({ key: "conv", body: {
+        dateRanges: cur,
+        dimensions: [{ name: "date" }, { name: "eventName" }],
+        metrics: [{ name: keyMetric }],
+        limit: 10000,
+        ...filterOf(medium, campaign, [inList("eventName", trendEvents)]),
+      } });
+    }
+    const trendRows = await batchRunReports(
+      propertyId, token, trendReports.map((t) => t.body), request.signal
+    );
+    const rowsFor = (key: "src" | "page" | "conv"): RawRow[] =>
+      trendRows[trendReports.findIndex((t) => t.key === key)] ?? [];
+    const srcTrendRows = rowsFor("src");
+    const pageTrendRows = rowsFor("page");
+    const convTrendRows = rowsFor("conv");
 
     const long = (rows: RawRow[]) =>
       rows.map((r) => ({ date: parseGa4Date(dv(r, 0)), series: dv(r, 1), value: mv(r) }));
