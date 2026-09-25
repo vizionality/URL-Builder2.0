@@ -77,7 +77,7 @@ export function Sidebar({ profile }: { profile?: SidebarProfile }) {
       <Logo />
       <nav data-tour="nav" className="flex-1 space-y-1 px-3">
         {NAV_ITEMS.map((item) => {
-          const active = pathname === item.href;
+          const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`));
           const Icon = item.icon;
           if (item.comingSoon) {
             return (
@@ -203,7 +203,7 @@ export function MobileTabBar() {
             </div>
             <div className="space-y-1 p-3">
               {NAV_ITEMS.map((item) => {
-                const active = pathname === item.href;
+                const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`));
                 const Icon = item.icon;
                 if (item.comingSoon) {
                   return (
