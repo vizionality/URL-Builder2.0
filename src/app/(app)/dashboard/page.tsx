@@ -753,7 +753,7 @@ export default function DashboardPage() {
                     .map((id) => [id, <ExtraWidgetCard key={id} id={id} state={extras} />])
                 ),
               };
-              const blocks = layoutBlocks(layout);
+              const blocks = layoutBlocks(layout, spans);
               const rowLast = new Set(packRows(layout, spans).map((r) => r[r.length - 1]));
               if (blocks.length === 0) {
                 return (
@@ -810,7 +810,9 @@ export default function DashboardPage() {
                         span={spanOf(block.id, spans)}
                         onResize={(sp) => resizeWidget(block.id, sp)}
                       >
-                        {cards[block.id]}
+                        {cards[block.id] ??
+                          // A scorecard placed on its own in a row.
+                          (s && <ScorecardFor id={block.id} s={s} extras={extras.data} />)}
                       </SortableWidget>
                     )
                   )}

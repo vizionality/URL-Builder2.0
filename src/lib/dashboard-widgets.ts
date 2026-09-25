@@ -123,13 +123,26 @@ export function sanitizeLayout(input: unknown): string[] {
     }
     if (!WIDGET_BY_ID.has(id)) continue;
     seen.add(id);
-    out.push(span && WIDGET_BY_ID.get(id)?.size !== "scorecard" ? `${id}|${span}` : id);
+    // A scorecard with a width sits on its own in a row (see layoutBlocks).
+    out.push(span ? `${id}|${span}` : id);
     if (out.length >= MAX_LAYOUT) break;
   }
   return out;
 }
 
 export type Spans = Record<string, number>;
+
+// Slots and scorecards always keep their width in the saved layout: a slot
+// needs it, and for a scorecard it means "placed on its own in a row".
+function explicitSpan(id: string): boolean {
+  return isGap(id) || WIDGET_BY_ID.get(id)?.size === "scorecard";
+}
+
+// A scorecard belongs to the Summary row unless it was placed on its own
+// (dropped into an empty slot), which gives it a width.
+export function inSummary(id: string, spans: Spans): boolean {
+  return WIDGET_BY_ID.get(id)?.size === "scorecard" && spans[id] == null;
+}
 
 // Saved entries -> widget ids in order plus any custom widths.
 export function parseLayout(entries: string[]): { ids: string[]; spans: Spans } {
@@ -138,14 +151,14 @@ export function parseLayout(entries: string[]): { ids: string[]; spans: Spans } 
   for (const entry of sanitizeLayout(entries)) {
     const { id, span } = splitEntry(entry);
     ids.push(id);
-    if (span && (isGap(id) || span !== defaultSpan(id))) spans[id] = span;
+    if (span && (explicitSpan(id) || span !== defaultSpan(id))) spans[id] = span;
   }
   return { ids, spans };
 }
 
 export function serializeLayout(ids: string[], spans: Spans): string[] {
   return ids.map((id) =>
-    spans[id] && (isGap(id) || spans[id] !== defaultSpan(id)) ? `${id}|${spans[id]}` : id
+    spans[id] && (explicitSpan(id) || spans[id] !== defaultSpan(id)) ? `${id}|${spans[id]}` : id
   );
 }
 
@@ -160,8 +173,9 @@ export type LayoutBlock =
 
 // All scorecards share one Summary row, placed where the first scorecard sits
 // (so adding a scorecard anywhere joins the existing row instead of starting a
-// new one at the bottom). Every other widget is its own block.
-export function layoutBlocks(layout: string[]): LayoutBlock[] {
+// new one at the bottom). Every other widget, including a scorecard placed on
+// its own, is its own block.
+export function layoutBlocks(layout: string[], spans: Spans = {}): LayoutBlock[] {
   const out: LayoutBlock[] = [];
   let summary: { kind: "scorecards"; ids: string[] } | null = null;
   for (const id of layout) {
@@ -171,7 +185,7 @@ export function layoutBlocks(layout: string[]): LayoutBlock[] {
     }
     const def = WIDGET_BY_ID.get(id);
     if (!def) continue;
-    if (def.size === "scorecard") {
+    if (inSummary(id, spans)) {
       if (summary) summary.ids.push(id);
       else out.push((summary = { kind: "scorecards", ids: [id] }));
     } else {
@@ -260,7 +274,7 @@ export function packRows(ids: string[], spans: Spans): string[][] {
     used = 0;
   };
   for (const id of ids) {
-    if (isScorecard(id)) {
+    if (inSummary(id, spans)) {
       if (summaryPlaced) {
         // Later scorecards join the Summary row wherever they sit; they take no width here.
         row.push(id);
@@ -291,15 +305,16 @@ export function normalizeLayout(ids: string[], spans: Spans): { ids: string[]; s
     outSpans[id] = w;
   };
   for (const row of packRows(ids, spans)) {
-    if (row.length === 1 && isScorecard(row[0])) {
+    const summaryCard = (id: string) => inSummary(id, spans);
+    if (row.length === 1 && summaryCard(row[0])) {
       outIds.push(row[0]);
       continue;
     }
-    const widgets = row.filter((id) => !isGap(id) && !isScorecard(id));
+    const widgets = row.filter((id) => !isGap(id) && !summaryCard(id));
     // A row with no widgets left (only slots) is dropped; any stray
     // scorecards in it still belong to the Summary row.
     if (widgets.length === 0) {
-      outIds.push(...row.filter(isScorecard));
+      outIds.push(...row.filter(summaryCard));
       continue;
     }
     let pending = 0; // slot width waiting to be written, so neighbours merge
@@ -309,7 +324,7 @@ export function normalizeLayout(ids: string[], spans: Spans): { ids: string[]; s
         pending += spanOf(id, spans);
         continue;
       }
-      if (isScorecard(id)) {
+      if (summaryCard(id)) {
         outIds.push(id);
         continue;
       }
@@ -328,7 +343,7 @@ export function normalizeLayout(ids: string[], spans: Spans): { ids: string[]; s
 // Replace a widget with an empty slot of its width (its row keeps its shape).
 function leaveGap(ids: string[], spans: Spans, id: string): { ids: string[]; spans: Spans } {
   const at = ids.indexOf(id);
-  if (at < 0 || isScorecard(id)) return { ids: ids.filter((i) => i !== id), spans };
+  if (at < 0 || inSummary(id, spans)) return { ids: ids.filter((i) => i !== id), spans };
   const hole = `${GAP_PREFIX}tmp`;
   const next = [...ids];
   next[at] = hole;
@@ -365,8 +380,8 @@ export function dropWithSpans(
   // A widget dropped on an empty slot fills it, taking the slot's width; if it
   // came from elsewhere on the dashboard, its old spot becomes a slot.
   if (isGap(over) && !isGap(active)) {
-    const def = WIDGET_BY_ID.get(moved);
-    if (!def || def.size === "scorecard") return same;
+    // Any widget can fill a slot; a scorecard dropped here sits on its own.
+    if (!WIDGET_BY_ID.get(moved)) return same;
     if (isNew ? ids.includes(moved) : !ids.includes(moved)) return same;
     const width = spanOf(over, spans);
     const base = isNew ? same : leaveGap(ids, spans, moved);
@@ -383,7 +398,7 @@ export function dropWithSpans(
   let nextSpans = spans;
   const rows = packRows(ids, spans);
   const rowOf = (id: string) => rows.findIndex((r) => r.includes(id));
-  if (!isNew && !isGap(active) && !isScorecard(active) && ids.includes(active) && ids.includes(over) && rowOf(active) !== rowOf(over)) {
+  if (!isNew && !isGap(active) && !inSummary(active, spans) && ids.includes(active) && ids.includes(over) && rowOf(active) !== rowOf(over)) {
     const base = leaveGap(ids, spans, active);
     next = [...base.ids];
     next.splice(next.indexOf(over), 0, active);
@@ -393,6 +408,18 @@ export function dropWithSpans(
     if (next === ids) return same;
   }
   // A widget that isn't full width, dropped onto a full-width one, pairs 50/50.
+  if (isScorecard(moved)) {
+    if (inSummary(over, spans)) {
+      // Dropped on a Summary scorecard: (re)join the Summary row.
+      if (nextSpans[moved] != null) {
+        nextSpans = { ...nextSpans };
+        delete nextSpans[moved];
+      }
+    } else if (next.includes(over) && nextSpans[moved] == null) {
+      // Dropped beside any other widget: it sits there on its own, 25% wide.
+      nextSpans = { ...nextSpans, [moved]: 3 };
+    }
+  }
   if (next.includes(over) && next.includes(moved) && !isScorecard(over) && !isScorecard(moved) && !isGap(moved)) {
     const pairs = spanOf(over, spans) === 12 && (isNew || spanOf(moved, spans) !== 12);
     if (pairs) nextSpans = { ...nextSpans, [over]: 6, [moved]: 6 };
