@@ -19,6 +19,7 @@ import {
   bucketLabel,
   bucketTrend,
   compact,
+  formatDuration,
   metricLabel,
   pctDelta,
   TIME_GRAINS,
@@ -34,8 +35,8 @@ const BAR = "#12b795";
 type Series = { key: string; label: string };
 type Trend = { data: Record<string, number | string>[]; series: Series[] };
 type Breakdowns = {
-  sources: { source: string; medium: string; users: number; prev: number; engagementRate?: number }[];
-  sourceTotal: { users: number; prev: number; engagementRate?: number };
+  sources: { source: string; medium: string; users: number; prev: number; engagementRate?: number; avgDuration?: number }[];
+  sourceTotal: { users: number; prev: number; engagementRate?: number; avgDuration?: number };
   sourceCount: number;
   sourceTrend: Trend;
   // "day" = daily rows; otherwise already bucketed by GA4 (total users).
@@ -105,7 +106,9 @@ function TrendLines({
   return (
     <div className="flex h-full min-h-72 w-full flex-col">
       <GrainSelect value={selected} onChange={onGrain} label={label} />
-      <div className="min-h-64 flex-1">
+      {/* Absolute fill gives the chart a definite height to measure. */}
+      <div className="relative min-h-64 flex-1">
+      <div className="absolute inset-0">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={trend.data} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
           <CartesianGrid stroke="#f1f5f4" vertical={false} />
@@ -126,6 +129,7 @@ function TrendLines({
           ))}
         </LineChart>
       </ResponsiveContainer>
+      </div>
       </div>
     </div>
   );
@@ -188,6 +192,8 @@ function Pager({
 const NO_KEY_EVENTS: BreakdownMetric[] = ["keyEvents"];
 // Engagement rate, or a dash for an older cached response without it.
 const pct = (v: number | undefined) => (v == null ? "—" : `${v.toFixed(1)}%`);
+// Average session duration (seconds), same fallback.
+const dur = (v: number | undefined) => (v == null ? "—" : formatDuration(v));
 const pickable = "max-w-full truncate text-left hover:text-green-700 hover:underline";
 
 // The three data sections the server returns; each has a full-width card
@@ -337,6 +343,7 @@ export function Breakdowns({
             <th className={`${th} text-right`}>{metricLabel(sourceMetric)}</th>
             <th className={`${th} text-right`}>%Δ</th>
             <th className={`${th} text-right`}>Engagement rate</th>
+            <th className={`${th} text-right`}>Avg session duration</th>
           </tr>
         </thead>
         <tbody>
@@ -352,6 +359,7 @@ export function Breakdowns({
               <td className={`${td} text-right tabular-nums`}>{s.users.toLocaleString("en-US")}</td>
               <td className={`${td} text-right text-xs`}><Delta value={pctDelta(s.users, s.prev)} /></td>
               <td className={`${td} text-right tabular-nums`}>{pct(s.engagementRate)}</td>
+              <td className={`${td} text-right tabular-nums`}>{dur(s.avgDuration)}</td>
             </tr>
           ))}
           <tr>
@@ -359,6 +367,7 @@ export function Breakdowns({
             <td className={`${td} text-right font-semibold tabular-nums`}>{d.sourceTotal.users.toLocaleString("en-US")}</td>
             <td className={`${td} text-right text-xs`}><Delta value={pctDelta(d.sourceTotal.users, d.sourceTotal.prev)} /></td>
             <td className={`${td} text-right font-semibold tabular-nums`}>{pct(d.sourceTotal.engagementRate)}</td>
+            <td className={`${td} text-right font-semibold tabular-nums`}>{dur(d.sourceTotal.avgDuration)}</td>
           </tr>
         </tbody>
       </table>
@@ -429,7 +438,8 @@ export function Breakdowns({
       ) : (
         <div className="flex h-full min-h-72 w-full flex-col">
           <GrainSelect value={convGrain} onChange={setConvGrain} label="Conversions time grain" />
-          <div className="min-h-64 flex-1">
+          <div className="relative min-h-64 flex-1">
+          <div className="absolute inset-0">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={convData} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
               <CartesianGrid stroke="#f1f5f4" vertical={false} />
@@ -442,6 +452,7 @@ export function Breakdowns({
               ))}
             </BarChart>
           </ResponsiveContainer>
+          </div>
           </div>
         </div>
       )}
