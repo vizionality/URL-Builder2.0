@@ -14,7 +14,8 @@ export async function GET(req: NextRequest) {
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   const cookieState = req.cookies.get("ga4_oauth_state")?.value;
-  const back = new URL("/integrations", origin);
+  const returnTo = req.cookies.get("ga4_oauth_return")?.value === "search-console" ? "search-console" : "google-analytics";
+  const back = new URL(`/integrations/${returnTo}`, origin);
 
   const supabase = await createClient();
   const {
@@ -27,6 +28,7 @@ export async function GET(req: NextRequest) {
   function redirectBack() {
     const res = NextResponse.redirect(back);
     res.cookies.delete("ga4_oauth_state");
+    res.cookies.delete("ga4_oauth_return");
     return res;
   }
 

@@ -75,7 +75,7 @@ export function SeoDashboard() {
       <main className="flex-1 px-4 py-6 sm:px-6">
         <Card title="Connect Google Search Console" description="See clicks, impressions, CTR and position from Google Search.">
           <p className="mb-3 text-sm text-zinc-600">{state.error}</p>
-          <Link href="/integrations" className="inline-flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
+          <Link href="/integrations/search-console" className="inline-flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
             <Search size={16} /> Go to Integrations
           </Link>
         </Card>
