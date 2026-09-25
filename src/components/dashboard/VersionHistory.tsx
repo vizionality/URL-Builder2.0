@@ -23,9 +23,12 @@ export function VersionHistory({
   current,
   refreshKey,
   onRestore,
+  layoutQuery = "",
 }: {
   current: string[];
   refreshKey: string;
+  // "?page=ai" for the AI Overview tab's own layout.
+  layoutQuery?: string;
   onRestore: (widgets: string[]) => void;
 }) {
   const [state, setState] = useState<{ loading: boolean; unavailable: boolean; versions: Version[] }>({
@@ -36,7 +39,7 @@ export function VersionHistory({
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/dashboard/layout/versions")
+    fetch(`/api/dashboard/layout/versions${layoutQuery}`)
       .then((r) => r.json())
       .then((d: { versions?: Version[]; unavailable?: boolean }) => {
         if (!cancelled) setState({ loading: false, unavailable: Boolean(d.unavailable), versions: d.versions ?? [] });
@@ -45,7 +48,7 @@ export function VersionHistory({
     return () => {
       cancelled = true;
     };
-  }, [refreshKey]);
+  }, [refreshKey, layoutQuery]);
 
   if (state.loading && state.versions.length === 0) {
     return (

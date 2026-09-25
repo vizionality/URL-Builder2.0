@@ -101,11 +101,12 @@ with real GA4 reporting.
   `GET /api/gsc/report` (totals + previous period, daily, queries, pages, countries, devices). Pure helpers
   in `lib/gsc-report.ts` (unit-tested), API calls in `lib/gsc.ts`.
 
-- AI Overview (/dashboard/ai, first tab): `POST /api/ai/overview` pulls a compact GA4 digest (totals,
-  channels, source/medium, landing pages, each vs the previous period) and Search Console digest (totals,
-  top queries and pages), sends it to Claude server-side (ANTHROPIC_API_KEY, rate-limited), and returns
-  headline, summary, wins, concerns and next steps. Computed on request, never stored. Pure helpers in
-  `lib/ai-overview.ts` (unit-tested).
+- AI Overview (/dashboard/ai): the same GA4 report (`components/dashboard/GaDashboard.tsx`, `aiOnly`)
+  limited to sessions from AI assistants: every request carries `ai=1`, which `lib/ga4-filters.ts` turns
+  into a case-insensitive regex on sessionSource (`AI_SOURCE_PATTERNS`: chatgpt, openai, perplexity,
+  gemini, copilot, claude.ai, deepseek, ...). Its layout saves separately (property key "<id>:ai",
+  `?page=ai` on the layout routes). Search Console's API has no AI Overviews / AI Mode breakdown, so
+  nothing from GSC is shown there.
 
 ### Integrations (/integrations)
 - A tile per platform (icon, name, status) linking to its setup page: /integrations/google-analytics

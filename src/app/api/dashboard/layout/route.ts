@@ -5,7 +5,8 @@ import { getLayout, recordVersion, resetLayout, saveLayout } from "@/lib/dashboa
 import { DEFAULT_LAYOUT, sanitizeLayout } from "@/lib/dashboard-widgets";
 
 // The signed-in user and their connected property; layouts are saved per both.
-async function owner() {
+// "?page=ai" (AI Overview tab) keeps its own layout under "<property>:ai".
+async function owner(req?: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: "Not authenticated." }, { status: 401 }) };
@@ -13,11 +14,12 @@ async function owner() {
   if (!conn?.property_id) {
     return { error: NextResponse.json({ error: "No GA4 property selected." }, { status: 400 }) };
   }
-  return { userId: user.id, propertyId: String(conn.property_id) };
+  const page = req?.nextUrl.searchParams.get("page");
+  return { userId: user.id, propertyId: page === "ai" ? `${conn.property_id}:ai` : String(conn.property_id) };
 }
 
-export async function GET() {
-  const o = await owner();
+export async function GET(req: NextRequest) {
+  const o = await owner(req);
   if ("error" in o) return o.error;
   try {
     const saved = await getLayout(o.userId, o.propertyId);
@@ -32,7 +34,7 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
-  const o = await owner();
+  const o = await owner(req);
   if ("error" in o) return o.error;
   let body: { widgets?: unknown; restore?: unknown };
   try {
@@ -58,8 +60,8 @@ export async function PUT(req: NextRequest) {
   }
 }
 
-export async function DELETE() {
-  const o = await owner();
+export async function DELETE(req: NextRequest) {
+  const o = await owner(req);
   if ("error" in o) return o.error;
   try {
     await resetLayout(o.userId, o.propertyId);
