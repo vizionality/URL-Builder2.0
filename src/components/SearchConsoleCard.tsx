@@ -47,13 +47,13 @@ export function SearchConsoleCard({ googleConnected }: { googleConnected: boolea
   return (
     <Card title="Google Search Console" description="Clicks, impressions, CTR and position from Google Search, shown on the SEO Dashboard.">
       {!googleConnected ? (
-        <p className="text-sm text-zinc-500">Connect Google Analytics above first. Search Console uses the same Google connection.</p>
+        <p className="text-sm text-zinc-500">Connect Google Analytics first. Search Console uses the same Google connection.</p>
       ) : data === null ? (
         <p className="flex items-center gap-2 text-sm text-zinc-400"><Loader2 size={14} className="animate-spin" /> Loading sites…</p>
       ) : data.error ? (
         <div className="space-y-3">
           <p className="text-sm text-red-600">{data.error}</p>
-          <a href="/api/ga4/oauth/start" className="inline-flex rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
+          <a href="/api/ga4/oauth/start?return=search-console" className="inline-flex rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
             Reconnect Google
           </a>
         </div>

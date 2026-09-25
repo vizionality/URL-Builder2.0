@@ -102,6 +102,9 @@ with real GA4 reporting.
   in `lib/gsc-report.ts` (unit-tested), API calls in `lib/gsc.ts`.
 
 ### Integrations (/integrations)
+- A tile per platform (icon, name, status) linking to its setup page: /integrations/google-analytics
+  (GA4 connect, property, BigQuery link test, Reconnect) and /integrations/search-console. OAuth start takes
+  `?return=` to land back on the right page.
 - Google Analytics 4 card: GA4 Property ID input (numeric, e.g. 123456789).
   Display the service account email with instructions: "Add this email as a Viewer in
   GA4 Admin > Property Access Management." Save Settings and Clear. Store Property ID.

@@ -22,6 +22,7 @@ export async function GET() {
       email: conn.email,
       propertyId: conn.property_id ?? "",
       propertyName: conn.property_name ?? "",
+      gscSiteUrl: conn.gsc_site_url ?? null,
     });
   } catch {
     return NextResponse.json({ connected: false });
