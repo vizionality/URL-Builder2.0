@@ -68,7 +68,16 @@ export async function exchangeCode(
   return res.json();
 }
 
+// Access tokens live about an hour, so reuse one until shortly before it
+// expires instead of calling Google's token endpoint on every request. Kept in
+// server memory only (per warm instance), keyed by the refresh token.
+const tokenCache = new Map<string, { token: string; expiresAt: number }>();
+const EXPIRY_MARGIN_MS = 2 * 60 * 1000;
+
 export async function getAccessToken(refreshToken: string): Promise<string> {
+  const cached = tokenCache.get(refreshToken);
+  if (cached && cached.expiresAt > Date.now()) return cached.token;
+
   const res = await fetch(TOKEN_URL, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -79,9 +88,15 @@ export async function getAccessToken(refreshToken: string): Promise<string> {
       grant_type: "refresh_token",
     }),
   });
-  if (!res.ok) throw new Error(`Token refresh failed: ${await res.text()}`);
+  if (!res.ok) {
+    tokenCache.delete(refreshToken);
+    throw new Error(`Token refresh failed: ${await res.text()}`);
+  }
   const data = await res.json();
-  return data.access_token as string;
+  const token = data.access_token as string;
+  const lifetimeMs = Number(data.expires_in ?? 3600) * 1000;
+  tokenCache.set(refreshToken, { token, expiresAt: Date.now() + lifetimeMs - EXPIRY_MARGIN_MS });
+  return token;
 }
 
 export async function fetchUserEmail(accessToken: string): Promise<string | null> {

@@ -60,8 +60,58 @@ export async function runReport(
   }, isTransient);
 }
 
+// GA4 runs up to 5 reports in one batchRunReports call, and a batch counts as
+// ONE request toward the ~10-concurrent limit. So batching is both faster (one
+// round trip instead of several) and gentler on quota than separate calls.
+export const MAX_BATCH = 5;
+
+// Split into chunks of `size`, preserving order.
+export function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+// Run many report bodies as batches (5 per call, up to `parallel` batches at
+// once). Returns one row list per body, in the same order as `bodies`.
+export async function batchRunReports(
+  propertyId: string,
+  token: string,
+  bodies: unknown[],
+  signal?: AbortSignal,
+  parallel = 2
+): Promise<RawRow[][]> {
+  if (bodies.length === 0) return [];
+  const batches = chunk(bodies, MAX_BATCH);
+  const results = await limitAll(
+    batches.map((requests) => () =>
+      withRetry(async () => {
+        const res = await fetch(`${DATA_API}/properties/${propertyId}:batchRunReports`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+          body: JSON.stringify({ requests }),
+          signal,
+        });
+        if (!res.ok) throw new Ga4Error(res.status, await res.text());
+        const data = await res.json();
+        const reports = (data.reports ?? []) as { rows?: RawRow[] }[];
+        // Index by position so a missing report can never shift later results.
+        return requests.map((_, i) => reports[i]?.rows ?? []);
+      }, isTransient)
+    ),
+    parallel
+  );
+  return results.flat();
+}
+
+// Which conversions metric a property accepts never changes, so remember it
+// per property (per warm server instance) instead of probing GA4 every load.
+const keyMetricCache = new Map<string, string>();
+
 // GA4 renamed `conversions` to `keyEvents`; use whichever the property accepts.
 export async function detectKeyMetric(propertyId: string, token: string, signal?: AbortSignal): Promise<string> {
+  const cached = keyMetricCache.get(propertyId);
+  if (cached) return cached;
   for (const name of ["keyEvents", "conversions"]) {
     try {
       const res = await fetch(`${DATA_API}/properties/${propertyId}:runReport`, {
@@ -73,7 +123,10 @@ export async function detectKeyMetric(propertyId: string, token: string, signal?
         }),
         signal,
       });
-      if (res.ok) return name;
+      if (res.ok) {
+        keyMetricCache.set(propertyId, name); // only cache a real answer
+        return name;
+      }
     } catch {
       // try next
     }
