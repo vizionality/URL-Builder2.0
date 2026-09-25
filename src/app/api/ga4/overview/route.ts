@@ -4,7 +4,15 @@ import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
 import { comparisonRange, formatYearMonth } from "@/lib/report";
 import { exactFilter, pageFilterExpr, parsePageFilters } from "@/lib/ga4-filters";
-import { batchRunReports, ga4FailureMessage, Ga4Error, type RawRow } from "@/lib/ga4-api";
+import {
+  batchRunReports,
+  breakdownMetricNames,
+  detectKeyMetric,
+  ga4FailureMessage,
+  Ga4Error,
+  rowMetricValues,
+  type RawRow,
+} from "@/lib/ga4-api";
 
 
 function todayIso(): string {
@@ -80,6 +88,10 @@ export async function GET(request: Request) {
   const windowStart = monthStart(end, 24);
 
   try {
+    // Channel, states and geo carry every switchable metric, so their
+    // dropdowns switch instantly. Cached per property after the first call.
+    const keyMetric = await detectKeyMetric(propertyId, token, request.signal);
+    const allMetrics = breakdownMetricNames(keyMetric);
     const current = [{ startDate: start, endDate: end }];
     const withPrev = [...current, { startDate: prev.start, endDate: prev.end }];
     const reports: unknown[] = [
@@ -93,17 +105,17 @@ export async function GET(request: Request) {
       {
         dateRanges: current,
         dimensions: [{ name: "sessionDefaultChannelGroup" }],
-        metrics: [{ name: "totalUsers" }],
-        orderBys: [{ desc: true, metric: { metricName: "totalUsers" } }],
-        limit: 12,
+        metrics: allMetrics,
+        limit: 25,
         ...filt,
       },
       {
         dateRanges: current,
         dimensions: [{ name: "region" }],
-        metrics: [{ name: "newUsers" }],
-        orderBys: [{ desc: true, metric: { metricName: "newUsers" } }],
-        limit: 8,
+        metrics: allMetrics,
+        // Enough regions that the top 8 by any metric are present; the page ranks.
+        orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
+        limit: 100,
         ...filt,
       },
       {
@@ -123,7 +135,7 @@ export async function GET(request: Request) {
       {
         dateRanges: current,
         dimensions: [{ name: "region" }],
-        metrics: [{ name: "newUsers" }],
+        metrics: allMetrics,
         limit: 100,
         ...pageFilterExpr(filters, [exactFilter("country", "United States")]),
       },
@@ -183,17 +195,19 @@ export async function GET(request: Request) {
       generateLead: { value: num(leadCur, 0), prev: num(leadPre, 0) },
     };
 
-    const channelGroup = channelRes
-      .map((r) => ({ channel: r.dimensionValues?.[0]?.value ?? "(other)", users: num(r) }))
-      .filter((c) => c.users > 0);
+    const channelGroup = channelRes.map((r) => ({
+      channel: r.dimensionValues?.[0]?.value ?? "(other)",
+      values: rowMetricValues(r),
+    }));
 
-    const topStates = statesRes
-      .map((r) => ({ region: r.dimensionValues?.[0]?.value ?? "(not set)", newUsers: num(r) }))
-      .filter((s) => s.newUsers > 0);
+    const topStates = statesRes.map((r) => ({
+      region: r.dimensionValues?.[0]?.value ?? "(not set)",
+      values: rowMetricValues(r),
+    }));
 
     const geo = geoRes
-      .map((r) => ({ region: r.dimensionValues?.[0]?.value ?? "", newUsers: num(r) }))
-      .filter((s) => s.region && !s.region.startsWith("(") && s.newUsers > 0);
+      .map((r) => ({ region: r.dimensionValues?.[0]?.value ?? "", values: rowMetricValues(r) }))
+      .filter((s) => s.region && !s.region.startsWith("("));
 
     // Monthly: map yearMonth -> each metric, then align current vs prior year.
     const byYm = new Map<string, MonthValues>();

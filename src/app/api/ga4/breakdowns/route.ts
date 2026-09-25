@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
 import { parseGa4Date } from "@/lib/indicators/dates";
-import { comparisonRange, pivotDaily } from "@/lib/report";
+import { comparisonRange, parseBreakdownMetric, pivotDaily } from "@/lib/report";
 import { batchRunReports, detectKeyMetric, ga4FailureMessage, Ga4Error, type RawRow } from "@/lib/ga4-api";
 
 // Top Traffic Sources, Landing Pages, and Conversions for the Dashboard: each a
@@ -35,6 +35,8 @@ export async function GET(request: Request) {
   const end = isoDay(url.searchParams.get("endDate"), today);
   const start = isoDay(url.searchParams.get("startDate"), `${end.slice(0, 4)}-01-01`);
   const filters = parsePageFilters(url.searchParams);
+  // What Top Traffic Sources ranks and trends by (the dashboard's dropdown).
+  const sourceMetric = parseBreakdownMetric(url.searchParams.get("sourceMetric"), "totalUsers");
   // %Δ baseline: "year" = same dates last year, otherwise the previous period.
   const compare = url.searchParams.get("compare") === "year" ? "year" : "period";
 
@@ -61,16 +63,17 @@ export async function GET(request: Request) {
 
   try {
     const keyMetric = await detectKeyMetric(propertyId, token, request.signal);
+    const srcMetric = sourceMetric === "keyEvents" ? keyMetric : sourceMetric;
 
     // Wave 1: the three tables in one batch call (and which items to trend).
     const [srcRows, pageRows, convRows] = await batchRunReports(propertyId, token, [
       {
         dateRanges: both,
         dimensions: [{ name: "sessionSource" }, { name: "sessionMedium" }],
-        metrics: [{ name: "totalUsers" }],
+        metrics: [{ name: srcMetric }],
         // Ordered so that if a large property hits the row limit, only the
         // smallest source/medium rows are dropped.
-        orderBys: [{ desc: true, metric: { metricName: "totalUsers" } }],
+        orderBys: [{ desc: true, metric: { metricName: srcMetric } }],
         limit: 1000,
         ...pageFilterExpr(filters),
       },
@@ -136,7 +139,7 @@ export async function GET(request: Request) {
       trendReports.push({ key: "src", body: {
         dateRanges: cur,
         dimensions: [{ name: "date" }, { name: "sessionSource" }],
-        metrics: [{ name: "totalUsers" }],
+        metrics: [{ name: srcMetric }],
         limit: 10000,
         ...pageFilterExpr(filters, [inList("sessionSource", trendSources)]),
       } });

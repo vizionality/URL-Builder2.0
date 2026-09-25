@@ -121,3 +121,14 @@ describe("batchRunReports", () => {
     expect(chunk([1, 2, 3, 4, 5, 6, 7], 5)).toEqual([[1, 2, 3, 4, 5], [6, 7]]);
   });
 });
+
+describe("breakdown metric helpers", () => {
+  it("resolves key events to the property's metric name and reads rows back", async () => {
+    const { breakdownMetricNames, rowMetricValues } = await import("@/lib/ga4-api");
+    expect(breakdownMetricNames("conversions").map((m) => m.name)).toEqual([
+      "totalUsers", "newUsers", "sessions", "engagedSessions", "conversions",
+    ]);
+    const row = { metricValues: ["10", "4", "12", "8", "2"].map((value) => ({ value })) };
+    expect(rowMetricValues(row)).toEqual({ totalUsers: 10, newUsers: 4, sessions: 12, engagedSessions: 8, keyEvents: 2 });
+  });
+});

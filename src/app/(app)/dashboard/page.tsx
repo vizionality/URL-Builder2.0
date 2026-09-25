@@ -24,9 +24,13 @@ import {
   pctDelta,
   presetRange,
   DEFAULT_PRESET,
+  metricLabel,
+  type BreakdownMetric,
+  type MetricValues,
   type CompareMode,
 } from "@/lib/report";
 import { DateRangePicker, resolveRange, type DateValue } from "@/components/dashboard/DateRangePicker";
+import { MetricSelect } from "@/components/dashboard/MetricSelect";
 import { MultiSelect, type FilterOption } from "@/components/dashboard/MultiSelect";
 import { Breakdowns } from "@/components/dashboard/Breakdowns";
 import { getCached, setCached } from "@/lib/response-cache";
@@ -42,9 +46,9 @@ type Overview = {
     views: Metric; totalUsers: Metric; newUsers: Metric; sessions: Metric;
     engagementRate: Metric; avgSessionDuration: Metric; generateLead: Metric;
   };
-  channelGroup: { channel: string; users: number }[];
-  topStates: { region: string; newUsers: number }[];
-  geo: { region: string; newUsers: number }[];
+  channelGroup: { channel: string; values: MetricValues }[];
+  topStates: { region: string; values: MetricValues }[];
+  geo: { region: string; values: MetricValues }[];
   monthly: { month: string; current: Record<MonthlyMetric, number>; previousYear: Record<MonthlyMetric, number> }[];
   // Present only when requested with options=1.
   filters: { mediums: FilterOption[]; campaigns: FilterOption[]; sources?: FilterOption[]; pages?: FilterOption[] } | null;
@@ -104,6 +108,9 @@ export default function DashboardPage() {
   }));
   const [compare, setCompare] = useState<CompareMode>("period");
   const [monthlyMetric, setMonthlyMetric] = useState<MonthlyMetric>("totalUsers");
+  // Defaults match the Hearthside report: channel by total users, states by new users.
+  const [channelMetric, setChannelMetric] = useState<BreakdownMetric>("totalUsers");
+  const [geoMetric, setGeoMetric] = useState<BreakdownMetric>("newUsers");
   const shownRange = resolveRange(dates, today);
   const startDate = shownRange.startDate;
   // Whole-period presets ("This month") reach past today; GA4 has nothing
@@ -230,13 +237,30 @@ export default function DashboardPage() {
       })),
     [d, monthlyMetric]
   );
+  // Channel, states and map carry every metric; the dropdowns just pick one.
   const channelData = useMemo(
-    () => (d?.channelGroup ?? []).map((c) => ({ name: c.channel, value: c.users })),
-    [d]
+    () =>
+      (d?.channelGroup ?? [])
+        .map((c) => ({ name: c.channel, value: c.values[channelMetric] ?? 0 }))
+        .filter((c) => c.value > 0)
+        .sort((a, b) => b.value - a.value),
+    [d, channelMetric]
   );
   const statesData = useMemo(
-    () => (d?.topStates ?? []).map((x) => ({ region: x.region, newUsers: x.newUsers })),
-    [d]
+    () =>
+      (d?.topStates ?? [])
+        .map((x) => ({ region: x.region, value: x.values[geoMetric] ?? 0 }))
+        .filter((x) => x.value > 0)
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 8),
+    [d, geoMetric]
+  );
+  const geoData = useMemo(
+    () =>
+      (d?.geo ?? [])
+        .map((x) => ({ region: x.region, value: x.values[geoMetric] ?? 0 }))
+        .filter((x) => x.value > 0),
+    [d, geoMetric]
   );
 
   return (
@@ -357,7 +381,8 @@ export default function DashboardPage() {
 
             <div className="grid gap-6 lg:grid-cols-3">
               {/* Channel Group */}
-              <Card title="Channel Group" description="Total users by default channel group. Click a slice to filter.">
+              <Card title="Channel Group" description={`${metricLabel(channelMetric)} by default channel group. Click a slice to filter.`}>
+                <MetricSelect value={channelMetric} onChange={setChannelMetric} label="Channel Group metric" />
                 <div className="h-72 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -381,7 +406,8 @@ export default function DashboardPage() {
               </Card>
 
               {/* Top States */}
-              <Card title="Top States" description="New users by region. Click a bar to filter.">
+              <Card title="Top States" description={`${metricLabel(geoMetric)} by region. Click a bar to filter.`}>
+                <MetricSelect value={geoMetric} onChange={setGeoMetric} label="Top States and Geo Map metric" />
                 <div className="h-72 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={statesData} layout="vertical" margin={{ top: 8, right: 16, bottom: 4, left: 8 }}>
@@ -390,7 +416,8 @@ export default function DashboardPage() {
                       <YAxis type="category" dataKey="region" tick={{ fontSize: 11 }} width={90} />
                       <Tooltip />
                       <Bar
-                        dataKey="newUsers"
+                        name={metricLabel(geoMetric)}
+                        dataKey="value"
                         fill={GREEN}
                         radius={[0, 3, 3, 0]}
                         className="cursor-pointer"
@@ -405,11 +432,11 @@ export default function DashboardPage() {
               </Card>
 
               {/* Geo Map */}
-              <Card title="Geo Map" description="New users by US state.">
-                {d.geo.length === 0 ? (
+              <Card title="Geo Map" description={`${metricLabel(geoMetric)} by US state. Follows the Top States metric.`}>
+                {geoData.length === 0 ? (
                   <p className="py-10 text-center text-sm text-zinc-400">No US state data in this range.</p>
                 ) : (
-                  <GeoMap data={d.geo} query={geoQuery} />
+                  <GeoMap data={geoData} metric={geoMetric} query={geoQuery} />
                 )}
               </Card>
             </div>
