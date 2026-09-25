@@ -124,3 +124,14 @@ describe("empty slots", () => {
     ]);
   });
 });
+
+describe("version history", () => {
+  it("lists what a restore would add and remove, ignoring widths and slots", async () => {
+    const { versionDiff, widgetCount } = await import("@/lib/dashboard-widgets");
+    const current = ["monthly|6", "gap:1|6", "geo", "device"];
+    const version = ["monthly", "geo", "sources"];
+    expect(versionDiff(current, version)).toEqual({ added: ["Top Traffic Sources"], removed: ["Device category"] });
+    expect(versionDiff(current, ["geo", "monthly|12", "device"])).toEqual({ added: [], removed: [] });
+    expect(widgetCount(current)).toBe(3);
+  });
+});

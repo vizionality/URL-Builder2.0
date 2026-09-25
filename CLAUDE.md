@@ -68,6 +68,10 @@ with real GA4 reporting.
   Shrinking a widget leaves an empty slot ("gap:<n>|span", dashed "drag a widget here" box) instead of
   pulling the next widget up (`resizeWithGap`); dropping a widget on a slot fills it at its width.
   Undo/redo (buttons, Cmd/Ctrl+Z, Shift+Cmd/Ctrl+Z) covers the last 50 layout changes this visit.
+  Version history: `dashboard_layout_versions` (migration `20260926_dashboard_layout_versions.sql`,
+  RLS-no-policies) snapshots each save, grouping edits within 10 minutes into one version and keeping
+  the newest 30 per user + property. `GET /api/dashboard/layout/versions` lists them; the Customize
+  panel's History tab restores one (a restore is saved as its own version and can be undone).
   Extra GA4 widgets (off by default): bounce rate, views per session, engaged sessions, event count,
   key events scorecards; device, new vs returning, browsers, countries, cities, sessions by hour;
   Top Pages and Campaigns tables. Specs in `lib/extra-widgets.ts` (unit-tested), served by
