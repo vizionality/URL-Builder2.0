@@ -62,6 +62,9 @@ with real GA4 reporting.
   `GET/PUT/DELETE /api/dashboard/layout`. The overview and breakdowns routes take `parts` so hidden
   widgets cost no GA4 requests. Drag and drop (@dnd-kit): grip handles reorder widgets, catalog items
   drag onto the dashboard, and widgets drag back to the sidebar to remove (`applyDrop`, unit-tested).
+  Widths: a 12-column row; drag a widget's right edge to resize (25/33/50/75/100%, arrow keys too).
+  Saved as "id|span" entries in the same `widgets` array. A non-full widget dropped on a full-width
+  one pairs them 50/50 (`dropWithSpans`). All scorecards share one Summary row.
   Extra GA4 widgets (off by default): bounce rate, views per session, engaged sessions, event count,
   key events scorecards; device, new vs returning, browsers, countries, cities, sessions by hour;
   Top Pages and Campaigns tables. Specs in `lib/extra-widgets.ts` (unit-tested), served by

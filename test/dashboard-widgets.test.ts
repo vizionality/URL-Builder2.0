@@ -51,3 +51,29 @@ describe("extra widget parts", () => {
     expect(extraParts(["device", "geo", "sc.bounceRate"])).toEqual(["sc.bounceRate", "device"]);
   });
 });
+
+describe("widths", () => {
+  it("parses and serializes custom widths, keeping defaults implicit", async () => {
+    const { parseLayout, serializeLayout, sanitizeLayout } = await import("@/lib/dashboard-widgets");
+    expect(sanitizeLayout(["monthly|6", "geo|7", "sc.views|6", "monthly"])).toEqual(["monthly|6", "geo", "sc.views"]);
+    const { ids, spans } = parseLayout(["monthly|6", "geo|4", "channel|12"]);
+    expect(ids).toEqual(["monthly", "geo", "channel"]);
+    expect(spans).toEqual({ monthly: 6, channel: 12 });
+    expect(serializeLayout(ids, spans)).toEqual(["monthly|6", "geo", "channel|12"]);
+  });
+
+  it("snaps to 25/33/50/75/100%", async () => {
+    const { snapSpan } = await import("@/lib/dashboard-widgets");
+    expect([1, 3.4, 4.9, 5.2, 8, 10.6, 11].map(snapSpan)).toEqual([3, 3, 4, 6, 9, 12, 12]);
+  });
+
+  it("a widget dropped on a full-width one pairs them 50/50; full on full just reorders", async () => {
+    const { dropWithSpans } = await import("@/lib/dashboard-widgets");
+    const added = dropWithSpans(["monthly", "geo"], {}, "new:device", "monthly");
+    expect(added).toEqual({ ids: ["device", "monthly", "geo"], spans: { monthly: 6, device: 6 } });
+    const moved = dropWithSpans(["monthly", "geo"], {}, "geo", "monthly");
+    expect(moved).toEqual({ ids: ["geo", "monthly"], spans: { monthly: 6, geo: 6 } });
+    const reorder = dropWithSpans(["monthly", "sources"], {}, "sources", "monthly");
+    expect(reorder).toEqual({ ids: ["sources", "monthly"], spans: {} });
+  });
+});

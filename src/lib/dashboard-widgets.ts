@@ -67,19 +67,65 @@ export function extraParts(layout: string[]): string[] {
 
 export const MAX_LAYOUT = 60;
 
-// Keep known widget ids, in order, each once. Anything else (a removed widget,
-// a tampered request) is dropped rather than failing the whole layout.
+// ---- Widths ------------------------------------------------------------------
+// Widgets sit on a 12-column row. Resizing snaps to 25 / 33 / 50 / 75 / 100%.
+export const SPANS = [3, 4, 6, 9, 12] as const;
+export type Span = (typeof SPANS)[number];
+
+export function defaultSpan(id: string): Span {
+  return WIDGET_BY_ID.get(id)?.size === "third" ? 4 : 12;
+}
+
+// Nearest allowed span to a fractional column count.
+export function snapSpan(cols: number): Span {
+  return SPANS.reduce((best, s) => (Math.abs(s - cols) < Math.abs(best - cols) ? s : best), SPANS[0] as Span);
+}
+
+// Saved layout entries are "id" or "id|span" (a custom width).
+function splitEntry(entry: string): { id: string; span: Span | null } {
+  const [id, raw] = entry.split("|");
+  const n = Number(raw);
+  return { id, span: (SPANS as readonly number[]).includes(n) ? (n as Span) : null };
+}
+
+// Keep known widget ids, in order, each once, with a valid width if one was
+// given. Anything else (a removed widget, a tampered request) is dropped
+// rather than failing the whole layout.
 export function sanitizeLayout(input: unknown): string[] {
   if (!Array.isArray(input)) return [];
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const id of input) {
-    if (typeof id !== "string" || !WIDGET_BY_ID.has(id) || seen.has(id)) continue;
+  for (const entry of input) {
+    if (typeof entry !== "string") continue;
+    const { id, span } = splitEntry(entry);
+    if (!WIDGET_BY_ID.has(id) || seen.has(id)) continue;
     seen.add(id);
-    out.push(id);
+    out.push(span && WIDGET_BY_ID.get(id)?.size !== "scorecard" ? `${id}|${span}` : id);
     if (out.length >= MAX_LAYOUT) break;
   }
   return out;
+}
+
+export type Spans = Record<string, Span>;
+
+// Saved entries -> widget ids in order plus any custom widths.
+export function parseLayout(entries: string[]): { ids: string[]; spans: Spans } {
+  const ids: string[] = [];
+  const spans: Spans = {};
+  for (const entry of sanitizeLayout(entries)) {
+    const { id, span } = splitEntry(entry);
+    ids.push(id);
+    if (span && span !== defaultSpan(id)) spans[id] = span;
+  }
+  return { ids, spans };
+}
+
+export function serializeLayout(ids: string[], spans: Spans): string[] {
+  return ids.map((id) => (spans[id] && spans[id] !== defaultSpan(id) ? `${id}|${spans[id]}` : id));
+}
+
+export function spanOf(id: string, spans: Spans): Span {
+  return spans[id] ?? defaultSpan(id);
 }
 
 export type LayoutBlock =
@@ -127,6 +173,26 @@ export function breakdownParts(layout: string[]): string[] {
 export const NEW_PREFIX = "new:";
 export const DASHBOARD_DROP = "drop:dashboard";
 export const SIDEBAR_DROP = "drop:sidebar";
+
+// Drop plus widths: a widget that isn't full width, dropped onto a full-width
+// widget, sits beside it and both snap to 50%. (A full-width widget dropped on
+// another is just a reorder.)
+export function dropWithSpans(
+  ids: string[],
+  spans: Spans,
+  active: string,
+  over: string | null
+): { ids: string[]; spans: Spans } {
+  const next = applyDrop(ids, active, over);
+  if (next === ids || !over) return { ids, spans };
+  const moved = active.startsWith(NEW_PREFIX) ? active.slice(NEW_PREFIX.length) : active;
+  const isCard = (id: string) => WIDGET_BY_ID.get(id)?.size === "scorecard";
+  if (next.includes(over) && next.includes(moved) && !isCard(over) && !isCard(moved)) {
+    const pairs = spanOf(over, spans) === 12 && (active.startsWith(NEW_PREFIX) || spanOf(moved, spans) !== 12);
+    if (pairs) return { ids: next, spans: { ...spans, [over]: 6, [moved]: 6 } };
+  }
+  return { ids: next, spans };
+}
 
 // The layout after dropping `active` on `over`, or the same array if nothing changes.
 export function applyDrop(layout: string[], active: string, over: string | null): string[] {
