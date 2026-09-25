@@ -295,3 +295,22 @@ export function applyDrop(layout: string[], active: string, over: string | null)
   next.splice(to, 0, active);
   return next;
 }
+
+// ---- Version history -------------------------------------------------------------
+
+// What restoring `version` would change, as widget titles, relative to `current`
+// (both saved-entry arrays). Widths and empty slots aren't listed.
+export function versionDiff(current: string[], version: string[]): { added: string[]; removed: string[] } {
+  const ids = (entries: string[]) => new Set(parseLayout(entries).ids.filter((id) => !isGap(id)));
+  const cur = ids(current);
+  const ver = ids(version);
+  const title = (id: string) => WIDGET_BY_ID.get(id)?.title ?? id;
+  return {
+    added: [...ver].filter((id) => !cur.has(id)).map(title),
+    removed: [...cur].filter((id) => !ver.has(id)).map(title),
+  };
+}
+
+export function widgetCount(entries: string[]): number {
+  return parseLayout(entries).ids.filter((id) => !isGap(id)).length;
+}

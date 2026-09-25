@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Check, Plus, RotateCcw, Search, X } from "lucide-react";
 import { WIDGETS, type WidgetCategory } from "@/lib/dashboard-widgets";
 import { CatalogDraggable, SidebarDropZone } from "@/components/dashboard/DragParts";
+import { VersionHistory } from "@/components/dashboard/VersionHistory";
 
 const CATEGORIES: WidgetCategory[] = ["Summary", "Traffic", "Acquisition", "Geography", "Conversions"];
 
@@ -18,15 +19,21 @@ export function WidgetSidebar({
   onReset,
   onClose,
   status,
+  savedLayout,
+  onRestore,
 }: {
   open: boolean;
   layout: string[];
+  // The on-screen layout as saved entries (with widths), for version history.
+  savedLayout: string[];
+  onRestore: (widgets: string[]) => void;
   onToggle: (id: string) => void;
   onReset: () => void;
   onClose: () => void;
   status: SaveStatus;
 }) {
   const [query, setQuery] = useState("");
+  const [tab, setTab] = useState<"widgets" | "history">("widgets");
 
   useEffect(() => {
     if (!open) return;
@@ -68,6 +75,29 @@ export function WidgetSidebar({
           </button>
         </div>
 
+        <div className="flex gap-1 border-b border-zinc-200 px-4 pt-2" role="tablist">
+          {(["widgets", "history"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              role="tab"
+              aria-selected={tab === t}
+              onClick={() => setTab(t)}
+              className={`-mb-px border-b-2 px-3 pb-2 text-sm font-medium ${
+                tab === t ? "border-green-600 text-green-700" : "border-transparent text-zinc-500 hover:text-zinc-800"
+              }`}
+            >
+              {t === "widgets" ? "Widgets" : "History"}
+            </button>
+          ))}
+        </div>
+
+        {tab === "history" ? (
+          <div className="flex-1 overflow-y-auto px-4 py-3">
+            <VersionHistory current={savedLayout} refreshKey={status} onRestore={onRestore} />
+          </div>
+        ) : (
+        <>
         <div className="border-b border-zinc-200 px-4 py-2">
           <div className="flex items-center gap-2 rounded-md border border-zinc-200 px-2 py-1.5">
             <Search className="h-4 w-4 text-zinc-400" />
@@ -155,6 +185,8 @@ export function WidgetSidebar({
             );
           })}
         </SidebarDropZone>
+        </>
+        )}
 
         <div className="border-t border-zinc-200 px-4 py-3">
           <button

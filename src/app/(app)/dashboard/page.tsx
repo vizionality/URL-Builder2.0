@@ -271,14 +271,15 @@ export default function DashboardPage() {
     };
   }, [propertyId]);
   // Save shortly after the last change, so several quick toggles are one write.
-  const saveLayout = useCallback((next: string[], nextSpans: Spans) => {
+  const saveLayout = useCallback((next: string[], nextSpans: Spans, restore = false) => {
     setSaveStatus("saving");
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       fetch("/api/dashboard/layout", {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ widgets: serializeLayout(next, nextSpans) }),
+        // restore: true gives a restore its own history version.
+        body: JSON.stringify({ widgets: serializeLayout(next, nextSpans), restore }),
       })
         .then((r) => setSaveStatus(r.ok ? "saved" : "error"))
         .catch(() => setSaveStatus("error"));
@@ -291,16 +292,24 @@ export default function DashboardPage() {
     future: [],
   });
   const persistLayout = useCallback(
-    (next: string[], nextSpans: Spans) => {
+    (next: string[], nextSpans: Spans, restore = false) => {
       if (layout) {
         const prev = { ids: layout, spans };
         setHistory((h) => ({ past: [...h.past, prev].slice(-HISTORY_LIMIT), future: [] }));
       }
       setLayout(next);
       setSpans(nextSpans);
-      saveLayout(next, nextSpans);
+      saveLayout(next, nextSpans, restore);
     },
     [layout, spans, saveLayout]
+  );
+  // Restore a saved version (undoable like any other change).
+  const restoreVersion = useCallback(
+    (widgets: string[]) => {
+      const v = parseLayout(widgets);
+      persistLayout(v.ids, v.spans, true);
+    },
+    [persistLayout]
   );
   const undo = useCallback(() => {
     const prev = history.past[history.past.length - 1];
@@ -810,6 +819,8 @@ export default function DashboardPage() {
         onReset={resetWidgets}
         onClose={closeSidebar}
         status={saveStatus}
+        savedLayout={serializeLayout(layout ?? DEFAULT_LAYOUT, spans)}
+        onRestore={restoreVersion}
       />
       <DragOverlay>
         {dragging && (
