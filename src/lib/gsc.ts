@@ -20,7 +20,11 @@ async function call<T>(token: string, path: string, body?: unknown): Promise<T> 
       /insufficient|scope/i.test(text)
         ? "Reconnect Google on the Integrations page to grant Search Console access."
         : /has not been used|disabled/i.test(text)
-          ? "The Search Console API isn't enabled for this app's Google Cloud project."
+          ? `The Search Console API isn't enabled for this app's Google Cloud project${
+              text.match(/project (\d+)/)?.[1] ? ` (project number ${text.match(/project (\d+)/)![1]})` : ""
+            }. Enable it at https://console.developers.google.com/apis/api/searchconsole.googleapis.com/overview${
+              text.match(/project (\d+)/)?.[1] ? `?project=${text.match(/project (\d+)/)![1]}` : ""
+            }`
           : "This Google account can't access that Search Console site."
     );
   }
