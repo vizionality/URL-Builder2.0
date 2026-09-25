@@ -78,7 +78,7 @@ export async function GET(request: Request) {
     ]);
     const srcMetric = sourceMetric === "keyEvents" ? keyMetric : sourceMetric;
     // GA4 rejects a metric listed twice, so only add what the ranking metric isn't.
-    const srcExtraMetrics = [...new Set([srcMetric, "engagedSessions", "sessions"])];
+    const srcExtraMetrics = [...new Set([srcMetric, "engagedSessions", "sessions", "averageSessionDuration"])];
     const metricAt = (name: string) => srcExtraMetrics.indexOf(name);
 
     // Wave 1: the tables on the page, in one batch call (and which items to trend).
@@ -121,16 +121,18 @@ export async function GET(request: Request) {
     const [srcRows, pageRows, convRows] = ["src", "page", "conv"].map(wave1Got);
 
     // Sources: with two date ranges GA4 appends the range as the last dimension.
-    type SrcEntry = { source: string; medium: string; users: number; prev: number; engaged: number; sessions: number };
+    // seconds: total session seconds (average x sessions), so averages weight correctly.
+    type SrcEntry = { source: string; medium: string; users: number; prev: number; engaged: number; sessions: number; seconds: number };
     const srcMap = new Map<string, SrcEntry>();
     for (const r of srcRows) {
       const key = `${dv(r, 0)}\u0000${dv(r, 1)}`;
-      const entry = srcMap.get(key) ?? { source: dv(r, 0), medium: dv(r, 1), users: 0, prev: 0, engaged: 0, sessions: 0 };
+      const entry = srcMap.get(key) ?? { source: dv(r, 0), medium: dv(r, 1), users: 0, prev: 0, engaged: 0, sessions: 0, seconds: 0 };
       if (dv(r, 2) === "date_range_1") entry.prev += mv(r);
       else {
         entry.users += mv(r);
         entry.engaged += mv(r, metricAt("engagedSessions"));
         entry.sessions += mv(r, metricAt("sessions"));
+        entry.seconds += mv(r, metricAt("averageSessionDuration")) * mv(r, metricAt("sessions"));
       }
       srcMap.set(key, entry);
     }
@@ -139,7 +141,11 @@ export async function GET(request: Request) {
     const rate = (engaged: number, sessions: number) => (sessions > 0 ? (engaged / sessions) * 100 : 0);
     const sources = allSources
       .filter((s) => s.users > 0)
-      .map(({ engaged, sessions, ...s }) => ({ ...s, engagementRate: rate(engaged, sessions) }));
+      .map(({ engaged, sessions, seconds, ...s }) => ({
+        ...s,
+        engagementRate: rate(engaged, sessions),
+        avgDuration: sessions > 0 ? seconds / sessions : 0,
+      }));
     const sourceTotal = {
       users: allSources.reduce((sum, s) => sum + s.users, 0),
       prev: allSources.reduce((sum, s) => sum + s.prev, 0),
@@ -147,6 +153,10 @@ export async function GET(request: Request) {
         allSources.reduce((sum, s) => sum + s.engaged, 0),
         allSources.reduce((sum, s) => sum + s.sessions, 0)
       ),
+      avgDuration: (() => {
+        const sessions = allSources.reduce((sum, s) => sum + s.sessions, 0);
+        return sessions > 0 ? allSources.reduce((sum, s) => sum + s.seconds, 0) / sessions : 0;
+      })(),
     };
     // Trend the top distinct source names (a source can appear under two mediums).
     const trendSources = [...new Set(sources.slice(0, TOP_SOURCES).map((s) => s.source))].slice(0, TREND_SOURCES);
