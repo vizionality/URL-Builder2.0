@@ -50,7 +50,8 @@ with real GA4 reporting.
 - Filters: search-and-select multi-selects (medium, campaign, source, page path) plus
   cross-filters set by clicking a chart (source/medium cells, landing page, channel slice,
   Top States bar), shown as removable chips. Shared parsing in `lib/ga4-filters.ts`.
-  Clicking a Geo Map state zooms in and lists cities (`/api/ga4/cities`).
+  Clicking a Geo Map state zooms in to a city heat map plus a ranked list (`/api/ga4/cities`).
+  City coordinates come from `src/data/us-cities.json` (GeoNames, CC BY 4.0), server-side only.
 - No property connected -> a connect-GA4 prompt, not sample data.
 
 ### Integrations (/integrations)

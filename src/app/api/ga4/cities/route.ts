@@ -3,6 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
 import { runReport, ga4FailureMessage, Ga4Error } from "@/lib/ga4-api";
+// US city coordinates by state name, from the GeoNames gazetteer (CC BY 4.0,
+// geonames.org) via the cities.json package. Server-only: never sent whole.
+import usCitiesJson from "@/data/us-cities.json";
+const usCities = usCitiesJson as unknown as Record<string, Record<string, [number, number]>>;
 import { exactFilter, pageFilterExpr, parsePageFilters } from "@/lib/ga4-filters";
 
 function isoDay(v: string | null, fallback: string): string {
@@ -51,7 +55,12 @@ export async function GET(request: Request) {
     );
     const cities = rows
       .map((r) => ({ city: r.dimensionValues?.[0]?.value ?? "", newUsers: Number(r.metricValues?.[0]?.value ?? 0) }))
-      .filter((c) => c.city && c.newUsers > 0);
+      .filter((c) => c.city && c.newUsers > 0)
+      // GA4 gives city names only; attach coordinates for the heat map when known.
+      .map((c) => {
+        const at = usCities[region]?.[c.city];
+        return at ? { ...c, lat: at[0], lng: at[1] } : c;
+      });
     return NextResponse.json({ region, cities });
   } catch (err) {
     if (request.signal.aborted) return new NextResponse(null, { status: 499 });
