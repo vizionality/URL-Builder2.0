@@ -20,11 +20,15 @@ function num(r: RawRow | undefined, i = 0): number {
 function filterExpr(
   medium: string[],
   campaign: string[],
+  source: string[],
+  page: string[],
   extra?: { fieldName: string; value: string }
 ) {
   const expressions: unknown[] = [];
   if (medium.length) expressions.push({ filter: { fieldName: "sessionMedium", inListFilter: { values: medium } } });
   if (campaign.length) expressions.push({ filter: { fieldName: "sessionCampaignName", inListFilter: { values: campaign } } });
+  if (source.length) expressions.push({ filter: { fieldName: "sessionSource", inListFilter: { values: source } } });
+  if (page.length) expressions.push({ filter: { fieldName: "pagePath", inListFilter: { values: page } } });
   if (extra) expressions.push({ filter: { fieldName: extra.fieldName, stringFilter: { value: extra.value, matchType: "EXACT" } } });
   if (expressions.length === 0) return {};
   if (expressions.length === 1) return { dimensionFilter: expressions[0] };
@@ -61,6 +65,8 @@ export async function GET(request: Request) {
   // Multi-select: repeated params (?campaign=a&campaign=b); none means all.
   const medium = url.searchParams.getAll("medium").filter(Boolean);
   const campaign = url.searchParams.getAll("campaign").filter(Boolean);
+  const source = url.searchParams.getAll("source").filter(Boolean);
+  const page = url.searchParams.getAll("page").filter(Boolean);
   // %Δ baseline: "year" = same dates last year, otherwise the previous period.
   const compare = url.searchParams.get("compare") === "year" ? "year" : "period";
   // The medium/campaign dropdown lists don't depend on the filters, so the page
@@ -85,7 +91,7 @@ export async function GET(request: Request) {
   }
 
   const prev = comparisonRange(start, end, compare);
-  const filt = filterExpr(medium, campaign);
+  const filt = filterExpr(medium, campaign, source, page);
   // Monthly window: 13 displayed months plus 12 more for the prior-year series.
   const displayStart = monthStart(end, 12);
   const windowStart = monthStart(end, 24);
@@ -99,7 +105,7 @@ export async function GET(request: Request) {
       {
         dateRanges: withPrev,
         metrics: [{ name: "eventCount" }],
-        ...filterExpr(medium, campaign, { fieldName: "eventName", value: "generate_lead" }),
+        ...filterExpr(medium, campaign, source, page, { fieldName: "eventName", value: "generate_lead" }),
       },
       {
         dateRanges: current,
@@ -129,7 +135,7 @@ export async function GET(request: Request) {
         dimensions: [{ name: "region" }],
         metrics: [{ name: "newUsers" }],
         limit: 100,
-        ...filterExpr(medium, campaign, { fieldName: "country", value: "United States" }),
+        ...filterExpr(medium, campaign, source, page, { fieldName: "country", value: "United States" }),
       },
     ];
     if (wantOptions) {
@@ -147,13 +153,27 @@ export async function GET(request: Request) {
           metrics: [{ name: "sessions" }],
           orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
           limit: 100,
+        },
+        {
+          dateRanges: current,
+          dimensions: [{ name: "sessionSource" }],
+          metrics: [{ name: "sessions" }],
+          orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
+          limit: 100,
+        },
+        {
+          dateRanges: current,
+          dimensions: [{ name: "pagePath" }],
+          metrics: [{ name: "sessions" }],
+          orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
+          limit: 200,
         }
       );
     }
 
     // Six (or eight) reports -> two batch calls running together: one round
     // trip, and only two requests against GA4's concurrency limit.
-    const [scoreRes, leadRes, channelRes, statesRes, monthlyRes, geoRes, medRes = [], campRes = []] =
+    const [scoreRes, leadRes, channelRes, statesRes, monthlyRes, geoRes, medRes = [], campRes = [], srcRes = [], pageRes = []] =
       await batchRunReports(propertyId, token, reports, request.signal);
 
     // Scorecards: match rows by their dateRange dimension value.
@@ -216,7 +236,7 @@ export async function GET(request: Request) {
       topStates,
       geo,
       monthly,
-      filters: wantOptions ? { mediums: names(medRes), campaigns: names(campRes) } : null,
+      filters: wantOptions ? { mediums: names(medRes), campaigns: names(campRes), sources: names(srcRes), pages: names(pageRes) } : null,
       range: { startDate: start, endDate: end },
       ranAt: new Date().toISOString(),
     });

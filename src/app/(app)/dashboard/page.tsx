@@ -48,7 +48,7 @@ type Overview = {
   geo: { region: string; newUsers: number }[];
   monthly: { month: string; current: number; previousYear: number }[];
   // Present only when requested with options=1.
-  filters: { mediums: FilterOption[]; campaigns: FilterOption[] } | null;
+  filters: { mediums: FilterOption[]; campaigns: FilterOption[]; sources?: FilterOption[]; pages?: FilterOption[] } | null;
   range: { startDate: string; endDate: string };
 };
 
@@ -102,12 +102,14 @@ export default function DashboardPage() {
   // Empty selection means "all" (no filter), like Looker's all-checked state.
   const [medium, setMedium] = useState<string[]>([]);
   const [campaign, setCampaign] = useState<string[]>([]);
+  const [source, setSource] = useState<string[]>([]);
+  const [page, setPage] = useState<string[]>([]);
   const [state, setState] = useState<{ loading: boolean; error: string | null; data: Overview | null }>(
     { loading: false, error: null, data: null }
   );
   // Dropdown lists load once and persist across filter changes (they don't
   // depend on the filters), which also saves two GA4 requests per change.
-  const [options, setOptions] = useState<{ mediums: FilterOption[]; campaigns: FilterOption[] } | null>(null);
+  const [options, setOptions] = useState<{ mediums: FilterOption[]; campaigns: FilterOption[]; sources?: FilterOption[]; pages?: FilterOption[] } | null>(null);
   const optionsLoaded = useRef(false);
   const [retry, setRetry] = useState(0);
 
@@ -117,6 +119,8 @@ export default function DashboardPage() {
     const p = new URLSearchParams({ startDate, endDate, compare });
     for (const m of medium) p.append("medium", m);
     for (const c of campaign) p.append("campaign", c);
+    for (const x of source) p.append("source", x);
+    for (const x of page) p.append("page", x);
     // A filter combination seen in the last few minutes shows instantly.
     const cacheKey = `/api/ga4/overview?${p.toString()}`;
     const cached = getCached<Overview>(cacheKey);
@@ -159,12 +163,14 @@ export default function DashboardPage() {
       cancelled = true;
       ac.abort();
     };
-  }, [propertyId, startDate, endDate, compare, medium, campaign, retry]);
+  }, [propertyId, startDate, endDate, compare, medium, campaign, source, page, retry]);
 
   const d = state.data;
   const s = d?.scorecards;
   const mediums = options?.mediums ?? [];
   const campaigns = options?.campaigns ?? [];
+  const sources = options?.sources ?? [];
+  const pages = options?.pages ?? [];
 
   const channelData = useMemo(
     () => (d?.channelGroup ?? []).map((c) => ({ name: c.channel, value: c.users })),
@@ -183,6 +189,8 @@ export default function DashboardPage() {
         <div className="mb-6 flex flex-wrap items-center gap-2">
           <MultiSelect label="Session medium" options={mediums} selected={medium} onChange={setMedium} />
           <MultiSelect label="Session campaign" options={campaigns} selected={campaign} onChange={setCampaign} />
+          <MultiSelect label="Session source" options={sources} selected={source} onChange={setSource} />
+          <MultiSelect label="Page path" options={pages} selected={page} onChange={setPage} />
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <select
               value={preset}
@@ -325,6 +333,8 @@ export default function DashboardPage() {
               endDate={endDate}
               medium={medium}
               campaign={campaign}
+              source={source}
+              page={page}
               compare={compare}
             />
           </div>

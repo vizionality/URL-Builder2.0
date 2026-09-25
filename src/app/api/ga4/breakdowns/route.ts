@@ -22,10 +22,12 @@ const inList = (fieldName: string, values: string[]): Expr => ({
 });
 
 // AND of the page filters plus any extra expressions, or {} when there are none.
-function filterOf(medium: string[], campaign: string[], extra: Expr[] = []) {
+function filterOf(medium: string[], campaign: string[], source: string[], page: string[], extra: Expr[] = []) {
   const expressions: Expr[] = [];
   if (medium.length) expressions.push(inList("sessionMedium", medium));
   if (campaign.length) expressions.push(inList("sessionCampaignName", campaign));
+  if (source.length) expressions.push(inList("sessionSource", source));
+  if (page.length) expressions.push(inList("pagePath", page));
   expressions.push(...extra);
   if (expressions.length === 0) return {};
   if (expressions.length === 1) return { dimensionFilter: expressions[0] };
@@ -46,6 +48,8 @@ export async function GET(request: Request) {
   const start = isoDay(url.searchParams.get("startDate"), `${end.slice(0, 4)}-01-01`);
   const medium = url.searchParams.getAll("medium").filter(Boolean);
   const campaign = url.searchParams.getAll("campaign").filter(Boolean);
+  const source = url.searchParams.getAll("source").filter(Boolean);
+  const page = url.searchParams.getAll("page").filter(Boolean);
   // %Δ baseline: "year" = same dates last year, otherwise the previous period.
   const compare = url.searchParams.get("compare") === "year" ? "year" : "period";
 
@@ -83,7 +87,7 @@ export async function GET(request: Request) {
         // smallest source/medium rows are dropped.
         orderBys: [{ desc: true, metric: { metricName: "totalUsers" } }],
         limit: 1000,
-        ...filterOf(medium, campaign),
+        ...filterOf(medium, campaign, source, page),
       },
       {
         dateRanges: cur,
@@ -91,14 +95,14 @@ export async function GET(request: Request) {
         metrics: [{ name: "sessions" }, { name: "engagementRate" }],
         orderBys: [{ desc: true, metric: { metricName: "sessions" } }],
         limit: TOP_PAGES,
-        ...filterOf(medium, campaign),
+        ...filterOf(medium, campaign, source, page),
       },
       {
         dateRanges: both,
         dimensions: [{ name: "eventName" }],
         metrics: [{ name: keyMetric }],
         limit: 200,
-        ...filterOf(medium, campaign),
+        ...filterOf(medium, campaign, source, page),
       },
     ], request.signal);
 
@@ -149,7 +153,7 @@ export async function GET(request: Request) {
         dimensions: [{ name: "date" }, { name: "sessionSource" }],
         metrics: [{ name: "totalUsers" }],
         limit: 10000,
-        ...filterOf(medium, campaign, [inList("sessionSource", trendSources)]),
+        ...filterOf(medium, campaign, source, page, [inList("sessionSource", trendSources)]),
       } });
     }
     if (trendPages.length) {
@@ -158,7 +162,7 @@ export async function GET(request: Request) {
         dimensions: [{ name: "date" }, { name: "landingPage" }],
         metrics: [{ name: "sessions" }],
         limit: 10000,
-        ...filterOf(medium, campaign, [inList("landingPage", trendPages)]),
+        ...filterOf(medium, campaign, source, page, [inList("landingPage", trendPages)]),
       } });
     }
     if (trendEvents.length) {
@@ -167,7 +171,7 @@ export async function GET(request: Request) {
         dimensions: [{ name: "date" }, { name: "eventName" }],
         metrics: [{ name: keyMetric }],
         limit: 10000,
-        ...filterOf(medium, campaign, [inList("eventName", trendEvents)]),
+        ...filterOf(medium, campaign, source, page, [inList("eventName", trendEvents)]),
       } });
     }
     const trendRows = await batchRunReports(
