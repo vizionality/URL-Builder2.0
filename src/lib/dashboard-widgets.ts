@@ -37,6 +37,13 @@ export const WIDGETS: WidgetDef[] = [
   { id: "sources", title: "Top Traffic Sources", description: "Source / medium table with a trend.", category: "Acquisition", size: "full" },
   { id: "pages", title: "Landing Pages", description: "Landing page sessions and engagement, with a trend.", category: "Traffic", size: "full" },
   { id: "conversions", title: "Conversions", description: "Key events with % change and a trend.", category: "Conversions", size: "full" },
+  // The same three sections split into a table card and a trend card (50/50).
+  { id: "sources.table", title: "Top Traffic Sources table", description: "Source / medium pairs, paginated.", category: "Acquisition", size: "half" },
+  { id: "sources.trend", title: "Top Traffic Sources trend", description: "Top sources over time.", category: "Acquisition", size: "half" },
+  { id: "pages.table", title: "Landing Pages table", description: "Landing page sessions and engagement.", category: "Traffic", size: "half" },
+  { id: "pages.trend", title: "Landing Pages trend", description: "Top landing pages over time.", category: "Traffic", size: "half" },
+  { id: "conversions.table", title: "Conversions table", description: "Key events with % change.", category: "Conversions", size: "half" },
+  { id: "conversions.trend", title: "Conversions trend", description: "Key events over time.", category: "Conversions", size: "half" },
   // Extra GA4 widgets (not in the default layout; see lib/extra-widgets.ts).
   { id: "sc.bounceRate", title: "Bounce rate", description: "Share of sessions that weren't engaged.", category: "Summary", size: "scorecard" },
   { id: "sc.pagesPerSession", title: "Views per session", description: "Average page and screen views per session.", category: "Summary", size: "scorecard" },
@@ -64,7 +71,10 @@ export const WIDGET_BY_ID = new Map(WIDGETS.map((w) => [w.id, w]));
 export const DEFAULT_LAYOUT: string[] = [
   "sc.views", "sc.totalUsers", "sc.newUsers", "sc.sessions", "sc.engagementRate",
   "sc.avgSessionDuration", "sc.generateLead",
-  "monthly", "channel", "states", "geo", "sources", "pages", "conversions",
+  "monthly", "channel", "states", "geo",
+  // Each section as a table and a trend side by side (the combined full-width
+  // cards stay in the catalog).
+  "sources.table", "sources.trend", "pages.table", "pages.trend", "conversions.table", "conversions.trend",
 ];
 
 // Widgets served by /api/ga4/widgets rather than the overview/breakdowns routes.
@@ -218,8 +228,11 @@ export function overviewParts(layout: string[]): string[] {
   }
   return [...parts].sort();
 }
+// A section is fetched if its full-width card or either half is on the layout.
 export function breakdownParts(layout: string[]): string[] {
-  return ["sources", "pages", "conversions"].filter((p) => layout.includes(p));
+  return ["sources", "pages", "conversions"].filter((p) =>
+    layout.some((id) => id === p || id === `${p}.table` || id === `${p}.trend`)
+  );
 }
 
 // ---- Drag and drop -----------------------------------------------------------
