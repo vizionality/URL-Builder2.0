@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -18,15 +18,16 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ComposableMap, Geographies, Geography } from "react-simple-maps";
+import { ComposableMap, Geographies, Geography, Marker } from "react-simple-maps";
 import { feature } from "topojson-client";
 import type { GeometryCollection, Topology } from "topojson-specification";
 import type { FeatureCollection, Geometry } from "geojson";
-import { geoEqualEarth, geoMercator, type GeoProjection } from "d3-geo";
+import { geoEqualEarth, geoMercator, type GeoPermissibleObjects, type GeoProjection } from "d3-geo";
+import { getCached, setCached } from "@/lib/response-cache";
 // World country shapes (world-atlas, ISC), bundled so the map never fetches at runtime.
 import worldCountries from "world-atlas/countries-110m.json";
 import usStates from "us-atlas/states-10m.json";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Card } from "@/components/Card";
 import { bucketLabel, compact, formatDuration, shade, TIME_GRAINS, type TimeGrain } from "@/lib/report";
 import {
@@ -61,6 +62,7 @@ export function ChartWidgetCard({
   onMetric,
   grain,
   onGrain,
+  query,
 }: {
   id: string;
   data: ChartData | undefined;
@@ -71,6 +73,8 @@ export function ChartWidgetCard({
   // Time charts: the picked grain (the data may lag behind while it loads).
   grain: TimeGrain;
   onGrain: (g: TimeGrain) => void;
+  // Page dates + filters (the world map's state drill-down fetches cities).
+  query: string;
 }) {
   // World map: which part of the world it's zoomed to.
   const [region, setRegion] = useState("world");
@@ -98,7 +102,18 @@ export function ChartWidgetCard({
   } else if (data.kind === "list") {
     body =
       data.rows.length === 0 ? <Empty /> :
-      def.chart === "map" ? <WorldMap data={data} format={format} region={region} /> :
+      def.chart === "map" ? (
+        <WorldMap
+          // A new region starts fresh (no leftover state drill-down).
+          key={region}
+          data={data}
+          format={format}
+          region={region}
+          metric={metric}
+          query={query}
+          onRegionBack={() => setRegion("world")}
+        />
+      ) :
       def.chart === "hbar" ? <HBars data={data} format={format} label={metricLabel} /> :
       <Round data={data} donut={def.chart === "donut"} format={format} />;
   } else if (data.kind === "table") {
@@ -315,19 +330,39 @@ function regionProjection(regionId: string): GeoProjection {
 }
 
 // Memoized: react-simple-maps re-serializes the geography on every render.
+type Hover = { name: string; value: number } | null;
+type CityPoint = { city: string; value: number; lat: number; lng: number; t: number };
+
+// Yellow -> orange -> red as intensity (0..1) rises, like the Geo Map's cities.
+function heat(t: number): string {
+  const stops = [[250, 204, 21], [249, 115, 22], [220, 38, 38]];
+  const x = Math.min(1, Math.max(0, t)) * 2;
+  const i = Math.min(1, Math.floor(x));
+  const f = x - i;
+  return `rgb(${stops[i].map((v, k) => Math.round(v + (stops[i + 1][k] - v) * f)).join(",")})`;
+}
+
+// Memoized: react-simple-maps re-serializes the geography on every render.
 const WorldLayer = memo(function WorldLayer({
   values,
   max,
   projection,
   states,
+  focusState,
+  cities,
   onHover,
+  onPickState,
 }: {
   values: Map<string, number>;
   max: number;
   projection: GeoProjection;
-  // US states shaded on their own scale (North America view), or null.
+  // US states shaded on their own scale (North America and state views), or null.
   states: { values: Map<string, number>; max: number } | null;
-  onHover: (h: { name: string; value: number } | null) => void;
+  // Drilled into this state: others fade, and its cities are plotted.
+  focusState: string | null;
+  cities: CityPoint[];
+  onHover: (h: Hover) => void;
+  onPickState: (name: string, geo: GeoPermissibleObjects) => void;
 }) {
   return (
     <ComposableMap projection={projection} width={MAP_W} height={MAP_H} style={{ width: "100%", height: "auto" }}>
@@ -340,7 +375,7 @@ const WorldLayer = memo(function WorldLayer({
               <Geography
                 key={geo.rsmKey}
                 geography={geo}
-                fill={shade(value, max)}
+                fill={focusState ? "#f4f4f5" : shade(value, max)}
                 stroke="#ffffff"
                 strokeWidth={0.5}
                 className="outline-none hover:fill-[#f59e0b]"
@@ -358,35 +393,85 @@ const WorldLayer = memo(function WorldLayer({
               // GA4 `region` values are full state names, matching us-atlas `name`.
               const name = String(geo.properties?.name ?? "");
               const value = states.values.get(name) ?? 0;
+              const faded = focusState != null && focusState !== name;
               return (
                 <Geography
                   key={`st-${geo.rsmKey}`}
                   geography={geo}
-                  fill={shade(value, states.max)}
-                  stroke="#ffffff"
+                  fill={faded ? "#f4f4f5" : focusState ? "#e8f3ef" : shade(value, states.max)}
+                  stroke={faded ? "#e4e4e7" : "#ffffff"}
                   strokeWidth={0.6}
-                  className="outline-none hover:fill-[#f59e0b]"
+                  className="cursor-pointer outline-none hover:fill-[#f59e0b]"
                   onMouseEnter={() => onHover({ name, value })}
                   onMouseLeave={() => onHover(null)}
+                  onClick={() => onPickState(name, geo as unknown as GeoPermissibleObjects)}
                 />
               );
             })
           }
         </Geographies>
       )}
+      {/* City heat: a soft glow plus a dot, bigger and hotter for higher values. */}
+      {cities.map((c) => (
+        <Marker key={`g-${c.city}`} coordinates={[c.lng, c.lat]}>
+          <circle r={(4 + c.t * 16) * 2} fill={heat(c.t)} opacity={0.3} pointerEvents="none" />
+        </Marker>
+      ))}
+      {cities.map((c) => (
+        <Marker key={c.city} coordinates={[c.lng, c.lat]}>
+          <circle
+            r={4 + c.t * 16}
+            fill={heat(c.t)}
+            fillOpacity={0.8}
+            stroke="#ffffff"
+            strokeWidth={1}
+            className="cursor-pointer"
+            onMouseEnter={() => onHover({ name: c.city, value: c.value })}
+            onMouseLeave={() => onHover(null)}
+          />
+        </Marker>
+      ))}
     </ComposableMap>
   );
 });
 
-function WorldMap({ data, format, region }: { data: ListData; format: MetricFormat; region: string }) {
-  const [hover, setHover] = useState<{ name: string; value: number } | null>(null);
+// City values come back for these metrics; others fall back to sessions.
+const CITY_METRICS = new Set(["totalUsers", "newUsers", "sessions", "engagedSessions", "keyEvents"]);
+type CityRow = { city: string; lat?: number; lng?: number; values?: Record<string, number> };
+
+function WorldMap({
+  data,
+  format,
+  region,
+  metric,
+  query,
+  onRegionBack,
+}: {
+  data: ListData;
+  format: MetricFormat;
+  region: string;
+  metric: string;
+  // Page dates + filters, for the state drill-down's city report.
+  query: string;
+  // Back one level from a region to the world.
+  onRegionBack: () => void;
+}) {
+  const [hover, setHover] = useState<Hover>(null);
+  // Drilled into a US state (from the North America view).
+  const [drill, setDrill] = useState<{ state: string; projection: GeoProjection } | null>(null);
+  const [cityRows, setCityRows] = useState<{ state: string; rows: CityRow[]; loading: boolean; error: string | null } | null>(
+    null
+  );
   const values = useMemo(
     () => new Map(data.rows.map((r) => [COUNTRY_ALIASES[r.label] ?? r.label, r.value])),
     [data]
   );
   const max = Math.max(0, ...data.rows.map((r) => r.value));
-  const projection = useMemo(() => regionProjection(region), [region]);
-  // Zoomed to North America: the US is shaded by state, like the Geo Map.
+  const regionProj = useMemo(() => regionProjection(region), [region]);
+  // Only North America can drill into a state.
+  const activeDrill = region === "northAmerica" ? drill : null;
+  const projection = activeDrill?.projection ?? regionProj;
+  // North America (and its states): the US is shaded by state, like the Geo Map.
   const states = useMemo(() => {
     if (region !== "northAmerica" || !data.regions?.length) return null;
     return {
@@ -394,15 +479,95 @@ function WorldMap({ data, format, region }: { data: ListData; format: MetricForm
       max: Math.max(0, ...data.regions.map((r) => r.value)),
     };
   }, [region, data]);
+
+  const cityMetric = CITY_METRICS.has(metric) ? metric : "sessions";
+  const drillState = activeDrill?.state ?? null;
+  useEffect(() => {
+    if (!drillState) return;
+    const url = `/api/ga4/cities?${query}&region=${encodeURIComponent(drillState)}`;
+    const cached = getCached<{ cities: CityRow[] }>(url);
+    if (cached) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- serve a cached report synchronously
+      setCityRows({ state: drillState, rows: cached.cities, loading: false, error: null });
+      return;
+    }
+    let cancelled = false;
+    const ac = new AbortController();
+    setCityRows({ state: drillState, rows: [], loading: true, error: null });
+    fetch(url, { signal: ac.signal })
+      .then(async (r) => {
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error ?? "Failed to load cities.");
+        return d as { cities: CityRow[] };
+      })
+      .then((d) => {
+        if (cancelled) return;
+        setCached(url, d);
+        setCityRows({ state: drillState, rows: d.cities, loading: false, error: null });
+      })
+      .catch((e) => {
+        if (!cancelled) setCityRows({ state: drillState, rows: [], loading: false, error: e instanceof Error ? e.message : "Failed to load cities." });
+      });
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, [drillState, query]);
+
+  const cities = useMemo((): CityPoint[] => {
+    if (!drillState || cityRows?.state !== drillState) return [];
+    const withValue = cityRows.rows
+      .filter((c): c is CityRow & { lat: number; lng: number } => c.lat != null && c.lng != null)
+      .map((c) => ({ city: c.city, lat: c.lat, lng: c.lng, value: c.values?.[cityMetric] ?? 0 }))
+      .filter((c) => c.value > 0);
+    const top = Math.max(1, ...withValue.map((c) => c.value));
+    return withValue
+      .map((c) => ({ ...c, t: Math.sqrt(c.value / top) }))
+      .sort((x, y) => y.value - x.value);
+  }, [drillState, cityRows, cityMetric]);
+
+  const pickState = useCallback((name: string, geo: GeoPermissibleObjects) => {
+    setHover(null);
+    setDrill({ state: name, projection: geoMercator().fitExtent(EXTENT, geo) });
+  }, []);
+  // Back one level: state -> North America -> World.
+  const back = activeDrill ? () => setDrill(null) : region !== "world" ? onRegionBack : null;
+  const cityFormat: MetricFormat = CITY_METRICS.has(metric) ? format : "number";
+
   return (
-    <div className="overflow-hidden">
-      <WorldLayer values={values} max={max} projection={projection} states={states} onHover={setHover} />
+    <div className="relative overflow-hidden">
+      {back && (
+        <button
+          type="button"
+          onClick={back}
+          className="absolute left-0 top-0 z-10 inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white/90 px-2 py-1 text-xs font-medium text-zinc-700 shadow-sm hover:bg-zinc-50"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          {activeDrill ? "North America" : "World"}
+        </button>
+      )}
+      <WorldLayer
+        values={values}
+        max={max}
+        projection={projection}
+        states={states}
+        focusState={drillState}
+        cities={cities}
+        onHover={setHover}
+        onPickState={pickState}
+      />
       <p className="mt-1 text-right text-xs text-zinc-600">
         {hover
-          ? `${hover.name}: ${formatMetric(hover.value, format)}`
-          : states
-            ? "US shaded by state. Hover a state or country"
-            : "Hover a country"}
+          ? `${hover.name}: ${formatMetric(hover.value, drillState ? cityFormat : format)}`
+          : drillState
+            ? cityRows?.loading
+              ? `Loading ${drillState} cities…`
+              : cityRows?.error
+                ? cityRows.error
+                : `${drillState} by city${CITY_METRICS.has(metric) ? "" : " (sessions)"}. Hover a city`
+            : states
+              ? "US shaded by state. Click a state for cities"
+              : "Hover a country"}
       </p>
     </div>
   );
