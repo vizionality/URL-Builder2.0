@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Plus, RotateCcw, Search, X } from "lucide-react";
+import { Check, ChevronDown, Plus, RotateCcw, Search, X } from "lucide-react";
 import { WIDGETS, type WidgetCategory } from "@/lib/dashboard-widgets";
 import { CatalogDraggable, SidebarDropZone } from "@/components/dashboard/DragParts";
 import { VersionHistory } from "@/components/dashboard/VersionHistory";
@@ -34,6 +34,15 @@ export function WidgetSidebar({
 }) {
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"widgets" | "history">("widgets");
+  // Category accordions start collapsed; a search opens every matching one.
+  const [expanded, setExpanded] = useState<Set<WidgetCategory>>(new Set());
+  const toggleCategory = (cat: WidgetCategory) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
 
   useEffect(() => {
     if (!open) return;
@@ -120,10 +129,27 @@ export function WidgetSidebar({
               (w) => w.category === cat && (!q || `${w.title} ${w.description}`.toLowerCase().includes(q))
             );
             if (items.length === 0) return null;
+            const isOpen = Boolean(q) || expanded.has(cat);
+            const added = WIDGETS.filter((w) => w.category === cat && layout.includes(w.id)).length;
+            const total = WIDGETS.filter((w) => w.category === cat).length;
             return (
-              <section key={cat} className="mb-4">
-                <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-400">{cat}</h3>
-                <ul className="space-y-1.5">
+              <section key={cat} className="mb-1.5 rounded-lg border border-zinc-200">
+                <h3>
+                  <button
+                    type="button"
+                    onClick={() => toggleCategory(cat)}
+                    aria-expanded={isOpen}
+                    className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left hover:bg-zinc-50"
+                  >
+                    <span className="text-sm font-semibold text-zinc-800">{cat}</span>
+                    <span className="flex items-center gap-2 text-xs text-zinc-500">
+                      {added} of {total} added
+                      <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                    </span>
+                  </button>
+                </h3>
+                {isOpen && (
+                <ul className="space-y-1.5 px-2 pb-2">
                   {items.map((w) => {
                     const on = layout.includes(w.id);
                     return (
@@ -181,6 +207,7 @@ export function WidgetSidebar({
                     );
                   })}
                 </ul>
+                )}
               </section>
             );
           })}
