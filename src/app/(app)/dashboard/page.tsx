@@ -28,6 +28,7 @@ import {
   type DatePreset,
   type CompareMode,
 } from "@/lib/report";
+import { MultiSelect, type FilterOption } from "@/components/dashboard/MultiSelect";
 import { Breakdowns } from "@/components/dashboard/Breakdowns";
 import { getCached, setCached } from "@/lib/response-cache";
 import { GeoMap } from "@/components/dashboard/GeoMap";
@@ -47,7 +48,7 @@ type Overview = {
   geo: { region: string; newUsers: number }[];
   monthly: { month: string; current: number; previousYear: number }[];
   // Present only when requested with options=1.
-  filters: { mediums: string[]; campaigns: string[] } | null;
+  filters: { mediums: FilterOption[]; campaigns: FilterOption[] } | null;
   range: { startDate: string; endDate: string };
 };
 
@@ -98,14 +99,15 @@ export default function DashboardPage() {
   const [custom, setCustom] = useState(() => presetRange(DEFAULT_PRESET, today)!);
   const [compare, setCompare] = useState<CompareMode>("period");
   const { startDate, endDate } = preset === "custom" ? custom : presetRange(preset, today)!;
-  const [medium, setMedium] = useState("");
-  const [campaign, setCampaign] = useState("");
+  // Empty selection means "all" (no filter), like Looker's all-checked state.
+  const [medium, setMedium] = useState<string[]>([]);
+  const [campaign, setCampaign] = useState<string[]>([]);
   const [state, setState] = useState<{ loading: boolean; error: string | null; data: Overview | null }>(
     { loading: false, error: null, data: null }
   );
   // Dropdown lists load once and persist across filter changes (they don't
   // depend on the filters), which also saves two GA4 requests per change.
-  const [options, setOptions] = useState<{ mediums: string[]; campaigns: string[] } | null>(null);
+  const [options, setOptions] = useState<{ mediums: FilterOption[]; campaigns: FilterOption[] } | null>(null);
   const optionsLoaded = useRef(false);
   const [retry, setRetry] = useState(0);
 
@@ -113,8 +115,8 @@ export default function DashboardPage() {
     if (!propertyId) return;
     let cancelled = false;
     const p = new URLSearchParams({ startDate, endDate, compare });
-    if (medium) p.set("medium", medium);
-    if (campaign) p.set("campaign", campaign);
+    for (const m of medium) p.append("medium", m);
+    for (const c of campaign) p.append("campaign", c);
     // A filter combination seen in the last few minutes shows instantly.
     const cacheKey = `/api/ga4/overview?${p.toString()}`;
     const cached = getCached<Overview>(cacheKey);
@@ -179,14 +181,8 @@ export default function DashboardPage() {
       <main className="flex-1 px-4 py-6 sm:px-6">
         {/* Filters */}
         <div className="mb-6 flex flex-wrap items-center gap-2">
-          <select value={medium} onChange={(e) => setMedium(e.target.value)} className={inputClass}>
-            <option value="">Session medium (all)</option>
-            {mediums.map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
-          <select value={campaign} onChange={(e) => setCampaign(e.target.value)} className={inputClass}>
-            <option value="">Session campaign (all)</option>
-            {campaigns.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <MultiSelect label="Session medium" options={mediums} selected={medium} onChange={setMedium} />
+          <MultiSelect label="Session campaign" options={campaigns} selected={campaign} onChange={setCampaign} />
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <select
               value={preset}

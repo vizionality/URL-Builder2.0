@@ -18,13 +18,13 @@ function num(r: RawRow | undefined, i = 0): number {
 
 // AND of the active medium/campaign filters (plus any extra clause), or {}.
 function filterExpr(
-  medium: string,
-  campaign: string,
+  medium: string[],
+  campaign: string[],
   extra?: { fieldName: string; value: string }
 ) {
   const expressions: unknown[] = [];
-  if (medium) expressions.push({ filter: { fieldName: "sessionMedium", stringFilter: { value: medium, matchType: "EXACT" } } });
-  if (campaign) expressions.push({ filter: { fieldName: "sessionCampaignName", stringFilter: { value: campaign, matchType: "EXACT" } } });
+  if (medium.length) expressions.push({ filter: { fieldName: "sessionMedium", inListFilter: { values: medium } } });
+  if (campaign.length) expressions.push({ filter: { fieldName: "sessionCampaignName", inListFilter: { values: campaign } } });
   if (extra) expressions.push({ filter: { fieldName: extra.fieldName, stringFilter: { value: extra.value, matchType: "EXACT" } } });
   if (expressions.length === 0) return {};
   if (expressions.length === 1) return { dimensionFilter: expressions[0] };
@@ -58,8 +58,9 @@ export async function GET(request: Request) {
   const end = isoDay(url.searchParams.get("endDate"), today);
   const defaultStart = `${end.slice(0, 4)}-01-01`;
   const start = isoDay(url.searchParams.get("startDate"), defaultStart);
-  const medium = url.searchParams.get("medium") ?? "";
-  const campaign = url.searchParams.get("campaign") ?? "";
+  // Multi-select: repeated params (?campaign=a&campaign=b); none means all.
+  const medium = url.searchParams.getAll("medium").filter(Boolean);
+  const campaign = url.searchParams.getAll("campaign").filter(Boolean);
   // %Δ baseline: "year" = same dates last year, otherwise the previous period.
   const compare = url.searchParams.get("compare") === "year" ? "year" : "period";
   // The medium/campaign dropdown lists don't depend on the filters, so the page
@@ -203,8 +204,11 @@ export async function GET(request: Request) {
       });
     }
 
+    // Each option carries its session count for the search-and-select lists.
     const names = (rows: RawRow[]) =>
-      rows.map((r) => (r.dimensionValues?.[0]?.value ?? "").trim()).filter((v) => v && !v.startsWith("("));
+      rows
+        .map((r) => ({ name: r.dimensionValues?.[0]?.value ?? "", sessions: num(r) }))
+        .filter((o) => o.name && o.name !== "(not set)");
 
     return NextResponse.json({
       scorecards,
