@@ -13,11 +13,11 @@ describe("dashboard layout", () => {
     expect(sanitizeLayout("geo")).toEqual([]);
   });
 
-  it("groups consecutive scorecards into one row", () => {
-    expect(layoutBlocks(["sc.views", "sc.sessions", "geo", "sc.newUsers"])).toEqual([
-      { kind: "scorecards", ids: ["sc.views", "sc.sessions"] },
+  it("keeps every scorecard in one Summary row, where the first one sits", () => {
+    expect(layoutBlocks(["monthly", "sc.views", "sc.sessions", "geo", "sc.newUsers"])).toEqual([
+      { kind: "widget", id: "monthly" },
+      { kind: "scorecards", ids: ["sc.views", "sc.sessions", "sc.newUsers"] },
       { kind: "widget", id: "geo" },
-      { kind: "scorecards", ids: ["sc.newUsers"] },
     ]);
   });
 
