@@ -436,18 +436,19 @@ export default function DashboardPage() {
           <MultiSelect label="Session source" options={sources} selected={source} onChange={setSource} />
           <MultiSelect label="Page path" options={pages} selected={page} onChange={setPage} />
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setCustomizing(true)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-            >
-              <LayoutGrid className="h-4 w-4" /> Customize
-            </button>
             <DateRangePicker value={dates} today={today} onChange={setDates} />
             <select value={compare} onChange={(e) => setCompare(e.target.value as CompareMode)} className={inputClass} aria-label="Compare to">
               <option value="period">vs. previous period</option>
               <option value="year">vs. previous year</option>
             </select>
+            {/* Primary action, last in the row (right of the date controls). */}
+            <button
+              type="button"
+              onClick={() => setCustomizing(true)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-green-700"
+            >
+              <LayoutGrid className="h-4 w-4" /> Customize
+            </button>
           </div>
           {state.loading && state.data && (
             <span className="inline-flex w-full items-center gap-1.5 text-xs text-zinc-500" role="status">
