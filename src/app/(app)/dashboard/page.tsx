@@ -162,9 +162,12 @@ function Delta({ value, invert = false }: { value: number | null; invert?: boole
 
 function Scorecard({ label, value, delta, invert }: { label: string; value: string; delta: number | null; invert?: boolean }) {
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-      <p className="text-xs text-zinc-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-zinc-900">{value}</p>
+    // Fills its grid cell, so every card in the row is as tall as the tallest
+    // (e.g. a label that wraps); the value and %Δ sit at the bottom, aligned.
+    <div className="flex h-full flex-col rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      {/* Right padding keeps a long label clear of the drag handle. */}
+      <p className="pr-6 text-xs text-zinc-500">{label}</p>
+      <p className="mt-auto pt-1 text-2xl font-semibold text-zinc-900">{value}</p>
       <div className="mt-1"><Delta value={delta} invert={invert} /></div>
     </div>
   );
