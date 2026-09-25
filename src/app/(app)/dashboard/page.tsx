@@ -46,6 +46,8 @@ import {
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { DashboardDropZone, GapSlot, SortableWidget } from "@/components/dashboard/DragParts";
 import { ExtraWidgetCard, useExtraWidgets } from "@/components/dashboard/ExtraWidgets";
+import { ChartWidgetCard, formatMetric } from "@/components/dashboard/ChartWidget";
+import { CHART_WIDGET_BY_ID, isChartWidget, METRIC_PICK_CHARTS, type ChartData } from "@/lib/chart-widgets";
 import type { WidgetData } from "@/lib/extra-widgets";
 import {
   DASHBOARD_DROP,
@@ -148,26 +150,37 @@ const EXTRA_SCORE_LABELS: Record<string, string> = {
   "sc.keyEvents": "Key events",
 };
 // One summary scorecard by widget id.
-function ScorecardFor({ id, s, extras }: { id: string; s: Scorecards; extras: Record<string, WidgetData> }) {
-  const extra = extras[id];
-  if (id in EXTRA_SCORE_LABELS) {
-    const label = EXTRA_SCORE_LABELS[id];
-    if (!extra || extra.kind !== "score") return <Scorecard label={label} value="…" delta={null} />;
-    const value =
-      extra.format === "percent" ? `${extra.value.toFixed(1)}%`
-      : extra.format === "decimal" ? extra.value.toFixed(2)
-      : compact(extra.value);
+function ScorecardFor({
+  id,
+  s,
+  extras,
+  large = false,
+}: {
+  id: string;
+  s: Scorecards;
+  extras: Record<string, WidgetData | ChartData>;
+  // A scorecard placed on its own in a row: centered, larger value.
+  large?: boolean;
+}) {
+  const card = (label: string, value: string, delta: number | null, invert = false) => (
+    <Scorecard label={label} value={value} delta={delta} invert={invert} large={large} />
+  );
+  // Scorecards fetched per widget: the extra ones and every "Number" chart widget.
+  const label = EXTRA_SCORE_LABELS[id] ?? (isChartWidget(id) ? WIDGET_BY_ID.get(id)?.title : undefined);
+  if (label) {
+    const extra = extras[id];
+    if (!extra || extra.kind !== "score") return card(label, "…", null);
     // A falling bounce rate is good news.
-    return <Scorecard label={label} value={value} delta={pctDelta(extra.value, extra.prev)} invert={id === "sc.bounceRate"} />;
+    return card(label, formatMetric(extra.value, extra.format), pctDelta(extra.value, extra.prev), id.endsWith("bounceRate"));
   }
   switch (id) {
-    case "sc.views": return <Scorecard label="Views" value={compact(s.views.value)} delta={pctDelta(s.views.value, s.views.prev)} />;
-    case "sc.totalUsers": return <Scorecard label="Total users" value={compact(s.totalUsers.value)} delta={pctDelta(s.totalUsers.value, s.totalUsers.prev)} />;
-    case "sc.newUsers": return <Scorecard label="New users" value={compact(s.newUsers.value)} delta={pctDelta(s.newUsers.value, s.newUsers.prev)} />;
-    case "sc.sessions": return <Scorecard label="Sessions" value={compact(s.sessions.value)} delta={pctDelta(s.sessions.value, s.sessions.prev)} />;
-    case "sc.engagementRate": return <Scorecard label="Engagement rate" value={`${s.engagementRate.value.toFixed(1)}%`} delta={pctDelta(s.engagementRate.value, s.engagementRate.prev)} />;
-    case "sc.avgSessionDuration": return <Scorecard label="Avg session duration" value={formatDuration(s.avgSessionDuration.value)} delta={pctDelta(s.avgSessionDuration.value, s.avgSessionDuration.prev)} />;
-    case "sc.generateLead": return <Scorecard label="Generate Lead" value={compact(s.generateLead.value)} delta={pctDelta(s.generateLead.value, s.generateLead.prev)} />;
+    case "sc.views": return card("Views", compact(s.views.value), pctDelta(s.views.value, s.views.prev));
+    case "sc.totalUsers": return card("Total users", compact(s.totalUsers.value), pctDelta(s.totalUsers.value, s.totalUsers.prev));
+    case "sc.newUsers": return card("New users", compact(s.newUsers.value), pctDelta(s.newUsers.value, s.newUsers.prev));
+    case "sc.sessions": return card("Sessions", compact(s.sessions.value), pctDelta(s.sessions.value, s.sessions.prev));
+    case "sc.engagementRate": return card("Engagement rate", `${s.engagementRate.value.toFixed(1)}%`, pctDelta(s.engagementRate.value, s.engagementRate.prev));
+    case "sc.avgSessionDuration": return card("Avg session duration", formatDuration(s.avgSessionDuration.value), pctDelta(s.avgSessionDuration.value, s.avgSessionDuration.prev));
+    case "sc.generateLead": return card("Generate Lead", compact(s.generateLead.value), pctDelta(s.generateLead.value, s.generateLead.prev));
     default: return null;
   }
 }
@@ -184,7 +197,31 @@ function Delta({ value, invert = false }: { value: number | null; invert?: boole
   );
 }
 
-function Scorecard({ label, value, delta, invert }: { label: string; value: string; delta: number | null; invert?: boolean }) {
+function Scorecard({
+  label,
+  value,
+  delta,
+  invert,
+  large = false,
+}: {
+  label: string;
+  value: string;
+  delta: number | null;
+  invert?: boolean;
+  large?: boolean;
+}) {
+  if (large) {
+    // On its own in a row: the number is the point, so center it and size it up.
+    return (
+      <div className="flex h-full min-h-40 flex-col rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <p className="pr-6 text-sm text-zinc-500">{label}</p>
+        <div className="flex flex-1 flex-col items-center justify-center gap-1 py-4">
+          <p className="text-5xl font-semibold text-zinc-900">{value}</p>
+          <Delta value={delta} invert={invert} />
+        </div>
+      </div>
+    );
+  }
   return (
     // Fills its grid cell, so every card in the row is as tall as the tallest
     // (e.g. a label that wraps); the value and %Δ sit at the bottom, aligned.
@@ -401,7 +438,38 @@ export default function DashboardPage() {
     p.set("compare", compare);
     return p.toString();
   }, [filterQs, startDate, endDate, compare]);
-  const extras = useExtraWidgets(layout ? extraParts(layout) : [], extraQuery, Boolean(propertyId && layout));
+  // Each donut / pie / bar / map card's chosen metric, remembered in this browser.
+  const [chartMetrics, setChartMetrics] = useState<Record<string, string>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("dashboardChartMetrics") ?? "{}");
+    } catch {
+      return {};
+    }
+  });
+  const setChartMetric = useCallback((id: string, metric: string) => {
+    setChartMetrics((cur) => {
+      const next = { ...cur, [id]: metric };
+      try {
+        localStorage.setItem("dashboardChartMetrics", JSON.stringify(next));
+      } catch {
+        // Storage blocked: the choice just won't survive a reload.
+      }
+      return next;
+    });
+  }, []);
+  // Request id for a chart widget: carries its metric when the card picks one.
+  const chartRequestId = useCallback(
+    (id: string) => {
+      const def = CHART_WIDGET_BY_ID.get(id);
+      return def && METRIC_PICK_CHARTS.includes(def.chart) ? `${id}~${chartMetrics[id] ?? "sessions"}` : id;
+    },
+    [chartMetrics]
+  );
+  const extras = useExtraWidgets(
+    layout ? extraParts(layout).map(chartRequestId) : [],
+    extraQuery,
+    Boolean(propertyId && layout)
+  );
 
   useEffect(() => {
     if (!propertyId || partsKey == null) return;
@@ -749,8 +817,24 @@ export default function DashboardPage() {
                 ...tables,
                 ...Object.fromEntries(
                   extraParts(layout)
-                    .filter((id) => !id.startsWith("sc."))
+                    .filter((id) => !id.startsWith("sc.") && !isChartWidget(id))
                     .map((id) => [id, <ExtraWidgetCard key={id} id={id} state={extras} />])
+                ),
+                ...Object.fromEntries(
+                  layout
+                    .filter((id) => isChartWidget(id) && !id.startsWith("c.number."))
+                    .map((id) => [
+                      id,
+                      <ChartWidgetCard
+                        key={id}
+                        id={id}
+                        data={extras.data[chartRequestId(id)] as ChartData | undefined}
+                        loading={extras.loading}
+                        error={extras.error}
+                        metric={chartMetrics[id] ?? "sessions"}
+                        onMetric={(m) => setChartMetric(id, m)}
+                      />,
+                    ])
                 ),
               };
               const blocks = layoutBlocks(layout, spans);
@@ -812,7 +896,7 @@ export default function DashboardPage() {
                       >
                         {cards[block.id] ??
                           // A scorecard placed on its own in a row.
-                          (s && <ScorecardFor id={block.id} s={s} extras={extras.data} />)}
+                          (s && <ScorecardFor id={block.id} s={s} extras={extras.data} large />)}
                       </SortableWidget>
                     )
                   )}

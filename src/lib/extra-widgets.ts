@@ -8,7 +8,7 @@ export type Range = { startDate: string; endDate: string };
 export type Ctx = { current: Range[]; withPrev: Range[]; keyMetric: string; filter: Record<string, unknown> };
 
 // A scorecard: value and previous-period value.
-export type ScoreData = { kind: "score"; value: number; prev: number; format: "number" | "percent" | "decimal" };
+export type ScoreData = { kind: "score"; value: number; prev: number; format: "number" | "percent" | "decimal" | "duration" };
 // A ranked list for a pie or bar.
 export type ListData = { kind: "list"; rows: { label: string; value: number }[] };
 // A table with named columns.

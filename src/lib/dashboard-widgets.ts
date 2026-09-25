@@ -1,3 +1,5 @@
+import { CHART_WIDGETS, EXISTING_WIDGET_CHARTS, isChartWidget, type ChartType } from "@/lib/chart-widgets";
+
 // The Dashboard's widget catalog and layout rules. A layout is an ordered list
 // of widget ids, saved per user + GA4 property; the page renders widgets in
 // that order and only asks GA4 for data behind the ones present.
@@ -6,7 +8,7 @@ export type WidgetCategory = "Summary" | "Traffic" | "Geography" | "Acquisition"
 
 // full = spans the row; third = one of three per row on wide screens;
 // scorecard = all scorecards share one Summary row.
-export type WidgetSize = "full" | "third" | "scorecard";
+export type WidgetSize = "full" | "half" | "third" | "scorecard";
 
 export type WidgetDef = {
   id: string;
@@ -14,6 +16,10 @@ export type WidgetDef = {
   description: string;
   category: WidgetCategory;
   size: WidgetSize;
+  // Chart type it's listed under in the Customize panel's chart picker.
+  chart?: ChartType;
+  // Generated per chart type (lib/chart-widgets); listed only when that type is picked.
+  generated?: boolean;
 };
 
 export const WIDGETS: WidgetDef[] = [
@@ -47,6 +53,11 @@ export const WIDGETS: WidgetDef[] = [
   { id: "campaigns", title: "Campaigns", description: "Session campaigns by sessions, engagement and key events.", category: "Acquisition", size: "full" },
 ];
 
+// Tag the hand-built widgets with their chart type, then add the generated
+// chart-type widgets (every metric / breakdown in every chart that fits).
+for (const w of WIDGETS) w.chart = EXISTING_WIDGET_CHARTS[w.id];
+WIDGETS.push(...CHART_WIDGETS.map((c) => ({ ...c, generated: true })));
+
 export const WIDGET_BY_ID = new Map(WIDGETS.map((w) => [w.id, w]));
 
 // Today's dashboard, used until a user customizes theirs.
@@ -61,8 +72,9 @@ export const EXTRA_WIDGET_IDS = [
   "sc.bounceRate", "sc.pagesPerSession", "sc.engagedSessions", "sc.eventCount", "sc.keyEvents",
   "device", "newVsReturning", "browser", "countries", "cities", "hourOfDay", "pageTitles", "campaigns",
 ];
+// Widgets served by /api/ga4/widgets: the extras above plus every chart-type widget.
 export function extraParts(layout: string[]): string[] {
-  return EXTRA_WIDGET_IDS.filter((id) => layout.includes(id));
+  return [...EXTRA_WIDGET_IDS.filter((id) => layout.includes(id)), ...layout.filter(isChartWidget)];
 }
 
 export const MAX_LAYOUT = 60;
@@ -73,7 +85,8 @@ export const SPANS = [3, 4, 6, 9, 12] as const;
 export type Span = (typeof SPANS)[number];
 
 export function defaultSpan(id: string): Span {
-  return WIDGET_BY_ID.get(id)?.size === "third" ? 4 : 12;
+  const size = WIDGET_BY_ID.get(id)?.size;
+  return size === "third" ? 4 : size === "half" ? 6 : 12;
 }
 
 // Nearest allowed span to a fractional column count.

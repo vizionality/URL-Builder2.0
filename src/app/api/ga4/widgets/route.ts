@@ -7,6 +7,7 @@ import { pageFilterExpr, parsePageFilters } from "@/lib/ga4-filters";
 import { batchRunReports, detectKeyMetric, ga4FailureMessage, Ga4Error } from "@/lib/ga4-api";
 import { EXTRA_WIDGET_IDS } from "@/lib/dashboard-widgets";
 import { EXTRA_SPECS, finishPageTitles, type TableData, type WidgetData } from "@/lib/extra-widgets";
+import { chartSpec, isChartWidget, splitRequestId, type ChartData } from "@/lib/chart-widgets";
 
 function isoDay(v: string | null, fallback: string): string {
   return v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : fallback;
@@ -20,7 +21,12 @@ export async function GET(request: Request) {
   const end = isoDay(url.searchParams.get("endDate"), today);
   const start = isoDay(url.searchParams.get("startDate"), `${end.slice(0, 4)}-01-01`);
   const compare = url.searchParams.get("compare") === "year" ? "year" : "period";
-  const ids = (url.searchParams.get("ids") ?? "").split(",").filter((id) => EXTRA_WIDGET_IDS.includes(id));
+  // Extra widgets by id; chart-type widgets as "id" or "id~metric" (the card's
+  // chosen metric). Unknown ids are dropped.
+  const ids = (url.searchParams.get("ids") ?? "")
+    .split(",")
+    .filter((id) => EXTRA_WIDGET_IDS.includes(id) || isChartWidget(splitRequestId(id).id))
+    .slice(0, 60);
   if (ids.length === 0) return NextResponse.json({ widgets: {} });
   const filters = parsePageFilters(url.searchParams);
 
@@ -49,15 +55,16 @@ export async function GET(request: Request) {
       keyMetric,
       filter: pageFilterExpr(filters),
     };
-    const results = await batchRunReports(
-      conn.property_id,
-      token,
-      ids.map((id) => EXTRA_SPECS[id].body(ctx)),
-      request.signal
-    );
-    const widgets: Record<string, WidgetData> = {};
+    const specs = ids.map((id) => {
+      if (EXTRA_SPECS[id]) return { body: EXTRA_SPECS[id].body(ctx), parse: EXTRA_SPECS[id].parse };
+      const { id: chartId, metric } = splitRequestId(id);
+      return chartSpec(chartId, metric, ctx)!;
+    });
+    const results = await batchRunReports(conn.property_id, token, specs.map((sp) => sp.body), request.signal);
+    // Keyed by the request id, so a card's data follows its chosen metric.
+    const widgets: Record<string, WidgetData | ChartData> = {};
     ids.forEach((id, i) => {
-      const data = EXTRA_SPECS[id].parse(results[i] ?? []);
+      const data = specs[i].parse(results[i] ?? []);
       widgets[id] = id === "pageTitles" ? finishPageTitles(data as TableData) : data;
     });
     return NextResponse.json({ widgets });
