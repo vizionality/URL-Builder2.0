@@ -47,6 +47,10 @@ with real GA4 reporting.
 - Data: `/api/ga4/overview` (scorecards, monthly, channel, states, geo, filter options) and
   `/api/ga4/breakdowns` (sources, pages, conversions). Per-user OAuth, computed on read.
   Pure formatters live in `lib/report.ts` (unit-tested).
+- Filters: search-and-select multi-selects (medium, campaign, source, page path) plus
+  cross-filters set by clicking a chart (source/medium cells, landing page, channel slice,
+  Top States bar), shown as removable chips. Shared parsing in `lib/ga4-filters.ts`.
+  Clicking a Geo Map state zooms in and lists cities (`/api/ga4/cities`).
 - No property connected -> a connect-GA4 prompt, not sample data.
 
 ### Integrations (/integrations)

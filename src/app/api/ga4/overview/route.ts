@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
 import { comparisonRange, formatYearMonth } from "@/lib/report";
+import { exactFilter, pageFilterExpr, parsePageFilters } from "@/lib/ga4-filters";
 import { batchRunReports, ga4FailureMessage, Ga4Error, type RawRow } from "@/lib/ga4-api";
 
 
@@ -14,25 +15,6 @@ function isoDay(v: string | null, fallback: string): string {
 }
 function num(r: RawRow | undefined, i = 0): number {
   return Number(r?.metricValues?.[i]?.value ?? 0);
-}
-
-// AND of the active medium/campaign filters (plus any extra clause), or {}.
-function filterExpr(
-  medium: string[],
-  campaign: string[],
-  source: string[],
-  page: string[],
-  extra?: { fieldName: string; value: string }
-) {
-  const expressions: unknown[] = [];
-  if (medium.length) expressions.push({ filter: { fieldName: "sessionMedium", inListFilter: { values: medium } } });
-  if (campaign.length) expressions.push({ filter: { fieldName: "sessionCampaignName", inListFilter: { values: campaign } } });
-  if (source.length) expressions.push({ filter: { fieldName: "sessionSource", inListFilter: { values: source } } });
-  if (page.length) expressions.push({ filter: { fieldName: "pagePath", inListFilter: { values: page } } });
-  if (extra) expressions.push({ filter: { fieldName: extra.fieldName, stringFilter: { value: extra.value, matchType: "EXACT" } } });
-  if (expressions.length === 0) return {};
-  if (expressions.length === 1) return { dimensionFilter: expressions[0] };
-  return { dimensionFilter: { andGroup: { expressions } } };
 }
 
 const SCORECARD_METRICS = [
@@ -62,11 +44,7 @@ export async function GET(request: Request) {
   const end = isoDay(url.searchParams.get("endDate"), today);
   const defaultStart = `${end.slice(0, 4)}-01-01`;
   const start = isoDay(url.searchParams.get("startDate"), defaultStart);
-  // Multi-select: repeated params (?campaign=a&campaign=b); none means all.
-  const medium = url.searchParams.getAll("medium").filter(Boolean);
-  const campaign = url.searchParams.getAll("campaign").filter(Boolean);
-  const source = url.searchParams.getAll("source").filter(Boolean);
-  const page = url.searchParams.getAll("page").filter(Boolean);
+  const filters = parsePageFilters(url.searchParams);
   // %Δ baseline: "year" = same dates last year, otherwise the previous period.
   const compare = url.searchParams.get("compare") === "year" ? "year" : "period";
   // The medium/campaign dropdown lists don't depend on the filters, so the page
@@ -91,7 +69,7 @@ export async function GET(request: Request) {
   }
 
   const prev = comparisonRange(start, end, compare);
-  const filt = filterExpr(medium, campaign, source, page);
+  const filt = pageFilterExpr(filters);
   // Monthly window: 13 displayed months plus 12 more for the prior-year series.
   const displayStart = monthStart(end, 12);
   const windowStart = monthStart(end, 24);
@@ -105,7 +83,7 @@ export async function GET(request: Request) {
       {
         dateRanges: withPrev,
         metrics: [{ name: "eventCount" }],
-        ...filterExpr(medium, campaign, source, page, { fieldName: "eventName", value: "generate_lead" }),
+        ...pageFilterExpr(filters, [exactFilter("eventName", "generate_lead")]),
       },
       {
         dateRanges: current,
@@ -135,7 +113,7 @@ export async function GET(request: Request) {
         dimensions: [{ name: "region" }],
         metrics: [{ name: "newUsers" }],
         limit: 100,
-        ...filterExpr(medium, campaign, source, page, { fieldName: "country", value: "United States" }),
+        ...pageFilterExpr(filters, [exactFilter("country", "United States")]),
       },
     ];
     if (wantOptions) {

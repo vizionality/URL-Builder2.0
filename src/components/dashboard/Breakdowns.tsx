@@ -95,24 +95,27 @@ function TrendLines({ trend }: { trend: Trend }) {
 
 const th = "py-2 pr-3 text-left text-xs font-semibold text-zinc-500";
 const td = "py-2 pr-3 text-sm text-zinc-700";
+const pickable = "max-w-full truncate text-left hover:text-green-700 hover:underline";
 
 export function Breakdowns({
   propertyId,
   startDate,
   endDate,
-  medium,
-  campaign,
-  source,
-  page,
+  filterQs,
+  onSource,
+  onMedium,
+  onLanding,
   compare,
 }: {
   propertyId: string;
   startDate: string;
   endDate: string;
-  medium: string[];
-  campaign: string[];
-  source: string[];
-  page: string[];
+  // Active dashboard filters as query params.
+  filterQs: string;
+  // Cross-filter: clicking a value filters the whole dashboard to it.
+  onSource: (v: string) => void;
+  onMedium: (v: string) => void;
+  onLanding: (v: string) => void;
   compare: "period" | "year";
 }) {
   const [state, setState] = useState<{ loading: boolean; error: string | null; data: Breakdowns | null }>(
@@ -122,11 +125,10 @@ export function Breakdowns({
   useEffect(() => {
     if (!propertyId) return;
     let cancelled = false;
-    const p = new URLSearchParams({ startDate, endDate, compare });
-    for (const m of medium) p.append("medium", m);
-    for (const c of campaign) p.append("campaign", c);
-    for (const x of source) p.append("source", x);
-    for (const x of page) p.append("page", x);
+    const p = new URLSearchParams(filterQs);
+    p.set("startDate", startDate);
+    p.set("endDate", endDate);
+    p.set("compare", compare);
     const url = `/api/ga4/breakdowns?${p.toString()}`;
     // A filter combination seen in the last few minutes shows instantly.
     const cached = getCached<Breakdowns>(url);
@@ -157,7 +159,7 @@ export function Breakdowns({
       cancelled = true;
       ac.abort();
     };
-  }, [propertyId, startDate, endDate, compare, medium, campaign, source, page]);
+  }, [propertyId, startDate, endDate, compare, filterQs]);
 
   if (state.loading && !state.data) {
     return (
@@ -179,7 +181,7 @@ export function Breakdowns({
   return (
     <div className={`space-y-6 transition-opacity ${state.loading ? "opacity-60" : ""}`}>
       {/* Top Traffic Sources */}
-      <Card title="Top Traffic Sources">
+      <Card title="Top Traffic Sources" description="Click a source or medium to filter.">
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -195,9 +197,12 @@ export function Breakdowns({
                 {d.sources.map((s, i) => (
                   <tr key={`${s.source}-${s.medium}`} className="border-b border-zinc-100">
                     <td className={`${td} max-w-[160px] truncate`} title={s.source}>
-                      <span className="mr-1.5 text-zinc-400">{i + 1}.</span>{s.source}
+                      <span className="mr-1.5 text-zinc-400">{i + 1}.</span>
+                      <button type="button" onClick={() => onSource(s.source)} className={pickable}>{s.source}</button>
                     </td>
-                    <td className={td}>{s.medium}</td>
+                    <td className={td}>
+                      <button type="button" onClick={() => onMedium(s.medium)} className={pickable}>{s.medium}</button>
+                    </td>
                     <td className={`${td} text-right tabular-nums`}>{s.users.toLocaleString("en-US")}</td>
                     <td className={`${td} text-right text-xs`}><Delta value={pctDelta(s.users, s.prev)} /></td>
                   </tr>
@@ -218,7 +223,7 @@ export function Breakdowns({
       </Card>
 
       {/* Landing Pages */}
-      <Card title="Landing Pages">
+      <Card title="Landing Pages" description="Click a page to filter.">
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -232,7 +237,9 @@ export function Breakdowns({
               <tbody>
                 {d.landingPages.map((p) => (
                   <tr key={p.page} className="border-b border-zinc-100">
-                    <td className={`${td} max-w-[200px] truncate`} title={p.page}>{p.page}</td>
+                    <td className={`${td} max-w-[200px] truncate`} title={p.page}>
+                      <button type="button" onClick={() => onLanding(p.page)} className={pickable}>{p.page}</button>
+                    </td>
                     <td className={`${td} w-[45%]`}><CellBar value={p.sessions} max={maxPage} /></td>
                     <td className={`${td} text-right tabular-nums`}>{p.engagementRate.toFixed(2)}%</td>
                   </tr>
