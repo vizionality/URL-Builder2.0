@@ -50,6 +50,9 @@ import type { WidgetData } from "@/lib/extra-widgets";
 import {
   DASHBOARD_DROP,
   dropWithSpans,
+  normalizeLayout,
+  packRows,
+  removeWidget,
   parseLayout,
   removeGap,
   resizeWithGap,
@@ -260,7 +263,9 @@ export default function DashboardPage() {
       .then((r) => r.json())
       .then((d: { widgets?: string[]; saveUnavailable?: boolean }) => {
         if (cancelled) return;
-        const parsed = parseLayout(Array.isArray(d.widgets) ? d.widgets : DEFAULT_LAYOUT);
+        const raw = parseLayout(Array.isArray(d.widgets) ? d.widgets : DEFAULT_LAYOUT);
+        // Show any unused row space as empty slots.
+        const parsed = normalizeLayout(raw.ids, raw.spans);
         setLayout(parsed.ids);
         setSpans(parsed.spans);
         if (d.saveUnavailable) setSaveStatus("unavailable");
@@ -292,7 +297,9 @@ export default function DashboardPage() {
     future: [],
   });
   const persistLayout = useCallback(
-    (next: string[], nextSpans: Spans, restore = false) => {
+    (rawIds: string[], rawSpans: Spans, restore = false) => {
+      // Every change keeps rows explicit: unused width becomes an empty slot.
+      const { ids: next, spans: nextSpans } = normalizeLayout(rawIds, rawSpans);
       if (layout) {
         const prev = { ids: layout, spans };
         setHistory((h) => ({ past: [...h.past, prev].slice(-HISTORY_LIMIT), future: [] }));
@@ -350,10 +357,9 @@ export default function DashboardPage() {
       const cur = layout ?? DEFAULT_LAYOUT;
       // A newly added widget goes at the end.
       if (cur.includes(id)) {
-        // Removed widgets forget their width.
-        const rest = { ...spans };
-        delete rest[id];
-        persistLayout(cur.filter((w) => w !== id), rest);
+        // Its space stays as an empty slot, so the rows below don't shift.
+        const next = removeWidget(cur, spans, id);
+        persistLayout(next.ids, next.spans);
       } else {
         persistLayout([...cur, id], spans);
       }
@@ -748,6 +754,7 @@ export default function DashboardPage() {
                 ),
               };
               const blocks = layoutBlocks(layout);
+              const rowLast = new Set(packRows(layout, spans).map((r) => r[r.length - 1]));
               if (blocks.length === 0) {
                 return (
                   <DashboardDropZone>
@@ -789,7 +796,10 @@ export default function DashboardPage() {
                         id={block.id}
                         span={spanOf(block.id, spans)}
                         onAdd={() => setCustomizing(true)}
-                        onRemove={() => dropGap(block.id)}
+                        onRemove={
+                          // A slot at the end of its row is just the row's free space.
+                          rowLast.has(block.id) ? undefined : () => dropGap(block.id)
+                        }
                       />
                     ) : (
                       <SortableWidget

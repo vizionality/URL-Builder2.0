@@ -240,6 +240,109 @@ export function removeGap(ids: string[], spans: Spans, gap: string): { ids: stri
   return { ids: ids.filter((i) => i !== gap), spans: rest };
 }
 
+// ---- Rows ------------------------------------------------------------------------
+// Widgets flow into 12-column rows in order (the Summary row is always full).
+// normalizeLayout keeps the rows' shape explicit: any unused width in a row
+// becomes an empty slot, neighbouring slots merge, and a row left with only
+// slots disappears. So empty space always shows as a "drop a widget here" box,
+// and moving or removing a widget never pulls the next row up into its place.
+
+const isScorecard = (id: string) => WIDGET_BY_ID.get(id)?.size === "scorecard";
+
+export function packRows(ids: string[], spans: Spans): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let used = 0;
+  let summaryPlaced = false;
+  const close = () => {
+    if (row.length) rows.push(row);
+    row = [];
+    used = 0;
+  };
+  for (const id of ids) {
+    if (isScorecard(id)) {
+      if (summaryPlaced) {
+        // Later scorecards join the Summary row wherever they sit; they take no width here.
+        row.push(id);
+        continue;
+      }
+      summaryPlaced = true;
+      close();
+      rows.push([id]);
+      continue;
+    }
+    const w = spanOf(id, spans);
+    if (used > 0 && used + w > 12) close();
+    row.push(id);
+    used += w;
+  }
+  close();
+  return rows;
+}
+
+export function normalizeLayout(ids: string[], spans: Spans): { ids: string[]; spans: Spans } {
+  const outIds: string[] = [];
+  const outSpans: Spans = {};
+  for (const [id, w] of Object.entries(spans)) if (!isGap(id)) outSpans[id] = w;
+  let n = 0;
+  const gap = (w: number) => {
+    const id = `${GAP_PREFIX}${++n}`;
+    outIds.push(id);
+    outSpans[id] = w;
+  };
+  for (const row of packRows(ids, spans)) {
+    if (row.length === 1 && isScorecard(row[0])) {
+      outIds.push(row[0]);
+      continue;
+    }
+    const widgets = row.filter((id) => !isGap(id) && !isScorecard(id));
+    // A row with no widgets left (only slots) is dropped; any stray
+    // scorecards in it still belong to the Summary row.
+    if (widgets.length === 0) {
+      outIds.push(...row.filter(isScorecard));
+      continue;
+    }
+    let pending = 0; // slot width waiting to be written, so neighbours merge
+    let used = 0;
+    for (const id of row) {
+      if (isGap(id)) {
+        pending += spanOf(id, spans);
+        continue;
+      }
+      if (isScorecard(id)) {
+        outIds.push(id);
+        continue;
+      }
+      if (pending) gap(pending);
+      used += pending + spanOf(id, spans);
+      pending = 0;
+      outIds.push(id);
+    }
+    // Whatever width is left in the row (trailing slots included) is one slot.
+    const rest = 12 - used;
+    if (rest > 0) gap(rest);
+  }
+  return { ids: outIds, spans: outSpans };
+}
+
+// Replace a widget with an empty slot of its width (its row keeps its shape).
+function leaveGap(ids: string[], spans: Spans, id: string): { ids: string[]; spans: Spans } {
+  const at = ids.indexOf(id);
+  if (at < 0 || isScorecard(id)) return { ids: ids.filter((i) => i !== id), spans };
+  const hole = `${GAP_PREFIX}tmp`;
+  const next = [...ids];
+  next[at] = hole;
+  return { ids: next, spans: { ...spans, [hole]: spanOf(id, spans) } };
+}
+
+// Remove a widget, leaving its space as an empty slot.
+export function removeWidget(ids: string[], spans: Spans, id: string): { ids: string[]; spans: Spans } {
+  const left = leaveGap(ids, spans, id);
+  const rest = { ...left.spans };
+  delete rest[id];
+  return normalizeLayout(left.ids, rest);
+}
+
 // Drop plus widths: a widget that isn't full width, dropped onto a full-width
 // widget, sits beside it and both snap to 50%. (A full-width widget dropped on
 // another is just a reorder.)
@@ -249,28 +352,52 @@ export function dropWithSpans(
   active: string,
   over: string | null
 ): { ids: string[]; spans: Spans } {
-  // A widget dropped on an empty slot fills it, taking the slot's width.
-  if (over && isGap(over) && !isGap(active)) {
-    const moved = active.startsWith(NEW_PREFIX) ? active.slice(NEW_PREFIX.length) : active;
+  const same = { ids, spans };
+  if (!over) return same;
+  const isNew = active.startsWith(NEW_PREFIX);
+  const moved = isNew ? active.slice(NEW_PREFIX.length) : active;
+
+  // Onto the sidebar: remove, leaving its space empty.
+  if (!isNew && (over === SIDEBAR_DROP || over.startsWith(NEW_PREFIX))) {
+    return ids.includes(active) ? (isGap(active) ? normalizeLayout(ids.filter((i) => i !== active), spans) : removeWidget(ids, spans, active)) : same;
+  }
+
+  // A widget dropped on an empty slot fills it, taking the slot's width; if it
+  // came from elsewhere on the dashboard, its old spot becomes a slot.
+  if (isGap(over) && !isGap(active)) {
     const def = WIDGET_BY_ID.get(moved);
-    if (!def || def.size === "scorecard") return { ids, spans };
-    if (active.startsWith(NEW_PREFIX) ? ids.includes(moved) : !ids.includes(moved)) return { ids, spans };
+    if (!def || def.size === "scorecard") return same;
+    if (isNew ? ids.includes(moved) : !ids.includes(moved)) return same;
     const width = spanOf(over, spans);
-    const next = ids.filter((i) => i !== moved);
+    const base = isNew ? same : leaveGap(ids, spans, moved);
+    const next = [...base.ids];
     next[next.indexOf(over)] = moved;
-    const nextSpans: Spans = { ...spans, [moved]: width };
+    const nextSpans: Spans = { ...base.spans, [moved]: width };
     delete nextSpans[over];
-    return { ids: next, spans: nextSpans };
+    return normalizeLayout(next, nextSpans);
   }
-  const next = applyDrop(ids, active, over);
-  if (next === ids || !over) return { ids, spans };
-  const moved = active.startsWith(NEW_PREFIX) ? active.slice(NEW_PREFIX.length) : active;
-  const isCard = (id: string) => WIDGET_BY_ID.get(id)?.size === "scorecard";
-  if (next.includes(over) && next.includes(moved) && !isCard(over) && !isCard(moved) && !isGap(moved) && !isGap(over)) {
-    const pairs = spanOf(over, spans) === 12 && (active.startsWith(NEW_PREFIX) || spanOf(moved, spans) !== 12);
-    if (pairs) return { ids: next, spans: { ...spans, [over]: 6, [moved]: 6 } };
+
+  // Moving between rows leaves a slot where the widget was, so the row it
+  // left keeps its shape. Within one row it's a plain reorder.
+  let next: string[];
+  let nextSpans = spans;
+  const rows = packRows(ids, spans);
+  const rowOf = (id: string) => rows.findIndex((r) => r.includes(id));
+  if (!isNew && !isGap(active) && !isScorecard(active) && ids.includes(active) && ids.includes(over) && rowOf(active) !== rowOf(over)) {
+    const base = leaveGap(ids, spans, active);
+    next = [...base.ids];
+    next.splice(next.indexOf(over), 0, active);
+    nextSpans = base.spans;
+  } else {
+    next = applyDrop(ids, active, over);
+    if (next === ids) return same;
   }
-  return { ids: next, spans };
+  // A widget that isn't full width, dropped onto a full-width one, pairs 50/50.
+  if (next.includes(over) && next.includes(moved) && !isScorecard(over) && !isScorecard(moved) && !isGap(moved)) {
+    const pairs = spanOf(over, spans) === 12 && (isNew || spanOf(moved, spans) !== 12);
+    if (pairs) nextSpans = { ...nextSpans, [over]: 6, [moved]: 6 };
+  }
+  return normalizeLayout(next, nextSpans);
 }
 
 // The layout after dropping `active` on `over`, or the same array if nothing changes.
