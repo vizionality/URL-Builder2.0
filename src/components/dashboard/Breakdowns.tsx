@@ -311,7 +311,7 @@ export function Breakdowns({
   const pageTrend = { ...d.pageTrend, data: bucketTrend(d.pageTrend.data, pageGrain) };
   const maxConv = Math.max(0, ...d.conversions.map((c) => c.count));
 
-  const dim = `transition-opacity ${state.loading ? "opacity-60" : ""}`;
+  const dim = `h-full transition-opacity ${state.loading ? "opacity-60" : ""}`;
   const sourcesCard = (
     <div className={dim}>
       <Card title="Top Traffic Sources" description={`Ranked by ${metricLabel(sourceMetric).toLowerCase()}. Click a source or medium to filter.`}>

@@ -90,7 +90,7 @@ export function ExtraWidgetCard({ id, state }: { id: string; state: ExtraState }
     body = null;
   }
   return (
-    <div className={`transition-opacity ${state.loading && data ? "opacity-60" : ""}`}>
+    <div className={`h-full transition-opacity ${state.loading && data ? "opacity-60" : ""}`}>
       <Card title={def?.title} description={def?.description}>{body}</Card>
     </div>
   );
