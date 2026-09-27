@@ -1,13 +1,12 @@
+import { forbidUnless, getAppUser } from "@/lib/team";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { clientParam, getClientBySlug } from "@/lib/clients";
 import { hashPassword, newToken } from "@/lib/portal";
 
 // A client's read-only portal links: list, create (optional password), revoke.
 async function owner(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAppUser();
   if (!user) return { error: NextResponse.json({ error: "Not authenticated." }, { status: 401 }) };
   const client = await getClientBySlug(user.id, clientParam(req)).catch(() => null);
   if (!client) return { error: NextResponse.json({ error: "Unknown client." }, { status: 404 }) };
@@ -34,6 +33,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // Team roles: needs at least analyst.
+  const me = await getAppUser();
+  const denied = me ? forbidUnless(me, "analyst") : null;
+  if (denied) return denied;
   const o = await owner(req);
   if ("error" in o) return o.error;
   const body = await req.json().catch(() => ({}));
@@ -54,6 +57,10 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  // Team roles: needs at least analyst.
+  const me = await getAppUser();
+  const denied = me ? forbidUnless(me, "analyst") : null;
+  if (denied) return denied;
   const o = await owner(req);
   if ("error" in o) return o.error;
   const id = req.nextUrl.searchParams.get("id") ?? "";

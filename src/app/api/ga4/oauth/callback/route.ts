@@ -1,5 +1,5 @@
+import { getAppUser } from "@/lib/team";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import {
   exchangeCode,
   fetchUserEmail,
@@ -23,11 +23,7 @@ export async function GET(req: NextRequest) {
       : `/integrations/${returnCookie === "search-console" ? "search-console" : "google-analytics"}`,
     origin
   );
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAppUser();
   if (!user) {
     return NextResponse.redirect(new URL("/sign-in", origin));
   }

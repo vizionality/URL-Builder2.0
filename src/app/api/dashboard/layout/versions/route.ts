@@ -1,6 +1,6 @@
+import { getAppUser } from "@/lib/team";
 import { clientParam } from "@/lib/clients";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
 import { listVersions } from "@/lib/dashboard-layout-store";
 import { sanitizeLayout } from "@/lib/dashboard-widgets";
@@ -9,8 +9,7 @@ import { sanitizeLayout } from "@/lib/dashboard-widgets";
 // newest first. Restoring is done by saving a version's widgets through
 // PUT /api/dashboard/layout with restore: true.
 export async function GET(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAppUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   const conn = await getGa4Connection(user.id, clientParam(req));
   if (!conn?.property_id) return NextResponse.json({ error: "No GA4 property selected." }, { status: 400 });

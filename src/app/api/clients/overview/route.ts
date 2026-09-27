@@ -1,5 +1,5 @@
+import { getAppUser } from "@/lib/team";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { listClients } from "@/lib/clients";
 import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
@@ -12,8 +12,7 @@ import { healthFlags, last28, type Metric } from "@/lib/client-health";
 // Search Console clicks with the previous 28 days, a daily sessions line, and
 // health flags. Computed on read; clients load a few at a time.
 export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAppUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   const clients = await listClients(user.id).catch(() => null);
   if (!clients) return NextResponse.json({ error: "Couldn't load clients." }, { status: 500 });

@@ -1,14 +1,15 @@
+import { forbidUnless, getAppUser } from "@/lib/team";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { buildAuthUrl, oauthRedirectUri } from "@/lib/google-oauth";
 
 // Kicks off the Google OAuth consent flow.
 export async function GET(req: NextRequest) {
+  // Team roles: needs at least admin.
+  const me = await getAppUser();
+  const denied = me ? forbidUnless(me, "admin") : null;
+  if (denied) return denied;
   const origin = req.nextUrl.origin;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAppUser();
   if (!user) {
     return NextResponse.redirect(new URL("/sign-in", origin));
   }

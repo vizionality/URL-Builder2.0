@@ -1,5 +1,5 @@
+import { forbidUnless, getAppUser } from "@/lib/team";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { rateLimit, sweepExpired } from "@/lib/rate-limit";
 
 // Per-user cap on this paid endpoint: at most 20 generations per minute. The
@@ -19,13 +19,14 @@ function toSnakeCase(line: string): string {
 }
 
 export async function POST(req: NextRequest) {
+  // Team roles: needs at least analyst.
+  const me = await getAppUser();
+  const denied = me ? forbidUnless(me, "analyst") : null;
+  if (denied) return denied;
   // Defense in depth: require a logged-in user in the route itself, not only in
   // the middleware, so this paid endpoint is never reachable anonymously even
   // if the middleware matcher or public-path list changes.
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAppUser();
   if (!user) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }

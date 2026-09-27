@@ -1,6 +1,6 @@
+import { forbidUnless, getAppUser } from "@/lib/team";
 import { clientParam } from "@/lib/clients";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
 
@@ -19,8 +19,7 @@ type BigQueryLink = {
 };
 
 async function context(request: Request) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAppUser();
   if (!user) return { error: NextResponse.json({ error: "Not authenticated." }, { status: 401 }) };
   const conn = await getGa4Connection(user.id, clientParam(request)).catch(() => null);
   if (!conn?.property_id) return { error: NextResponse.json({ error: "Save a GA4 property first." }, { status: 400 }) };
@@ -60,6 +59,10 @@ export async function GET(request: Request) {
 
 // Create the link to BIGQUERY_PROJECT_ID.
 export async function POST(request: Request) {
+  // Team roles: needs at least admin.
+  const me = await getAppUser();
+  const denied = me ? forbidUnless(me, "admin") : null;
+  if (denied) return denied;
   const project = process.env.BIGQUERY_PROJECT_ID;
   if (!project) return NextResponse.json({ error: "BIGQUERY_PROJECT_ID is not set." }, { status: 500 });
   const ctx = await context(request);

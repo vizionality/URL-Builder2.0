@@ -1,16 +1,15 @@
+import { getAppUser } from "@/lib/team";
 // Old, pre-client URLs (/dashboard, /integrations, ...) redirect to the same
 // page for the last client this browser used, or the user's first client.
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { listClients } from "@/lib/clients";
 
 export async function redirectToClient(
   path: string,
   searchParams: Record<string, string | string[] | undefined> = {}
 ): Promise<null> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAppUser();
   if (!user) redirect("/sign-in");
   const clients = await listClients(user.id).catch(() => []);
   const last = (await cookies()).get("lastClient")?.value;

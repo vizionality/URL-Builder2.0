@@ -1,6 +1,7 @@
 "use client";
 
 import { api, useClientPath } from "@/lib/client-scope";
+import { useMe } from "@/lib/use-me";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
@@ -249,6 +250,9 @@ export function GaDashboard({
   readOnly?: boolean;
 } = {}) {
   const layoutQuery = aiOnly ? "?page=ai" : "";
+  // Viewers see the dashboard without editing controls.
+  const me = useMe();
+  const canEdit = !readOnly && me?.role !== "viewer";
   const to = useClientPath();
   const [propertyId] = useGa4PropertyId();
   const [today] = useState(localToday);
@@ -634,6 +638,7 @@ export function GaDashboard({
         title="Dashboard"
         subtitle={aiOnly ? "Traffic from AI assistants (ChatGPT, Perplexity, Gemini, Copilot, Claude, ...)" : "GA4 performance overview"}
         actions={
+          canEdit && (
           <>
             <Link
               href={to("/portal")}
@@ -651,6 +656,7 @@ export function GaDashboard({
               <LayoutGrid className="h-4 w-4" /> Customize
             </button>
           </>
+          )
         }
       />
       <DashboardTabs />
@@ -663,12 +669,12 @@ export function GaDashboard({
         onDragCancel={() => setDragging(null)}
         onDragEnd={(e) => {
           setDragging(null);
-          if (!layout || readOnly) return;
+          if (!layout || !canEdit) return;
           const next = dropWithSpans(layout, spans, String(e.active.id), e.over ? String(e.over.id) : null);
           if (next.ids !== layout || next.spans !== spans) persistLayout(next.ids, next.spans);
         }}
       >
-      <ReadOnlyContext.Provider value={readOnly}>
+      <ReadOnlyContext.Provider value={!canEdit}>
       {/* Leave room for the Customize panel on wide screens so both stay usable while dragging. */}
       <main className={`flex-1 px-4 py-6 sm:px-6 ${customizing ? "lg:pr-[25rem]" : ""}`}>
         {/* Filters */}
@@ -683,7 +689,7 @@ export function GaDashboard({
               <option value="period">vs. previous period</option>
               <option value="year">vs. previous year</option>
             </select>
-            {!readOnly && (
+            {canEdit && (
             <>
             <div className="flex items-center rounded-md border border-zinc-200 bg-white">
               <button

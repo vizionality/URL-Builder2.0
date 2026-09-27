@@ -2,6 +2,15 @@
 // and Search Console site; the Google login stays in ga4_connections.
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSlug, uniqueSlug } from "@/lib/client-slug";
+import { canSeeClient } from "@/lib/roles";
+import { getAppUser } from "@/lib/team";
+
+// A team member limited to some clients only sees those (when the request is
+// theirs; portal links and background reads pass through).
+async function allowedFor(userId: string): Promise<string[] | null> {
+  const me = await getAppUser().catch(() => null);
+  return me && me.id === userId ? me.clients : null;
+}
 
 export type ClientRecord = {
   id: string;
@@ -31,7 +40,10 @@ export async function listClients(userId: string): Promise<ClientRecord[]> {
     .eq("user_id", userId)
     .order("created_at", { ascending: true });
   if (error) throw error;
-  if (data && data.length > 0) return data as ClientRecord[];
+  if (data && data.length > 0) {
+    const allowed = await allowedFor(userId);
+    return (data as ClientRecord[]).filter((c) => canSeeClient(allowed, c.slug));
+  }
   const { data: conn } = await admin
     .from("ga4_connections")
     .select("property_id, property_name, gsc_site_url")
@@ -65,7 +77,9 @@ export async function getClientBySlug(userId: string, slug: string | null | unde
     .eq("slug", slug)
     .maybeSingle();
   if (error) throw error;
-  return (data as ClientRecord) ?? null;
+  if (!data) return null;
+  const allowed = await allowedFor(userId);
+  return canSeeClient(allowed, slug) ? (data as ClientRecord) : null;
 }
 
 export async function createClientRecord(

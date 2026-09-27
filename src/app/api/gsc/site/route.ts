@@ -1,12 +1,15 @@
+import { forbidUnless, getAppUser } from "@/lib/team";
 import { clientParam } from "@/lib/clients";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection, setGscSite } from "@/lib/ga4-connection";
 
 // Saves (or clears, with siteUrl null) the Search Console site for the SEO Dashboard.
 export async function POST(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // Team roles: needs at least admin.
+  const me = await getAppUser();
+  const denied = me ? forbidUnless(me, "admin") : null;
+  if (denied) return denied;
+  const user = await getAppUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   const body = await req.json().catch(() => ({}));
   const siteUrl = typeof body.siteUrl === "string" && body.siteUrl.trim() ? body.siteUrl.trim().slice(0, 500) : null;
