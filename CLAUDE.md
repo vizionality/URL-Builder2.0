@@ -224,6 +224,21 @@ with real GA4 reporting.
   connection without email, gsc report, layout GET). Passwords unlock via `POST /api/portal/unlock`
   (rate-limited, httpOnly cookie).
 
+## Team members and roles
+- `team_members` (migration `20261001_team_members.sql`, RLS-no-policies): owner_id, email, role
+  (admin / analyst / viewer), client_slugs (null = all), member_user_id, invite_token. One team per member.
+- Everything stays owned by the owner. `getAppUser()` (`lib/team.ts`, request-cached) returns the account
+  to act on (`id` = owner for members), the role and allowed clients; every API route uses it instead of
+  the session user. `listClients` / `getClientBySlug` hide clients a member can't access, which also
+  guards `/c/<slug>/` and every client-scoped call.
+- Roles (`lib/roles.ts`, unit-tested): write routes call `forbidUnless(me, "analyst" | "admin")`. Analyst:
+  layouts, builder data, portal links, key events, signal acks, saved scans, AI suggestions. Admin:
+  clients, data sources (property, site, BigQuery, disconnect, Google OAuth), team.
+- `/team` (admin, Agency plan): invite by email and role with all or chosen clients, change role or clients,
+  remove, copy invite links (no email is sent). `/invite/<token>` accepts when signed in with the invited
+  email (`POST /api/team/accept`). `GET /api/me` gives the UI the role: nav hides items below `minRole`,
+  viewers get the dashboard without Share / Customize / undo / drag, non-admins don't see Add client.
+
 ## Measurement / Signals (indicator engine)
 A statistical indicator engine over the connected GA4 property's daily series,
 surfaced on `/measurement/signals` under the `(app)` shell.

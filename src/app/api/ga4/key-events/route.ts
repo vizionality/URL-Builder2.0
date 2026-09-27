@@ -1,6 +1,6 @@
+import { forbidUnless, getAppUser } from "@/lib/team";
 import { clientParam } from "@/lib/clients";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
 import { clearKeyEventsCache, currentKeyEvents, ga4FailureMessage, runReport } from "@/lib/ga4-api";
@@ -9,8 +9,7 @@ import { isValidEventName, suggestKeyEvents } from "@/lib/key-event-suggestions"
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 async function context(request: Request) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAppUser();
   if (!user) return { error: NextResponse.json({ error: "Not authenticated." }, { status: 401 }) };
   const conn = await getGa4Connection(user.id, clientParam(request)).catch(() => null);
   if (!conn?.property_id) return { error: NextResponse.json({ error: "No GA4 property selected." }, { status: 400 }) };
@@ -56,6 +55,10 @@ export async function GET(req: NextRequest) {
 
 // Mark an event as a key event in GA4 (counts from now on, not retroactively).
 export async function POST(req: NextRequest) {
+  // Team roles: needs at least analyst.
+  const me = await getAppUser();
+  const denied = me ? forbidUnless(me, "analyst") : null;
+  if (denied) return denied;
   const ctx = await context(req);
   if ("error" in ctx) return ctx.error;
   const body = await req.json().catch(() => ({}));

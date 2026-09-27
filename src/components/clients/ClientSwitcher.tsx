@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Check, ChevronsUpDown, Plus, Search } from "lucide-react";
 import { splitClientPath } from "@/lib/client-slug";
+import { useMe } from "@/lib/use-me";
 
 type ClientItem = { slug: string; name: string; domain: string | null; propertyId: string | null };
 
@@ -33,6 +34,7 @@ export function ClientSwitcher() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const me = useMe();
 
   useEffect(() => {
     let cancelled = false;
@@ -89,7 +91,9 @@ export function ClientSwitcher() {
       >
         {current ? <Initials name={current.name} /> : <span className="h-7 w-7 rounded-md bg-zinc-100" />}
         <span className="min-w-0 flex-1">
-          <span className="block text-[10px] uppercase tracking-wide text-zinc-400">Client</span>
+          <span className="block truncate text-[10px] uppercase tracking-wide text-zinc-400">
+            {me?.ownerEmail ? `Client · ${me.ownerEmail}'s team` : "Client"}
+          </span>
           <span className="block truncate text-sm font-medium text-zinc-800">
             {current?.name ?? (error ? "Clients unavailable" : "Loading…")}
           </span>

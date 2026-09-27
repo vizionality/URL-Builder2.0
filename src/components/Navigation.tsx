@@ -7,6 +7,16 @@ import { Menu, UserRound, X } from "lucide-react";
 import { NAV_ITEMS, type NavItem } from "@/lib/nav";
 import { splitClientPath } from "@/lib/client-slug";
 import { ClientSwitcher } from "@/components/clients/ClientSwitcher";
+import { useMe } from "@/lib/use-me";
+import { atLeast } from "@/lib/roles";
+
+// Nav items for this person's team role (admin-only items wait for the role).
+function useVisibleItems(): NavItem[] {
+  const me = useMe();
+  return NAV_ITEMS.filter((item) =>
+    !item.minRole ? true : me ? atLeast(me.role, item.minRole) : item.minRole !== "admin"
+  );
+}
 
 // Client-scoped items link inside the current client (/c/<slug>/...); outside
 // a client they use the old path, which redirects to the last client.
@@ -84,6 +94,7 @@ function ProfileMenu({ profile }: { profile?: SidebarProfile }) {
 
 export function Sidebar({ profile }: { profile?: SidebarProfile }) {
   const pathname = usePathname();
+  const items = useVisibleItems();
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r border-zinc-200 bg-white md:flex">
       <Logo />
@@ -91,7 +102,7 @@ export function Sidebar({ profile }: { profile?: SidebarProfile }) {
         <ClientSwitcher />
       </div>
       <nav data-tour="nav" className="flex-1 space-y-1 px-3">
-        {NAV_ITEMS.map((item) => {
+        {items.map((item) => {
           const { href, active } = navLink(item, pathname);
           const Icon = item.icon;
           if (item.comingSoon) {
@@ -136,6 +147,7 @@ export function Sidebar({ profile }: { profile?: SidebarProfile }) {
 
 export function MobileTabBar() {
   const pathname = usePathname();
+  const items = useVisibleItems();
   const [open, setOpen] = useState(false);
 
   // Close the menu on navigation.
@@ -220,7 +232,7 @@ export function MobileTabBar() {
               <div className="pb-2">
                 <ClientSwitcher />
               </div>
-              {NAV_ITEMS.map((item) => {
+              {items.map((item) => {
                 const { href, active } = navLink(item, pathname);
                 const Icon = item.icon;
                 if (item.comingSoon) {

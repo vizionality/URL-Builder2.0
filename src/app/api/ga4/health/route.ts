@@ -1,6 +1,6 @@
+import { getAppUser } from "@/lib/team";
 import { clientParam } from "@/lib/clients";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
 import { parseConfig } from "@/lib/health/config";
@@ -73,10 +73,7 @@ async function detectKeyMetric(propertyId: string, token: string): Promise<strin
 }
 
 export async function GET(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAppUser();
   if (!user) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }

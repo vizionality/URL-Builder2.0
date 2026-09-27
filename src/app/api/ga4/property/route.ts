@@ -1,10 +1,14 @@
+import { forbidUnless, getAppUser } from "@/lib/team";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { setGa4Property } from "@/lib/ga4-connection";
 import { clientParam } from "@/lib/clients";
 
 // Saves the selected GA4 property for the current user.
 export async function POST(req: NextRequest) {
+  // Team roles: needs at least admin.
+  const me = await getAppUser();
+  const denied = me ? forbidUnless(me, "admin") : null;
+  if (denied) return denied;
   const { propertyId, propertyName } = (await req.json()) as {
     propertyId?: string;
     propertyName?: string;
@@ -15,11 +19,7 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAppUser();
   if (!user) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }

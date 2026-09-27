@@ -1,19 +1,19 @@
+import { forbidUnless, getAppUser } from "@/lib/team";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { createClientRecord, listClients } from "@/lib/clients";
 import { getGoogleAccount, getPlan } from "@/lib/google-accounts";
 import { canAddClient, PLAN_LIMITS } from "@/lib/plans";
+import { atLeast } from "@/lib/roles";
 
 // The signed-in user's clients (agency mode), and adding one.
 export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAppUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   try {
     const [clients, plan] = await Promise.all([listClients(user.id), getPlan(user.id)]);
     return NextResponse.json({
       plan,
-      canAddClient: canAddClient(plan, clients.length),
+      canAddClient: canAddClient(plan, clients.length) && atLeast(user.role, "admin"),
       clientLimit: Number.isFinite(PLAN_LIMITS[plan].clients) ? PLAN_LIMITS[plan].clients : null,
       clients: clients.map((c) => ({
         slug: c.slug,
@@ -31,8 +31,11 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // Team roles: needs at least admin.
+  const me = await getAppUser();
+  const denied = me ? forbidUnless(me, "admin") : null;
+  if (denied) return denied;
+  const user = await getAppUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   const body = await req.json().catch(() => ({}));
   const name = typeof body.name === "string" ? body.name.trim() : "";

@@ -1,5 +1,5 @@
+import { forbidUnless, getAppUser } from "@/lib/team";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { listScans, createScan, deleteScan } from "@/lib/screener-store";
 import type { ScreenCondition } from "@/lib/indicators/screen";
 
@@ -18,10 +18,7 @@ function posNum(input: unknown, fallback: number): number {
 }
 
 export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAppUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
 
   try {
@@ -33,10 +30,11 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Team roles: needs at least analyst.
+  const me = await getAppUser();
+  const denied = me ? forbidUnless(me, "analyst") : null;
+  if (denied) return denied;
+  const user = await getAppUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
 
   let body: Record<string, unknown>;
@@ -75,10 +73,11 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Team roles: needs at least analyst.
+  const me = await getAppUser();
+  const denied = me ? forbidUnless(me, "analyst") : null;
+  if (denied) return denied;
+  const user = await getAppUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
 
   const id = new URL(req.url).searchParams.get("id");

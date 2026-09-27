@@ -1,5 +1,5 @@
+import { getAppUser } from "@/lib/team";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { getClientBySlug, listClients } from "@/lib/clients";
 import { ClientScope } from "@/components/clients/ClientScope";
 
@@ -12,8 +12,7 @@ export default async function ClientLayout({
   params: Promise<{ client: string }>;
 }) {
   const { client } = await params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAppUser();
   if (!user) notFound();
   const record = await getClientBySlug(user.id, client).catch(() => null);
   if (!record) notFound();

@@ -1,6 +1,6 @@
+import { getAppUser } from "@/lib/team";
 import { clientParam } from "@/lib/clients";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
 import { parseGa4Date, addDays } from "@/lib/indicators/dates";
@@ -92,11 +92,7 @@ export async function GET(request: Request) {
   if (!isMetric(metricParam)) {
     return NextResponse.json({ error: `Unknown metric "${metricParam}".` }, { status: 400 });
   }
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAppUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
 
   const conn = await getGa4Connection(user.id, clientParam(request));

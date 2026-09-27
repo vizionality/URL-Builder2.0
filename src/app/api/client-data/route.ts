@@ -1,5 +1,5 @@
+import { forbidUnless, getAppUser } from "@/lib/team";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { clientParam, getClientBySlug } from "@/lib/clients";
 
@@ -10,8 +10,7 @@ const KEYS = new Set(["utmOptions", "savedUrls", "bulkRows", "bulkProjects", "da
 const MAX_BYTES = 900_000;
 
 async function owner(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAppUser();
   if (!user) return { error: NextResponse.json({ error: "Not authenticated." }, { status: 401 }) };
   const slug = clientParam(req);
   const key = req.nextUrl.searchParams.get("key") ?? "";
@@ -39,6 +38,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  // Team roles: needs at least analyst.
+  const me = await getAppUser();
+  const denied = me ? forbidUnless(me, "analyst") : null;
+  if (denied) return denied;
   const o = await owner(req);
   if ("error" in o) return o.error;
   const text = await req.text();

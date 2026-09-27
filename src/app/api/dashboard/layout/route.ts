@@ -1,3 +1,4 @@
+import { forbidUnless, getAppUser } from "@/lib/team";
 import { requestUser } from "@/lib/portal";
 import { NextRequest, NextResponse } from "next/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
@@ -34,6 +35,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  // Team roles: needs at least analyst.
+  const me = await getAppUser();
+  const denied = me ? forbidUnless(me, "analyst") : null;
+  if (denied) return denied;
   const o = await owner(req);
   if ("error" in o) return o.error;
   let body: { widgets?: unknown; restore?: unknown };
@@ -61,6 +66,10 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  // Team roles: needs at least analyst.
+  const me = await getAppUser();
+  const denied = me ? forbidUnless(me, "analyst") : null;
+  if (denied) return denied;
   const o = await owner(req);
   if ("error" in o) return o.error;
   try {

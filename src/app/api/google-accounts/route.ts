@@ -1,5 +1,5 @@
+import { forbidUnless, getAppUser } from "@/lib/team";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { getPlan, listGoogleAccounts } from "@/lib/google-accounts";
 import { getAccessToken } from "@/lib/google-oauth";
 import { listSites } from "@/lib/gsc";
@@ -12,8 +12,11 @@ type AccountSummary = { displayName?: string; propertySummaries?: PropertySummar
 // sites it can read (for the Add client wizard). Each login is read on its
 // own, so one expired login doesn't hide the others.
 export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // Team roles: needs at least admin.
+  const me = await getAppUser();
+  const denied = me ? forbidUnless(me, "admin") : null;
+  if (denied) return denied;
+  const user = await getAppUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
 
   const [plan, accounts] = await Promise.all([getPlan(user.id), listGoogleAccounts(user.id).catch(() => null)]);

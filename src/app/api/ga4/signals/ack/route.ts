@@ -1,6 +1,6 @@
+import { forbidUnless, getAppUser } from "@/lib/team";
 import { clientParam } from "@/lib/clients";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
 import { acknowledgeSignal } from "@/lib/indicators/store";
 
@@ -9,10 +9,11 @@ import { acknowledgeSignal } from "@/lib/indicators/store";
 // property is taken from the server-side connection, never from the client, so
 // one user can never acknowledge into another user's or property's history.
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Team roles: needs at least analyst.
+  const me = await getAppUser();
+  const denied = me ? forbidUnless(me, "analyst") : null;
+  if (denied) return denied;
+  const user = await getAppUser();
   if (!user) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }

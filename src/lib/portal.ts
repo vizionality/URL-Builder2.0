@@ -1,9 +1,9 @@
+import { getAppUser } from "@/lib/team";
 // Read-only client portals: a share link (random token, optional password)
 // that shows one client's dashboards without an account. Server-only.
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 import { clientParam } from "@/lib/clients";
 
 export type Share = {
@@ -65,8 +65,7 @@ export async function requestUser(
   request: Request,
   { allowShare = false }: { allowShare?: boolean } = {}
 ): Promise<{ user: { id: string } | null; clientSlug: string | null; viaShare: boolean }> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAppUser();
   const token = new URL(request.url).searchParams.get("share");
   if (allowShare && token) {
     const share = await getShareByToken(token);
