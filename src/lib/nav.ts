@@ -8,6 +8,7 @@ import {
   Activity,
   LineChart,
   Radar,
+  Users,
 } from "lucide-react";
 
 export type NavItem = {
@@ -25,6 +26,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/campaigns", label: "Campaign Creator", icon: Sparkles },
   { href: "/campaign-sessions", scoped: true, label: "Campaign Sessions", icon: Activity },
   { href: "/options", label: "UTM Options", icon: SlidersHorizontal },
+  { href: "/clients", label: "Clients", icon: Users },
   { href: "/dashboard", scoped: true, label: "Dashboard", icon: LayoutDashboard },
   { href: "/measurement/signals", scoped: true, label: "Signals", icon: LineChart },
   { href: "/screener", scoped: true, label: "Screener", icon: Radar },
