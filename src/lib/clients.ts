@@ -11,9 +11,15 @@ export type ClientRecord = {
   property_id: string | null;
   property_name: string | null;
   gsc_site_url: string | null;
+  // The Google logins the property and the Search Console site come from.
+  google_account_id: string | null;
+  gsc_google_account_id: string | null;
 };
 
-const COLUMNS = "id, slug, name, domain, property_id, property_name, gsc_site_url";
+const COLUMNS = "id, slug, name, domain, property_id, property_name, gsc_site_url, google_account_id, gsc_google_account_id";
+type ClientFields = Partial<
+  Pick<ClientRecord, "name" | "domain" | "property_id" | "property_name" | "gsc_site_url" | "google_account_id" | "gsc_google_account_id">
+>;
 
 // The user's clients, oldest first. A user with none gets one, seeded from
 // their current GA4 / Search Console selection, so client URLs always work.
@@ -32,7 +38,16 @@ export async function listClients(userId: string): Promise<ClientRecord[]> {
     .eq("user_id", userId)
     .maybeSingle();
   const name = (conn?.property_name as string | null) || "My client";
+  const { data: account } = await admin
+    .from("google_accounts")
+    .select("id")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
   const first = await createClientRecord(userId, name, {
+    google_account_id: (account?.id as string | undefined) ?? null,
+    gsc_google_account_id: (account?.id as string | undefined) ?? null,
     property_id: (conn?.property_id as string | null) ?? null,
     property_name: (conn?.property_name as string | null) ?? null,
     gsc_site_url: (conn?.gsc_site_url as string | null) ?? null,
@@ -56,7 +71,7 @@ export async function getClientBySlug(userId: string, slug: string | null | unde
 export async function createClientRecord(
   userId: string,
   name: string,
-  fields: Partial<Pick<ClientRecord, "domain" | "property_id" | "property_name" | "gsc_site_url">> = {}
+  fields: Omit<ClientFields, "name"> = {}
 ): Promise<ClientRecord> {
   const admin = createAdminClient();
   const { data: existing } = await admin.from("clients").select("slug").eq("user_id", userId);
@@ -73,7 +88,7 @@ export async function createClientRecord(
 export async function updateClient(
   userId: string,
   slug: string,
-  fields: Partial<Pick<ClientRecord, "name" | "domain" | "property_id" | "property_name" | "gsc_site_url">>
+  fields: ClientFields
 ): Promise<void> {
   const admin = createAdminClient();
   const { error } = await admin
