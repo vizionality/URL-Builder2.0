@@ -1,6 +1,6 @@
 "use client";
 
-import { api } from "@/lib/client-scope";
+import { api, clientStorageKey, isLegacyOwner, lastClient, useClientSlug } from "@/lib/client-scope";
 import {
   useCallback,
   useEffect,
@@ -28,8 +28,20 @@ export const DEFAULT_UTM_OPTIONS: UtmOptions = {
 
 const cache = new Map<string, { raw: string | null; value: unknown }>();
 
+// Builder data is kept per client ("<key>@<slug>"). The oldest client adopts
+// what was saved before clients existed, once (the old copy is left in place).
+function adoptLegacy(key: string) {
+  const at = key.lastIndexOf("@");
+  if (at < 0) return;
+  const slug = key.slice(at + 1);
+  if (!isLegacyOwner(slug) || window.localStorage.getItem(key) !== null) return;
+  const legacy = window.localStorage.getItem(key.slice(0, at));
+  if (legacy !== null) window.localStorage.setItem(key, legacy);
+}
+
 function readStorage<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
+  adoptLegacy(key);
   const raw = window.localStorage.getItem(key);
   const cached = cache.get(key);
   if (cached && cached.raw === raw) {
@@ -60,7 +72,10 @@ function subscribe(key: string, callback: () => void) {
   return () => window.removeEventListener(eventName, callback);
 }
 
-export function useStoredState<T>(key: string, fallback: T) {
+// Stored per client: the one in the URL, or outside /c/ the last one used.
+export function useStoredState<T>(baseKey: string, fallback: T) {
+  const urlSlug = useClientSlug();
+  const key = clientStorageKey(baseKey, urlSlug || lastClient());
   const fallbackRef = useRef(fallback);
 
   const subscribeFn = useCallback(

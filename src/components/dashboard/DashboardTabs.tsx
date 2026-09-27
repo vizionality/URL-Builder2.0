@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useStoredState } from "@/lib/storage";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useClientPath } from "@/lib/client-scope";
@@ -9,48 +10,11 @@ import { ChevronDown, Plus, Trash2 } from "lucide-react";
 
 export type DashboardPage = { id: string; name: string };
 
-const KEY = "dashboardPages";
-const EVENT = "dashboard-pages-change";
+// Custom dashboard pages created from "More", kept in this browser per client.
+const EMPTY: DashboardPage[] = [];
 
-// Custom dashboard pages the user created from "More", kept in this browser.
-function read(): string {
-  try {
-    return localStorage.getItem(KEY) ?? "[]";
-  } catch {
-    return "[]";
-  }
-}
-
-function subscribe(cb: () => void) {
-  window.addEventListener(EVENT, cb);
-  window.addEventListener("storage", cb);
-  return () => {
-    window.removeEventListener(EVENT, cb);
-    window.removeEventListener("storage", cb);
-  };
-}
-
-function parse(raw: string): DashboardPage[] {
-  try {
-    const v = JSON.parse(raw);
-    return Array.isArray(v) ? v.filter((p) => p && typeof p.id === "string" && typeof p.name === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-function write(pages: DashboardPage[]) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(pages));
-  } catch {
-    // Storage blocked: the page list just won't persist.
-  }
-  window.dispatchEvent(new Event(EVENT));
-}
-
-export function useDashboardPages(): DashboardPage[] {
-  const raw = useSyncExternalStore(subscribe, read, () => "[]");
-  return parse(raw);
+export function useDashboardPages() {
+  return useStoredState<DashboardPage[]>("dashboardPages", EMPTY);
 }
 
 const BUILT_IN = [
@@ -66,7 +30,7 @@ export function DashboardTabs() {
   const pathname = splitClientPath(usePathname()).rest;
   const to = useClientPath();
   const router = useRouter();
-  const pages = useDashboardPages();
+  const [pages, setPages] = useDashboardPages();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
@@ -92,14 +56,14 @@ export function DashboardTabs() {
     const trimmed = name.trim();
     if (!trimmed) return;
     const id = Math.random().toString(36).slice(2, 10);
-    write([...pages, { id, name: trimmed.slice(0, 60) }]);
+    setPages([...pages, { id, name: trimmed.slice(0, 60) }]);
     setName("");
     setOpen(false);
     router.push(to(`/dashboard/p/${id}`));
   }
 
   function remove(id: string) {
-    write(pages.filter((p) => p.id !== id));
+    setPages(pages.filter((p) => p.id !== id));
     if (pathname === `/dashboard/p/${id}`) router.push(to("/dashboard"));
   }
 

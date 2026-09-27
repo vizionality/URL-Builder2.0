@@ -21,11 +21,11 @@ export type NavItem = {
 };
 
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/app", label: "UTM Builder", icon: Link2 },
-  { href: "/bulk", label: "Bulk Builder", icon: Table2 },
-  { href: "/campaigns", label: "Campaign Creator", icon: Sparkles },
+  { href: "/app", scoped: true, label: "UTM Builder", icon: Link2 },
+  { href: "/bulk", scoped: true, label: "Bulk Builder", icon: Table2 },
+  { href: "/campaigns", scoped: true, label: "Campaign Creator", icon: Sparkles },
   { href: "/campaign-sessions", scoped: true, label: "Campaign Sessions", icon: Activity },
-  { href: "/options", label: "UTM Options", icon: SlidersHorizontal },
+  { href: "/options", scoped: true, label: "UTM Options", icon: SlidersHorizontal },
   { href: "/clients", label: "Clients", icon: Users },
   { href: "/dashboard", scoped: true, label: "Dashboard", icon: LayoutDashboard },
   { href: "/measurement/signals", scoped: true, label: "Signals", icon: LineChart },

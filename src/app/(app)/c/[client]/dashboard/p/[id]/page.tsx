@@ -6,7 +6,8 @@ import { BlankDashboard, DashboardTabs, useDashboardPages } from "@/components/d
 
 export default function CustomDashboardPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const page = useDashboardPages().find((p) => p.id === id);
+  const [pages] = useDashboardPages();
+  const page = pages.find((p) => p.id === id);
   const name = page?.name ?? "Custom page";
   return (
     <>
