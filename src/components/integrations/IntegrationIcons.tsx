@@ -1,3 +1,6 @@
+"use client";
+
+import { useClientPath } from "@/lib/client-scope";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
@@ -24,8 +27,9 @@ export function SearchConsoleIcon({ className = "h-10 w-10" }: { className?: str
 }
 
 export function BackToIntegrations() {
+  const to = useClientPath();
   return (
-    <Link href="/integrations" className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-zinc-500 hover:text-zinc-800">
+    <Link href={to("/integrations")} className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-zinc-500 hover:text-zinc-800">
       <ChevronLeft className="h-4 w-4" /> All integrations
     </Link>
   );

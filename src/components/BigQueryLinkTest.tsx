@@ -1,5 +1,6 @@
 "use client";
 
+import { api } from "@/lib/client-scope";
 import { useCallback, useEffect, useState } from "react";
 import { Database, Loader2 } from "lucide-react";
 
@@ -14,7 +15,7 @@ export function BigQueryLinkTest({ propertyId }: { propertyId: string }) {
   const [done, setDone] = useState(false);
 
   const load = useCallback(async () => {
-    const r = await fetch("/api/ga4/bigquery-link");
+    const r = await fetch(api("/api/ga4/bigquery-link"));
     const d = await r.json().catch(() => ({}));
     if (!r.ok) {
       setError(d.error ?? "Couldn't read BigQuery links.");
@@ -34,7 +35,7 @@ export function BigQueryLinkTest({ propertyId }: { propertyId: string }) {
   async function link() {
     setBusy(true);
     setError(null);
-    const r = await fetch("/api/ga4/bigquery-link", { method: "POST" });
+    const r = await fetch(api("/api/ga4/bigquery-link"), { method: "POST" });
     const d = await r.json().catch(() => ({}));
     setBusy(false);
     if (!r.ok) {

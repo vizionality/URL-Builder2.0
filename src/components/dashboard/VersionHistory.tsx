@@ -1,5 +1,6 @@
 "use client";
 
+import { api } from "@/lib/client-scope";
 import { useEffect, useState } from "react";
 import { History, Loader2 } from "lucide-react";
 import { versionDiff, widgetCount } from "@/lib/dashboard-widgets";
@@ -39,7 +40,7 @@ export function VersionHistory({
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/dashboard/layout/versions${layoutQuery}`)
+    fetch(api(`/api/dashboard/layout/versions${layoutQuery}`))
       .then((r) => r.json())
       .then((d: { versions?: Version[]; unavailable?: boolean }) => {
         if (!cancelled) setState({ loading: false, unavailable: Boolean(d.unavailable), versions: d.versions ?? [] });

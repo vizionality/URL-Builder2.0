@@ -1,5 +1,6 @@
 "use client";
 
+import { api } from "@/lib/client-scope";
 import {
   useCallback,
   useEffect,
@@ -134,7 +135,7 @@ export function useGa4PropertyId() {
   const [propertyId, setPropertyId] = useState("");
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/ga4/connection")
+    fetch(api("/api/ga4/connection"))
       .then((r) => r.json())
       .then((d) => {
         if (!cancelled && d.connected && d.propertyId) {

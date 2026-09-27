@@ -1,5 +1,6 @@
 "use client";
 
+import { api } from "@/lib/client-scope";
 import { useEffect, useState } from "react";
 import {
   Bar,
@@ -34,7 +35,7 @@ export function useExtraWidgets(ids: string[], query: string, enabled: boolean):
   const [state, setState] = useState<ExtraState>({ loading: false, error: null, data: {} });
   useEffect(() => {
     if (!enabled || !idsKey) return;
-    const url = `/api/ga4/widgets?${query}&ids=${encodeURIComponent(idsKey)}`;
+    const url = api(`/api/ga4/widgets?${query}&ids=${encodeURIComponent(idsKey)}`);
     const cached = getCached<Record<string, WidgetData>>(url);
     if (cached) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- serve a cached report synchronously

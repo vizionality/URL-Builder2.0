@@ -1,5 +1,6 @@
 "use client";
 
+import { useClientPath } from "@/lib/client-scope";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
@@ -20,6 +21,7 @@ const inputClass =
 type Row = { campaign: string; sessions: number | null };
 
 export default function CampaignSessionsPage() {
+  const to = useClientPath();
   const [propertyId] = useGa4PropertyId();
   const [savedUrls] = useSavedUrls();
   const [projectsState] = useBulkProjects();
@@ -78,7 +80,7 @@ export default function CampaignSessionsPage() {
                 Connect a GA4 property to see live session counts for each campaign.
               </p>
               <Link
-                href="/integrations"
+                href={to("/integrations")}
                 className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
               >
                 Connect GA4

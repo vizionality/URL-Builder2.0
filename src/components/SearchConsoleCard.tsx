@@ -1,5 +1,6 @@
 "use client";
 
+import { api } from "@/lib/client-scope";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Card } from "@/components/Card";
@@ -20,7 +21,7 @@ export function SearchConsoleCard({ googleConnected }: { googleConnected: boolea
   useEffect(() => {
     if (!googleConnected) return;
     let cancelled = false;
-    fetch("/api/gsc/sites")
+    fetch(api("/api/gsc/sites"))
       .then((r) => r.json())
       .then((d: Sites) => {
         if (cancelled) return;
@@ -35,7 +36,7 @@ export function SearchConsoleCard({ googleConnected }: { googleConnected: boolea
 
   async function save() {
     setStatus("saving");
-    const r = await fetch("/api/gsc/site", {
+    const r = await fetch(api("/api/gsc/site"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ siteUrl: selected || null }),

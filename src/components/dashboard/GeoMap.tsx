@@ -1,5 +1,6 @@
 "use client";
 
+import { api } from "@/lib/client-scope";
 import { memo, useEffect, useMemo, useState } from "react";
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from "react-simple-maps";
 import { geoAlbersUsa, geoMercator, type GeoPermissibleObjects, type GeoProjection } from "d3-geo";
@@ -205,7 +206,7 @@ export function GeoMap({
   const stateName = selected?.name;
   useEffect(() => {
     if (!stateName) return;
-    const url = `/api/ga4/cities?${query}&region=${encodeURIComponent(stateName)}`;
+    const url = api(`/api/ga4/cities?${query}&region=${encodeURIComponent(stateName)}`);
     const cached = getCached<Cities>(url);
     if (cached) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- serve a cached report synchronously

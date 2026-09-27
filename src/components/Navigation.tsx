@@ -4,7 +4,19 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, UserRound, X } from "lucide-react";
-import { NAV_ITEMS } from "@/lib/nav";
+import { NAV_ITEMS, type NavItem } from "@/lib/nav";
+import { splitClientPath } from "@/lib/client-slug";
+import { ClientSwitcher } from "@/components/clients/ClientSwitcher";
+
+// Client-scoped items link inside the current client (/c/<slug>/...); outside
+// a client they use the old path, which redirects to the last client.
+function navLink(item: NavItem, pathname: string): { href: string; active: boolean } {
+  const { slug, rest } = splitClientPath(pathname);
+  const href = item.scoped && slug ? `/c/${slug}${item.href}` : item.href;
+  const path = item.scoped ? rest : pathname;
+  const active = path === item.href || (item.href !== "/" && path.startsWith(`${item.href}/`));
+  return { href, active };
+}
 import { SignOutButton } from "@/components/auth/SignOutButton";
 
 function Logo() {
@@ -75,9 +87,12 @@ export function Sidebar({ profile }: { profile?: SidebarProfile }) {
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r border-zinc-200 bg-white md:flex">
       <Logo />
+      <div className="px-3 pb-3">
+        <ClientSwitcher />
+      </div>
       <nav data-tour="nav" className="flex-1 space-y-1 px-3">
         {NAV_ITEMS.map((item) => {
-          const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`));
+          const { href, active } = navLink(item, pathname);
           const Icon = item.icon;
           if (item.comingSoon) {
             return (
@@ -98,7 +113,7 @@ export function Sidebar({ profile }: { profile?: SidebarProfile }) {
           return (
             <Link
               key={item.href}
-              href={item.href}
+              href={href}
               className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                 active
                   ? "bg-green-50 text-green-700"
@@ -202,8 +217,11 @@ export function MobileTabBar() {
               </button>
             </div>
             <div className="space-y-1 p-3">
+              <div className="pb-2">
+                <ClientSwitcher />
+              </div>
               {NAV_ITEMS.map((item) => {
-                const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`));
+                const { href, active } = navLink(item, pathname);
                 const Icon = item.icon;
                 if (item.comingSoon) {
                   return (
@@ -224,7 +242,7 @@ export function MobileTabBar() {
                 return (
                   <Link
                     key={item.href}
-                    href={item.href}
+                    href={href}
                     className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                       active
                         ? "bg-green-50 text-green-700"

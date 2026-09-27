@@ -1,5 +1,6 @@
 "use client";
 
+import { useClientPath } from "@/lib/client-scope";
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import { Loader2, Check, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
@@ -139,6 +140,7 @@ function initialFromUrl(): { filter: { dimension: string; value: string } | null
 }
 
 export default function SignalsPage() {
+  const to = useClientPath();
   const [propertyId] = useGa4PropertyId();
   const [initial] = useState(initialFromUrl);
   const filter = initial.filter;
@@ -179,7 +181,7 @@ export default function SignalsPage() {
               : <span className="font-semibold">{filter.value}</span>
             </span>
             <a
-              href="/measurement/signals"
+              href={to("/measurement/signals")}
               className="ml-auto rounded-md border border-green-300 bg-white px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100"
             >
               Clear filter

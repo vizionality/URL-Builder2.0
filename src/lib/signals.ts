@@ -1,5 +1,6 @@
 "use client";
 
+import { api } from "@/lib/client-scope";
 import { useCallback, useEffect, useState } from "react";
 import type {
   Band,
@@ -89,7 +90,7 @@ export function useSignals(
       params.set("dimension", dimension);
       params.set("value", value);
     }
-    fetch(`/api/ga4/signals?${params.toString()}`)
+    fetch(api(`/api/ga4/signals?${params.toString()}`))
       .then(async (r) => {
         const d = await r.json();
         if (!r.ok) throw new Error(d.error ?? "Failed to compute signals.");
@@ -125,7 +126,7 @@ export async function acknowledgeSignal(
   direction: "up" | "down",
   firedOn: string
 ): Promise<void> {
-  const res = await fetch("/api/ga4/signals/ack", {
+  const res = await fetch(api("/api/ga4/signals/ack"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ metric, direction, firedOn }),

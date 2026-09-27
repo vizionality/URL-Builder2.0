@@ -1,3 +1,4 @@
+import { clientParam } from "@/lib/clients";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
   if (!ISO.test(startDate) || !ISO.test(endDate) || startDate > endDate) {
     return NextResponse.json({ error: "Invalid date range." }, { status: 400 });
   }
-  const conn = await getGa4Connection(user.id).catch(() => null);
+  const conn = await getGa4Connection(user.id, clientParam(req)).catch(() => null);
   if (!conn?.gsc_site_url) return NextResponse.json({ error: "No Search Console site selected.", code: "no_site" }, { status: 400 });
   const site = conn.gsc_site_url;
   try {

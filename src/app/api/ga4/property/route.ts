@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { setGa4Property } from "@/lib/ga4-connection";
+import { clientParam } from "@/lib/clients";
 
 // Saves the selected GA4 property for the current user.
 export async function POST(req: NextRequest) {
@@ -23,6 +24,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }
 
-  await setGa4Property(user.id, String(propertyId), propertyName ?? null);
+  await setGa4Property(user.id, String(propertyId), propertyName ?? null, clientParam(req));
   return NextResponse.json({ ok: true });
 }

@@ -1,3 +1,4 @@
+import { clientParam } from "@/lib/clients";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }
 
-  const conn = await getGa4Connection(user.id);
+  const conn = await getGa4Connection(user.id, clientParam(request));
   if (!conn?.property_id) {
     return NextResponse.json({ error: "No GA4 property selected." }, { status: 400 });
   }

@@ -175,6 +175,22 @@ with real GA4 reporting.
 - Sign out. Optional delete-account (needs a server route with the service_role key).
 - Reachable from a profile menu in the sidebar.
 
+## Clients (agency mode)
+- One user, many clients. `clients` (migration `20260928_clients.sql`, RLS-no-policies; seeds each
+  user's current GA4 property / Search Console site as their first client) holds slug, name, domain,
+  property_id/name and gsc_site_url. The Google login (refresh token) stays in `ga4_connections`.
+- Client-scoped pages live under `/c/<slug>/` (dashboard and its tabs, signals, screener, campaign
+  sessions, integrations; `app/(app)/c/[client]/layout.tsx` checks ownership). Old paths
+  (`/dashboard`, ...) are catch-all redirects to the last client (cookie `lastClient`) or the first.
+- Browser API calls go through `api()` (`lib/client-scope.ts`), which adds `client=<slug>` from the
+  URL, so response caches never mix clients. Routes pass `clientParam(request)` to
+  `getGa4Connection`, which then returns that client's property and site; saving a property or site
+  with a client updates the client row. Links use `useClientPath()`.
+- Sidebar `ClientSwitcher`: current client, search, switch to the same page for another client, and
+  Add client (then straight to its GA4 property picker). `GET/POST /api/clients`.
+- Layouts, signals and saved scans stay keyed by property, so clients sharing a property share them.
+  Custom dashboard pages (localStorage) are not yet per client.
+
 ## Measurement / Signals (indicator engine)
 A statistical indicator engine over the connected GA4 property's daily series,
 surfaced on `/measurement/signals` under the `(app)` shell.

@@ -1,3 +1,4 @@
+import { clientParam } from "@/lib/clients";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
@@ -143,7 +144,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }
 
-  const conn = await getGa4Connection(user.id);
+  const conn = await getGa4Connection(user.id, clientParam(request));
   if (!conn) {
     return NextResponse.json(
       { error: "Google Analytics is not connected." },

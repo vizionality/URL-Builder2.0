@@ -1,3 +1,4 @@
+import { clientParam } from "@/lib/clients";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
@@ -7,11 +8,11 @@ import { isValidEventName, suggestKeyEvents } from "@/lib/key-event-suggestions"
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
-async function context() {
+async function context(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: "Not authenticated." }, { status: 401 }) };
-  const conn = await getGa4Connection(user.id).catch(() => null);
+  const conn = await getGa4Connection(user.id, clientParam(request)).catch(() => null);
   if (!conn?.property_id) return { error: NextResponse.json({ error: "No GA4 property selected." }, { status: 400 }) };
   try {
     return { propertyId: conn.property_id, token: await getAccessToken(conn.refresh_token) };
@@ -22,7 +23,7 @@ async function context() {
 
 // The property's events in the range with the ones worth marking as key events.
 export async function GET(req: NextRequest) {
-  const ctx = await context();
+  const ctx = await context(req);
   if ("error" in ctx) return ctx.error;
   const startDate = req.nextUrl.searchParams.get("startDate") ?? "";
   const endDate = req.nextUrl.searchParams.get("endDate") ?? "";
@@ -55,7 +56,7 @@ export async function GET(req: NextRequest) {
 
 // Mark an event as a key event in GA4 (counts from now on, not retroactively).
 export async function POST(req: NextRequest) {
-  const ctx = await context();
+  const ctx = await context(req);
   if ("error" in ctx) return ctx.error;
   const body = await req.json().catch(() => ({}));
   const eventName = String(body.eventName ?? "");

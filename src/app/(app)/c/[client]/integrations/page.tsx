@@ -1,5 +1,7 @@
 "use client";
 
+import { useClientPath } from "@/lib/client-scope";
+import { api } from "@/lib/client-scope";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
@@ -10,9 +12,10 @@ type Connection = { connected: boolean; propertyId?: string; gscSiteUrl?: string
 
 // Integrations: one tile per platform; each opens its setup page.
 export default function IntegrationsPage() {
+  const to = useClientPath();
   const [conn, setConn] = useState<Connection | null>(null);
   useEffect(() => {
-    fetch("/api/ga4/connection")
+    fetch(api("/api/ga4/connection"))
       .then((r) => r.json())
       .then(setConn)
       .catch(() => setConn({ connected: false }));
@@ -20,14 +23,14 @@ export default function IntegrationsPage() {
 
   const tiles = [
     {
-      href: "/integrations/google-analytics",
+      href: to("/integrations/google-analytics"),
       name: "Google Analytics",
       description: "GA4 sessions, users and conversions for the dashboard.",
       Icon: GoogleAnalyticsIcon,
       status: !conn ? null : conn.connected && conn.propertyId ? "Connected" : conn.connected ? "Pick a property" : "Not connected",
     },
     {
-      href: "/integrations/search-console",
+      href: to("/integrations/search-console"),
       name: "Google Search Console",
       description: "Clicks, impressions, CTR and position for the SEO Dashboard.",
       Icon: SearchConsoleIcon,

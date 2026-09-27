@@ -1,5 +1,6 @@
 "use client";
 
+import { api } from "@/lib/client-scope";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Header } from "@/components/Header";
@@ -9,7 +10,7 @@ import { BackToIntegrations } from "@/components/integrations/IntegrationIcons";
 export default function SearchConsoleIntegrationPage() {
   const [connected, setConnected] = useState<boolean | null>(null);
   useEffect(() => {
-    fetch("/api/ga4/connection")
+    fetch(api("/api/ga4/connection"))
       .then((r) => r.json())
       .then((d) => setConnected(Boolean(d.connected)))
       .catch(() => setConnected(false));

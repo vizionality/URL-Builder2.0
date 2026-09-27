@@ -1,5 +1,6 @@
 "use client";
 
+import { api } from "@/lib/client-scope";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bar,
@@ -302,7 +303,7 @@ export function GaDashboard({ aiOnly = false }: { aiOnly?: boolean } = {}) {
   useEffect(() => {
     if (!propertyId) return;
     let cancelled = false;
-    fetch(`/api/dashboard/layout${layoutQuery}`)
+    fetch(api(`/api/dashboard/layout${layoutQuery}`))
       .then((r) => r.json())
       .then((d: { widgets?: string[]; saveUnavailable?: boolean }) => {
         if (cancelled) return;
@@ -323,7 +324,7 @@ export function GaDashboard({ aiOnly = false }: { aiOnly?: boolean } = {}) {
     setSaveStatus("saving");
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      fetch(`/api/dashboard/layout${layoutQuery}`, {
+      fetch(api(`/api/dashboard/layout${layoutQuery}`), {
         method: "PUT",
         headers: { "content-type": "application/json" },
         // restore: true gives a restore its own history version.
@@ -508,7 +509,7 @@ export function GaDashboard({ aiOnly = false }: { aiOnly?: boolean } = {}) {
     p.set("endDate", endDate);
     p.set("compare", compare);
     // A filter combination seen in the last few minutes shows instantly.
-    const cacheKey = `/api/ga4/overview?${p.toString()}`;
+    const cacheKey = api(`/api/ga4/overview?${p.toString()}`);
     const cached = getCached<Overview>(cacheKey);
     // Use the cache unless the dropdown lists still need loading and this
     // cached response doesn't carry them (e.g. after navigating back here).
@@ -526,7 +527,7 @@ export function GaDashboard({ aiOnly = false }: { aiOnly?: boolean } = {}) {
     const ac = new AbortController();
     // Keep the current numbers on screen (dimmed) while the new ones load.
     setState((s) => ({ ...s, loading: true, error: null }));
-    fetch(`/api/ga4/overview?${p.toString()}`, { signal: ac.signal })
+    fetch(api(`/api/ga4/overview?${p.toString()}`), { signal: ac.signal })
       .then(async (r) => {
         const d = await r.json();
         if (!r.ok) throw new Error(d.error ?? "Failed to load report.");

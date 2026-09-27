@@ -1,5 +1,7 @@
 "use client";
 
+import { useClientPath } from "@/lib/client-scope";
+import { api } from "@/lib/client-scope";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -32,6 +34,7 @@ const int = (v: number) => Math.round(v).toLocaleString("en-US");
 
 // SEO Dashboard: Google Search Console performance for the saved site.
 export function SeoDashboard() {
+  const to = useClientPath();
   const [today] = useState(localToday);
   const [dates, setDates] = useState<DateValue>(() => ({
     preset: "last28",
@@ -40,7 +43,7 @@ export function SeoDashboard() {
   }));
   const range = resolveRange(dates, today);
   const endDate = range.endDate > today ? today : range.endDate;
-  const url = `/api/gsc/report?startDate=${range.startDate}&endDate=${endDate}`;
+  const url = api(`/api/gsc/report?startDate=${range.startDate}&endDate=${endDate}`);
   const [state, setState] = useState<{ url: string; data: Report | null; error: string | null; code?: string } | null>(null);
 
   useEffect(() => {
@@ -75,7 +78,7 @@ export function SeoDashboard() {
       <main className="flex-1 px-4 py-6 sm:px-6">
         <Card title="Connect Google Search Console" description="See clicks, impressions, CTR and position from Google Search.">
           <p className="mb-3 text-sm text-zinc-600">{state.error}</p>
-          <Link href="/integrations/search-console" className="inline-flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
+          <Link href={to("/integrations/search-console")} className="inline-flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
             <Search size={16} /> Go to Integrations
           </Link>
         </Card>
