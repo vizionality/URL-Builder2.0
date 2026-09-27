@@ -1,5 +1,6 @@
 "use client";
 
+import { api } from "@/lib/client-scope";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Area,
@@ -499,7 +500,7 @@ function WorldMap({
   const drillCountry = activeDrill?.country ?? null;
   useEffect(() => {
     if (!drillState) return;
-    const url = `/api/ga4/cities?${query}&region=${encodeURIComponent(drillState)}&country=${encodeURIComponent(drillCountry ?? "United States")}`;
+    const url = api(`/api/ga4/cities?${query}&region=${encodeURIComponent(drillState)}&country=${encodeURIComponent(drillCountry ?? "United States")}`);
     const cached = getCached<{ cities: CityRow[] }>(url);
     if (cached) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- serve a cached report synchronously

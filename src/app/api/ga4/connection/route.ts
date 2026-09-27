@@ -1,9 +1,10 @@
+import { clientParam } from "@/lib/clients";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
 
 // Reports the current user's GA4 connection status (no secrets).
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -13,7 +14,7 @@ export async function GET() {
   }
 
   try {
-    const conn = await getGa4Connection(user.id);
+    const conn = await getGa4Connection(user.id, clientParam(request));
     if (!conn) {
       return NextResponse.json({ connected: false });
     }

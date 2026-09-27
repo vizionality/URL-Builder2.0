@@ -1,5 +1,7 @@
 "use client";
 
+import { useClientPath } from "@/lib/client-scope";
+import { api } from "@/lib/client-scope";
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, TrendingUp, TrendingDown, Search, GitBranch, Bookmark, X } from "lucide-react";
 import { Header } from "@/components/Header";
@@ -91,6 +93,7 @@ function SignalBadge({ m }: { m: Matched }) {
 }
 
 export default function ScreenerPage() {
+  const to = useClientPath();
   const [propertyId] = useGa4PropertyId();
   const [dimension, setDimension] = useState<string>("campaign");
   const [metric, setMetric] = useState<string>("sessions");
@@ -126,7 +129,7 @@ export default function ScreenerPage() {
       withinDays: String(withinDays),
       minVolume: String(minVolume),
     });
-    fetch(`/api/ga4/screen?${params.toString()}`)
+    fetch(api(`/api/ga4/screen?${params.toString()}`))
       .then(async (r) => {
         const d = await r.json();
         if (!r.ok) throw new Error(d.error ?? "Scan failed.");
@@ -342,7 +345,7 @@ export default function ScreenerPage() {
                     <tr key={h.value} className="border-b border-zinc-100">
                       <td className="max-w-[220px] truncate py-2.5 pr-3 font-medium" title={h.value}>
                         <a
-                          href={`/measurement/signals?dimension=${encodeURIComponent(dimension)}&value=${encodeURIComponent(h.value)}&metric=${encodeURIComponent(metric)}`}
+                          href={to(`/measurement/signals?dimension=${encodeURIComponent(dimension)}&value=${encodeURIComponent(h.value)}&metric=${encodeURIComponent(metric)}`)}
                           className="text-green-700 hover:underline"
                         >
                           {h.value}

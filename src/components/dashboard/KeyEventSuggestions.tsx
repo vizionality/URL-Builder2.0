@@ -1,5 +1,6 @@
 "use client";
 
+import { api } from "@/lib/client-scope";
 import { useEffect, useState } from "react";
 import { Check, Loader2, Sparkles } from "lucide-react";
 import type { Suggestion } from "@/lib/key-event-suggestions";
@@ -9,7 +10,7 @@ type Data = { events: { name: string; count: number }[]; keyEvents: string[]; su
 // Shown when the property has no key events: its own events that look like
 // conversions, each markable as a GA4 key event in one click.
 export function KeyEventSuggestions({ startDate, endDate }: { startDate: string; endDate: string }) {
-  const url = `/api/ga4/key-events?startDate=${startDate}&endDate=${endDate}`;
+  const url = api(`/api/ga4/key-events?startDate=${startDate}&endDate=${endDate}`);
   const [state, setState] = useState<{ url: string; data: Data | null; error: string | null } | null>(null);
   const [marking, setMarking] = useState<string | null>(null);
   const [marked, setMarked] = useState<Set<string>>(new Set());
@@ -30,7 +31,7 @@ export function KeyEventSuggestions({ startDate, endDate }: { startDate: string;
   async function mark(name: string) {
     setMarking(name);
     setMarkError(null);
-    const r = await fetch("/api/ga4/key-events", {
+    const r = await fetch(api("/api/ga4/key-events"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ eventName: name }),

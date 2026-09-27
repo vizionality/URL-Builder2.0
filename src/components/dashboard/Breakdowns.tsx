@@ -1,5 +1,6 @@
 "use client";
 
+import { api } from "@/lib/client-scope";
 import { useEffect, useState } from "react";
 import {
   Bar,
@@ -258,7 +259,7 @@ export function Breakdowns({
     p.set("compare", compare);
     p.set("sourceMetric", sourceMetric);
     if (serverGrain !== "day") p.set("sourceGrain", serverGrain);
-    const url = `/api/ga4/breakdowns?${p.toString()}`;
+    const url = api(`/api/ga4/breakdowns?${p.toString()}`);
     // A filter combination seen in the last few minutes shows instantly.
     const cached = getCached<Breakdowns>(url);
     if (cached) {

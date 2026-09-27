@@ -1,5 +1,6 @@
 "use client";
 
+import { api } from "@/lib/client-scope";
 import { useEffect, useState } from "react";
 import { Loader2, Plug, CheckCircle2 } from "lucide-react";
 import { Header } from "@/components/Header";
@@ -40,14 +41,14 @@ export default function GoogleAnalyticsIntegrationPage() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const res = await fetch("/api/ga4/connection");
+      const res = await fetch(api("/api/ga4/connection"));
       const data: Connection = await res.json();
       if (cancelled) return;
       setConnection(data);
       setSelected(data.propertyId ?? "");
       if (!data.connected) return;
       try {
-        const propRes = await fetch("/api/ga4/properties");
+        const propRes = await fetch(api("/api/ga4/properties"));
         const propData = await propRes.json();
         if (cancelled) return;
         if (!propRes.ok)
@@ -71,7 +72,7 @@ export default function GoogleAnalyticsIntegrationPage() {
     setSaving(true);
     try {
       const prop = properties.find((p) => p.id === selected);
-      await fetch("/api/ga4/property", {
+      await fetch(api("/api/ga4/property"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ propertyId: selected, propertyName: prop?.name }),
@@ -86,7 +87,7 @@ export default function GoogleAnalyticsIntegrationPage() {
 
   async function handleDisconnect() {
     if (!window.confirm("Disconnect Google Analytics?")) return;
-    await fetch("/api/ga4/disconnect", { method: "POST" });
+    await fetch(api("/api/ga4/disconnect"), { method: "POST" });
     setProperties([]);
     setSelected("");
     setConnection({ connected: false });

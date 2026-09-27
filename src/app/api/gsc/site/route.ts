@@ -1,3 +1,4 @@
+import { clientParam } from "@/lib/clients";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection, setGscSite } from "@/lib/ga4-connection";
@@ -9,9 +10,9 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   const body = await req.json().catch(() => ({}));
   const siteUrl = typeof body.siteUrl === "string" && body.siteUrl.trim() ? body.siteUrl.trim().slice(0, 500) : null;
-  if (!(await getGa4Connection(user.id))) return NextResponse.json({ error: "Connect Google first." }, { status: 400 });
+  if (!(await getGa4Connection(user.id, clientParam(req)))) return NextResponse.json({ error: "Connect Google first." }, { status: 400 });
   try {
-    await setGscSite(user.id, siteUrl);
+    await setGscSite(user.id, siteUrl, clientParam(req));
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Couldn't save. Has the Search Console migration been run?" }, { status: 500 });

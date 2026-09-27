@@ -1,3 +1,4 @@
+import { clientParam } from "@/lib/clients";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
@@ -17,11 +18,11 @@ type BigQueryLink = {
   createTime?: string;
 };
 
-async function context() {
+async function context(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: "Not authenticated." }, { status: 401 }) };
-  const conn = await getGa4Connection(user.id).catch(() => null);
+  const conn = await getGa4Connection(user.id, clientParam(request)).catch(() => null);
   if (!conn?.property_id) return { error: NextResponse.json({ error: "Save a GA4 property first." }, { status: 400 }) };
   let token: string;
   try {
@@ -42,8 +43,8 @@ async function googleError(res: Response): Promise<string> {
 }
 
 // Existing BigQuery links on the saved property.
-export async function GET() {
-  const ctx = await context();
+export async function GET(request: Request) {
+  const ctx = await context(request);
   if ("error" in ctx) return ctx.error;
   const res = await fetch(`${ADMIN}/properties/${ctx.propertyId}/bigQueryLinks`, {
     headers: { Authorization: `Bearer ${ctx.token}` },
@@ -58,10 +59,10 @@ export async function GET() {
 }
 
 // Create the link to BIGQUERY_PROJECT_ID.
-export async function POST() {
+export async function POST(request: Request) {
   const project = process.env.BIGQUERY_PROJECT_ID;
   if (!project) return NextResponse.json({ error: "BIGQUERY_PROJECT_ID is not set." }, { status: 500 });
-  const ctx = await context();
+  const ctx = await context(request);
   if ("error" in ctx) return ctx.error;
   const res = await fetch(`${ADMIN}/properties/${ctx.propertyId}/bigQueryLinks`, {
     method: "POST",

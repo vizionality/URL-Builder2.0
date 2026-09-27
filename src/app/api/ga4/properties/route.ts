@@ -1,3 +1,4 @@
+import { clientParam } from "@/lib/clients";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
@@ -10,7 +11,7 @@ type AccountSummary = {
 };
 
 // Lists the GA4 properties the connected Google account can access.
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -19,7 +20,7 @@ export async function GET() {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }
 
-  const conn = await getGa4Connection(user.id);
+  const conn = await getGa4Connection(user.id, clientParam(request));
   if (!conn) {
     return NextResponse.json(
       { error: "Google Analytics is not connected." },

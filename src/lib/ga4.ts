@@ -1,5 +1,6 @@
 "use client";
 
+import { api } from "@/lib/client-scope";
 import { useEffect, useState } from "react";
 
 export type Ga4ReportType =
@@ -57,7 +58,7 @@ export async function fetchGa4Report(params: {
   endDate: string;
   reportType: Ga4ReportType;
 }): Promise<Ga4ReportResponse> {
-  const res = await fetch("/api/ga4/report", {
+  const res = await fetch(api("/api/ga4/report"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(params),
@@ -357,7 +358,7 @@ export function useGa4Health(propertyId: string) {
     let cancelled = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- mark loading before the async fetch starts
     setState((s) => ({ ...s, loading: true, error: null }));
-    fetch("/api/ga4/health")
+    fetch(api("/api/ga4/health"))
       .then(async (r) => {
         const d = await r.json();
         if (!r.ok) throw new Error(d.error ?? "Failed to run health checks.");

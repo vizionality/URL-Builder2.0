@@ -1,3 +1,4 @@
+import { clientParam } from "@/lib/clients";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
@@ -5,11 +6,11 @@ import { getAccessToken } from "@/lib/google-oauth";
 import { GscAccessError, listSites } from "@/lib/gsc";
 
 // Lists the Search Console sites the connected Google account can read, plus the saved one.
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
-  const conn = await getGa4Connection(user.id).catch(() => null);
+  const conn = await getGa4Connection(user.id, clientParam(request)).catch(() => null);
   if (!conn) return NextResponse.json({ connected: false, sites: [], siteUrl: null });
   try {
     const token = await getAccessToken(conn.refresh_token);

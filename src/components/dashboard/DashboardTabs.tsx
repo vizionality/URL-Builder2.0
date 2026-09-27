@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useClientPath } from "@/lib/client-scope";
+import { splitClientPath } from "@/lib/client-slug";
 import { ChevronDown, Plus, Trash2 } from "lucide-react";
 
 export type DashboardPage = { id: string; name: string };
@@ -60,7 +62,9 @@ const BUILT_IN = [
 
 // Tabs for the dashboard's pages, with a "More" menu for custom pages.
 export function DashboardTabs() {
-  const pathname = usePathname();
+  // Paths below are client-relative; `to` adds the /c/<client> prefix.
+  const pathname = splitClientPath(usePathname()).rest;
+  const to = useClientPath();
   const router = useRouter();
   const pages = useDashboardPages();
   const [open, setOpen] = useState(false);
@@ -91,12 +95,12 @@ export function DashboardTabs() {
     write([...pages, { id, name: trimmed.slice(0, 60) }]);
     setName("");
     setOpen(false);
-    router.push(`/dashboard/p/${id}`);
+    router.push(to(`/dashboard/p/${id}`));
   }
 
   function remove(id: string) {
     write(pages.filter((p) => p.id !== id));
-    if (pathname === `/dashboard/p/${id}`) router.push("/dashboard");
+    if (pathname === `/dashboard/p/${id}`) router.push(to("/dashboard"));
   }
 
   const tab = (active: boolean) =>
@@ -108,7 +112,7 @@ export function DashboardTabs() {
     <div className="flex items-end gap-1 border-b border-zinc-200 bg-white px-4 pt-2 sm:px-6">
       <nav aria-label="Dashboard pages" className="flex items-end gap-1 overflow-x-auto">
         {BUILT_IN.map((t) => (
-          <Link key={t.href} href={t.href} className={tab(pathname === t.href)} aria-current={pathname === t.href ? "page" : undefined}>
+          <Link key={t.href} href={to(t.href)} className={tab(pathname === t.href)} aria-current={pathname === t.href ? "page" : undefined}>
             {t.name}
           </Link>
         ))}
@@ -133,7 +137,7 @@ export function DashboardTabs() {
                 {pages.map((p) => (
                   <li key={p.id} className="group flex items-center gap-1">
                     <Link
-                      href={`/dashboard/p/${p.id}`}
+                      href={to(`/dashboard/p/${p.id}`)}
                       onClick={() => setOpen(false)}
                       role="menuitem"
                       className={`min-w-0 flex-1 truncate rounded px-2 py-1.5 text-sm hover:bg-zinc-50 ${
