@@ -208,7 +208,10 @@ with real GA4 reporting.
   and health flags linking to the fix (`lib/client-health.ts`, unit-tested). `GET /api/clients/overview`
   (a few clients at a time, computed on read).
 - Layouts, signals and saved scans stay keyed by property, so clients sharing a property share them.
-  Custom dashboard pages (localStorage) are not yet per client.
+- Builder pages (UTM Builder, Bulk Builder, Campaign Creator, UTM Options) are client-scoped too
+  (`/c/<slug>/app`, ...). Their browser data (`useStoredState` in `lib/storage.ts`: saved URLs, bulk
+  projects, UTM options, custom dashboard pages) is stored per client as "<key>@<slug>" (outside /c/,
+  the last client). The oldest client adopts data saved before clients existed, once.
 
 ## Measurement / Signals (indicator engine)
 A statistical indicator engine over the connected GA4 property's daily series,

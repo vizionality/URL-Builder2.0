@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useClientPath } from "@/lib/client-scope";
+import { splitClientPath } from "@/lib/client-slug";
 import { X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -114,7 +116,9 @@ const BUBBLE_WIDTH = 320;
 const GAP = 14;
 
 export function OnboardingTour({ completed = false }: { completed?: boolean }) {
-  const pathname = usePathname();
+  // Tour steps use client-relative paths (/app, /bulk, ...).
+  const pathname = splitClientPath(usePathname()).rest;
+  const to = useClientPath();
   const router = useRouter();
   const [active, setActive] = useState(false);
   const [step, setStep] = useState(0);
@@ -185,7 +189,7 @@ export function OnboardingTour({ completed = false }: { completed?: boolean }) {
     // updates this effect re-runs and proceeds to measure.
     if (pathname !== s.path) {
       const id = requestAnimationFrame(() => setRect(null));
-      router.push(s.path);
+      router.push(to(s.path));
       return () => cancelAnimationFrame(id);
     }
 
@@ -232,7 +236,7 @@ export function OnboardingTour({ completed = false }: { completed?: boolean }) {
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", measure, true);
     };
-  }, [active, step, pathname, router]);
+  }, [active, step, pathname, router, to]);
 
   // Keyboard: Escape skips, arrows move.
   useEffect(() => {

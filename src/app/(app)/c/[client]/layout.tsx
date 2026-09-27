@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getClientBySlug } from "@/lib/clients";
+import { getClientBySlug, listClients } from "@/lib/clients";
 import { ClientScope } from "@/components/clients/ClientScope";
 
 // Client-scoped pages (/c/<slug>/...): only the signed-in user's own clients.
@@ -17,5 +17,10 @@ export default async function ClientLayout({
   if (!user) notFound();
   const record = await getClientBySlug(user.id, client).catch(() => null);
   if (!record) notFound();
-  return <ClientScope slug={record.slug}>{children}</ClientScope>;
+  const [oldest] = await listClients(user.id).catch(() => []);
+  return (
+    <ClientScope slug={record.slug} legacyOwner={oldest?.slug === record.slug}>
+      {children}
+    </ClientScope>
+  );
 }
