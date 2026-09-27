@@ -1,6 +1,6 @@
 import { forbidUnless, getAppUser } from "@/lib/team";
 import { NextRequest, NextResponse } from "next/server";
-import { createClientRecord, listClients } from "@/lib/clients";
+import { createClientRecord, getClientBySlug, listClients, updateClient } from "@/lib/clients";
 import { getGoogleAccount, getPlan } from "@/lib/google-accounts";
 import { canAddClient, PLAN_LIMITS } from "@/lib/plans";
 import { atLeast } from "@/lib/roles";
@@ -66,4 +66,23 @@ export async function POST(req: NextRequest) {
     console.error("clients: create failed:", err);
     return NextResponse.json({ error: "Couldn't add the client." }, { status: 500 });
   }
+}
+
+// Lock or unlock a client's dashboard layout (admins and the owner).
+export async function PATCH(req: NextRequest) {
+  const me = await getAppUser();
+  if (!me) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  const denied = forbidUnless(me, "admin");
+  if (denied) return denied;
+  const body = await req.json().catch(() => ({}));
+  const client = await getClientBySlug(me.id, typeof body.slug === "string" ? body.slug : null);
+  if (!client) return NextResponse.json({ error: "Unknown client." }, { status: 404 });
+  if (typeof body.layoutLocked !== "boolean") return NextResponse.json({ error: "layoutLocked is required." }, { status: 400 });
+  try {
+    await updateClient(me.id, client.slug, { layout_locked: body.layoutLocked });
+  } catch (err) {
+    console.error("clients: lock failed:", err);
+    return NextResponse.json({ error: "Couldn't change the lock. Has the latest migration been run?" }, { status: 500 });
+  }
+  return NextResponse.json({ ok: true, layoutLocked: body.layoutLocked });
 }

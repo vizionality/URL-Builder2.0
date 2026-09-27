@@ -1,6 +1,7 @@
 "use client";
 
-import { api, useClientPath } from "@/lib/client-scope";
+import { api, useClientPath, useClientSlug } from "@/lib/client-scope";
+import { atLeast } from "@/lib/roles";
 import { useMe } from "@/lib/use-me";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -17,7 +18,7 @@ import {
   YAxis,
   Legend,
 } from "recharts";
-import { LayoutGrid, Loader2, Redo2, Share2, TrendingUp, TrendingDown, Undo2, X } from "lucide-react";
+import { LayoutGrid, Loader2, Lock, LockOpen, Redo2, Share2, TrendingUp, TrendingDown, Undo2, X } from "lucide-react";
 import { Header } from "@/components/Header";
 import { DashboardTabs } from "@/components/dashboard/DashboardTabs";
 import { Card } from "@/components/Card";
@@ -252,8 +253,21 @@ export function GaDashboard({
   const layoutQuery = aiOnly ? "?page=ai" : "";
   // Viewers see the dashboard without editing controls.
   const me = useMe();
-  const canEdit = !readOnly && me?.role !== "viewer";
+  // A locked client dashboard changes only by an admin (or the owner).
+  const [locked, setLocked] = useState(false);
+  const isAdmin = me ? atLeast(me.role, "admin") : false;
+  const canEdit = !readOnly && me?.role !== "viewer" && (!locked || isAdmin);
   const to = useClientPath();
+  const clientSlug = useClientSlug();
+  const toggleLock = useCallback(async () => {
+    const next = !locked;
+    const r = await fetch("/api/clients", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ slug: clientSlug, layoutLocked: next }),
+    }).catch(() => null);
+    if (r?.ok) setLocked(next);
+  }, [locked, clientSlug]);
   const [propertyId] = useGa4PropertyId();
   const [today] = useState(localToday);
   // Looker Studio-style date control: a preset (default Last 28 days) or a
@@ -318,7 +332,7 @@ export function GaDashboard({
     let cancelled = false;
     fetch(api(`/api/dashboard/layout${layoutQuery}`))
       .then((r) => r.json())
-      .then((d: { widgets?: string[]; saveUnavailable?: boolean }) => {
+      .then((d: { widgets?: string[]; saveUnavailable?: boolean; locked?: boolean }) => {
         if (cancelled) return;
         const raw = parseLayout(Array.isArray(d.widgets) ? d.widgets : DEFAULT_LAYOUT);
         // Show any unused row space as empty slots.
@@ -326,6 +340,7 @@ export function GaDashboard({
         setLayout(parsed.ids);
         setSpans(parsed.spans);
         if (d.saveUnavailable) setSaveStatus("unavailable");
+        setLocked(Boolean(d.locked));
       })
       .catch(() => !cancelled && setLayout(DEFAULT_LAYOUT));
     return () => {
@@ -638,8 +653,25 @@ export function GaDashboard({
         title="Dashboard"
         subtitle={aiOnly ? "Traffic from AI assistants (ChatGPT, Perplexity, Gemini, Copilot, Claude, ...)" : "GA4 performance overview"}
         actions={
-          canEdit && (
           <>
+            {isAdmin && clientSlug && !aiOnly ? (
+              <button
+                type="button"
+                onClick={toggleLock}
+                title={locked ? "Locked: only admins can change this dashboard. Click to unlock." : "Lock this dashboard so only admins can change it"}
+                className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium ${
+                  locked ? "border-amber-300 bg-amber-50 text-amber-800" : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
+                }`}
+              >
+                {locked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />} {locked ? "Locked" : "Lock"}
+              </button>
+            ) : locked && !readOnly ? (
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-50 px-3 py-1.5 text-sm text-amber-800" title="Only admins can change this dashboard">
+                <Lock className="h-4 w-4" /> Locked by admin
+              </span>
+            ) : null}
+          {/* Sharing isn't a layout change, so a lock doesn't hide it. */}
+          {!readOnly && me?.role !== "viewer" && (
             <Link
               href={to("/portal")}
               className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
@@ -647,6 +679,10 @@ export function GaDashboard({
             >
               <Share2 className="h-4 w-4" /> Share
             </Link>
+          )}
+          {canEdit && (
+          <>
+
             {/* Primary action, top right. */}
             <button
               type="button"
@@ -656,7 +692,8 @@ export function GaDashboard({
               <LayoutGrid className="h-4 w-4" /> Customize
             </button>
           </>
-          )
+          )}
+          </>
         }
       />
       <DashboardTabs />

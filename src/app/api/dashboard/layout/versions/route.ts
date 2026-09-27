@@ -1,5 +1,5 @@
 import { getAppUser } from "@/lib/team";
-import { clientParam } from "@/lib/clients";
+import { clientParam, getClientBySlug } from "@/lib/clients";
 import { NextRequest, NextResponse } from "next/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
 import { listVersions } from "@/lib/dashboard-layout-store";
@@ -15,16 +15,18 @@ export async function GET(req: NextRequest) {
   if (!conn?.property_id) return NextResponse.json({ error: "No GA4 property selected." }, { status: 400 });
 
   try {
-    const versions = await listVersions(
-      user.id,
-      req.nextUrl.searchParams.get("page") === "ai" ? `${conn.property_id}:ai` : String(conn.property_id)
-    );
+    // Same key as the layout: per client, else per property.
+    const suffix = req.nextUrl.searchParams.get("page") === "ai" ? ":ai" : "";
+    const slug = clientParam(req);
+    const client = slug ? await getClientBySlug(user.id, slug).catch(() => null) : null;
+    const versions = await listVersions(user.id, client ? `client:${client.slug}${suffix}` : `${conn.property_id}${suffix}`);
     return NextResponse.json({
       versions: versions.map((v) => ({
         id: v.id,
         widgets: sanitizeLayout(v.widgets),
         createdAt: v.created_at,
         updatedAt: v.updated_at,
+        editedBy: v.edited_by ?? null,
       })),
     });
   } catch (err) {
