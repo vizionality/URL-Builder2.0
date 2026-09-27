@@ -41,7 +41,7 @@ export async function resetLayout(userId: string, propertyId: string): Promise<v
 
 // ---- Version history -----------------------------------------------------------
 
-export type LayoutVersion = { id: string; widgets: string[]; created_at: string; updated_at: string };
+export type LayoutVersion = { id: string; widgets: string[]; created_at: string; updated_at: string; edited_by?: string | null };
 
 // Edits within this window update the latest snapshot instead of adding one,
 // so a burst of drags and resizes is one version.
@@ -52,7 +52,7 @@ export async function listVersions(userId: string, propertyId: string): Promise<
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("dashboard_layout_versions")
-    .select("id, widgets, created_at, updated_at")
+    .select("id, widgets, created_at, updated_at, edited_by")
     .eq("user_id", userId)
     .eq("property_id", propertyId)
     .order("updated_at", { ascending: false })
@@ -69,7 +69,11 @@ export async function recordVersion(
   propertyId: string,
   widgets: string[],
   previous: string[],
-  { now = Date.now(), forceNew = false }: { now?: number; forceNew?: boolean } = {}
+  {
+    now = Date.now(),
+    forceNew = false,
+    editedBy = null,
+  }: { now?: number; forceNew?: boolean; editedBy?: string | null } = {}
 ): Promise<void> {
   const admin = createAdminClient();
   const table = admin.from("dashboard_layout_versions");
@@ -78,7 +82,14 @@ export async function recordVersion(
   const stamp = new Date(now).toISOString();
 
   // A restore always gets its own version, so the layout it replaced stays restorable.
-  if (!forceNew && latest && now - Date.parse(latest.updated_at) < VERSION_COALESCE_MS) {
+  // Edits by the same person within a few minutes are one version; another
+  // person's edit starts a new one, so history shows who changed what.
+  if (
+    !forceNew &&
+    latest &&
+    now - Date.parse(latest.updated_at) < VERSION_COALESCE_MS &&
+    (latest.edited_by ?? null) === editedBy
+  ) {
     const { error } = await table.update({ widgets, updated_at: stamp }).eq("id", latest.id).eq("user_id", userId);
     if (error) throw error;
     return;
@@ -92,7 +103,7 @@ export async function recordVersion(
     if (error) throw error;
   }
   const { error } = await table.insert({
-    user_id: userId, property_id: propertyId, widgets, created_at: stamp, updated_at: stamp,
+    user_id: userId, property_id: propertyId, widgets, created_at: stamp, updated_at: stamp, edited_by: editedBy,
   });
   if (error) throw error;
 

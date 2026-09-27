@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { History, Loader2 } from "lucide-react";
 import { versionDiff, widgetCount } from "@/lib/dashboard-widgets";
 
-type Version = { id: string; widgets: string[]; createdAt: string; updatedAt: string };
+type Version = { id: string; widgets: string[]; createdAt: string; updatedAt: string; editedBy: string | null };
 
 function when(iso: string): string {
   const d = new Date(iso);
@@ -78,16 +78,18 @@ export function VersionHistory({
   return (
     <div>
       <p className="mb-3 text-xs text-zinc-500">
-        Your last {state.versions.length} saved layouts. Changes made within 10 minutes of each other are grouped
-        into one version. Restoring can be undone.
+        The last {state.versions.length} saved layouts, with who changed them. One person&apos;s changes within 10
+        minutes are grouped into one version. Restoring can be undone.
       </p>
       <ul className="space-y-1.5">
         {state.versions.map((v, i) => {
           const isCurrent = same(v.widgets, current);
-          const diff = versionDiff(current, v.widgets);
+          // What this version changed from the one before it (the oldest is the starting point).
+          const before = state.versions[i + 1];
+          const diff = before ? versionDiff(before.widgets, v.widgets) : { added: [], removed: [] };
           const summary = [
-            diff.added.length ? `+ ${diff.added.join(", ")}` : "",
-            diff.removed.length ? `- ${diff.removed.join(", ")}` : "",
+            diff.added.length ? `Added ${diff.added.join(", ")}` : "",
+            diff.removed.length ? `Removed ${diff.removed.join(", ")}` : "",
           ].filter(Boolean);
           return (
             <li
@@ -100,9 +102,13 @@ export function VersionHistory({
                     {when(v.updatedAt)}
                     {i === 0 && <span className="ml-1.5 text-xs font-normal text-zinc-400">latest</span>}
                   </p>
-                  <p className="text-xs text-zinc-500">{widgetCount(v.widgets)} widgets</p>
-                  {!isCurrent && summary.length === 0 && (
-                    <p className="text-xs text-zinc-400">Same widgets, different order or sizes</p>
+                  <p className="text-xs text-zinc-500">
+                    {v.editedBy ? <>by <span className="font-medium text-zinc-700">{v.editedBy}</span> · </> : null}
+                    {widgetCount(v.widgets)} widgets
+                  </p>
+                  {!before && <p className="text-xs text-zinc-400">Starting layout</p>}
+                  {before && summary.length === 0 && (
+                    <p className="text-xs text-zinc-400">Moved or resized widgets</p>
                   )}
                   {summary.map((line) => (
                     <p key={line} className="truncate text-xs text-zinc-500" title={line}>{line}</p>

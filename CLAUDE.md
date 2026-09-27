@@ -207,7 +207,15 @@ with real GA4 reporting.
   sessions, leads (key events) and Search Console clicks vs the previous 28 days, a daily sessions line,
   and health flags linking to the fix (`lib/client-health.ts`, unit-tested). `GET /api/clients/overview`
   (a few clients at a time, computed on read).
-- Layouts, signals and saved scans stay keyed by property, so clients sharing a property share them.
+- Dashboard layouts are kept per client (`dashboard_layouts.property_id` = "client:<slug>" or
+  "client:<slug>:ai"; falls back to the old per-property key until the client saves). Migration
+  `20261002_layout_history_and_lock.sql` copies existing layouts and history to each client.
+  Version history records `edited_by` (email); one person's edits within 10 minutes group, another
+  person's start a new version; the History tab shows who and what changed vs the previous version.
+- Dashboard lock (`clients.layout_locked`): admins toggle Lock in the dashboard header
+  (`PATCH /api/clients`); while locked, layout PUT/DELETE return 403 below admin and others see
+  "Locked by admin" without Customize, undo or drag (Share stays).
+- Signals and saved scans stay keyed by property.
 - Builder pages (UTM Builder, Bulk Builder, Campaign Creator, UTM Options) are client-scoped too
   (`/c/<slug>/app`, ...). Their browser data (`useStoredState` in `lib/storage.ts`: saved URLs, bulk
   projects, UTM options, custom dashboard pages) is stored per client as "<key>@<slug>" (outside /c/,

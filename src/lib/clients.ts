@@ -23,11 +23,16 @@ export type ClientRecord = {
   // The Google logins the property and the Search Console site come from.
   google_account_id: string | null;
   gsc_google_account_id: string | null;
+  // Only admins (and the owner) change a locked client's dashboard layout.
+  layout_locked?: boolean;
 };
 
-const COLUMNS = "id, slug, name, domain, property_id, property_name, gsc_site_url, google_account_id, gsc_google_account_id";
+const COLUMNS = "*";
 type ClientFields = Partial<
-  Pick<ClientRecord, "name" | "domain" | "property_id" | "property_name" | "gsc_site_url" | "google_account_id" | "gsc_google_account_id">
+  Pick<
+    ClientRecord,
+    "name" | "domain" | "property_id" | "property_name" | "gsc_site_url" | "google_account_id" | "gsc_google_account_id" | "layout_locked"
+  >
 >;
 
 // The user's clients, oldest first. A user with none gets one, seeded from
