@@ -1,11 +1,14 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { createContext, useContext, useRef, useState } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, X } from "lucide-react";
 import { DASHBOARD_DROP, NEW_PREFIX, SIDEBAR_DROP, snapSpan, SPANS, type Span } from "@/lib/dashboard-widgets";
+
+// Read-only dashboards (client portal): no drag handles, resizing or slot boxes.
+export const ReadOnlyContext = createContext(false);
 
 // A widget on the dashboard that can be dragged by its grip to reorder, or
 // dragged onto the sidebar to remove. Only the grip starts a drag, so charts,
@@ -26,8 +29,9 @@ export function SortableWidget({
   onResize?: (span: Span) => void;
   children: React.ReactNode;
 }) {
+  const readOnly = useContext(ReadOnlyContext);
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
-    useSortable({ id });
+    useSortable({ id, disabled: readOnly });
   const nodeRef = useRef<HTMLDivElement | null>(null);
   // Width while the resize handle is being dragged (committed on release).
   const [preview, setPreview] = useState<number | null>(null);
@@ -71,7 +75,7 @@ export function SortableWidget({
         isDragging ? "z-10 opacity-40" : ""
       } ${preview ? "rounded-xl ring-2 ring-green-300" : ""} ${className}`}
     >
-      {onResize && (
+      {onResize && !readOnly && (
         <>
           {/* Drag the right edge to resize: 25 / 33 / 50 / 75 / 100% of the row. */}
           <div
@@ -100,7 +104,7 @@ export function SortableWidget({
           )}
         </>
       )}
-      <button
+      {!readOnly && <button
         type="button"
         ref={setActivatorNodeRef}
         {...attributes}
@@ -109,7 +113,7 @@ export function SortableWidget({
         className="absolute right-2 top-2 z-10 cursor-grab touch-none rounded p-1 text-zinc-300 hover:bg-zinc-100 hover:text-zinc-600 focus-visible:text-zinc-600 active:cursor-grabbing group-hover:text-zinc-400"
       >
         <GripVertical className="h-4 w-4" />
-      </button>
+      </button>}
       {/* Fills the grid cell so cards in a row share the tallest height. */}
       <div className="h-full">{children}</div>
     </div>
@@ -171,8 +175,12 @@ export function GapSlot({
   // Omitted for a slot at the end of its row (removing it would change nothing).
   onRemove?: () => void;
 }) {
+  const readOnly = useContext(ReadOnlyContext);
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging, isOver } =
-    useSortable({ id });
+    useSortable({ id, disabled: readOnly });
+  if (readOnly) {
+    return <div aria-hidden style={{ "--span": span } as React.CSSProperties} className="hidden lg:block lg:[grid-column:span_var(--span)_/_span_var(--span)]" />;
+  }
   return (
     <div
       ref={setNodeRef}

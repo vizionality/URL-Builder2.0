@@ -13,6 +13,9 @@ const PUBLIC_PATHS = [
   "/auth",
   "/privacy",
   "/terms",
+  // Read-only client portals (the link's token is checked by the page).
+  "/portal",
+  "/api/portal",
 ];
 
 function isPublicPath(pathname: string): boolean {
@@ -55,7 +58,10 @@ export async function updateSession(request: NextRequest) {
   // Logged-out visitor trying to reach a protected app page -> send to
   // sign-in, preserving where they were headed. (The public landing at "/"
   // is reached directly, with no redirect, so ad params stay intact.)
-  if (!user && !isPublicPath(pathname)) {
+  // Data calls from a client portal carry the link's token; the API route
+  // checks it (only read-only routes accept it).
+  const portalApiCall = pathname.startsWith("/api/") && request.nextUrl.searchParams.has("share");
+  if (!user && !isPublicPath(pathname) && !portalApiCall) {
     const url = request.nextUrl.clone();
     url.pathname = "/sign-in";
     url.searchParams.set("redirectedFrom", pathname);

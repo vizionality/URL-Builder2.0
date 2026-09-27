@@ -72,11 +72,72 @@ function subscribe(key: string, callback: () => void) {
   return () => window.removeEventListener(eventName, callback);
 }
 
+// Keys whose data also syncs to the account (per client), so it follows the
+// user between devices. The local copy stays for instant reads.
+const SYNCED = new Set(["utm-builder:utmOptions", "utm-builder:savedUrls", "utm-builder:bulkRows", "bulk-utm-projects", "dashboardPages"]);
+const SERVER_KEY: Record<string, string> = {
+  "utm-builder:utmOptions": "utmOptions",
+  "utm-builder:savedUrls": "savedUrls",
+  "utm-builder:bulkRows": "bulkRows",
+  "bulk-utm-projects": "bulkProjects",
+  dashboardPages: "dashboardPages",
+};
+const pushTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const pulled = new Set<string>();
+
+function dataUrl(baseKey: string, slug: string): string {
+  return `/api/client-data?client=${encodeURIComponent(slug)}&key=${SERVER_KEY[baseKey]}`;
+}
+
+// Save to the account shortly after the last change (one write per burst).
+function pushLater(baseKey: string, slug: string, value: unknown) {
+  const id = `${baseKey}@${slug}`;
+  const t = pushTimers.get(id);
+  if (t) clearTimeout(t);
+  pushTimers.set(
+    id,
+    setTimeout(() => {
+      pushTimers.delete(id);
+      fetch(dataUrl(baseKey, slug), {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ value }),
+        keepalive: true,
+      }).catch(() => {});
+    }, 800)
+  );
+}
+
 // Stored per client: the one in the URL, or outside /c/ the last one used.
 export function useStoredState<T>(baseKey: string, fallback: T) {
   const urlSlug = useClientSlug();
-  const key = clientStorageKey(baseKey, urlSlug || lastClient());
+  const slug = urlSlug || lastClient();
+  const key = clientStorageKey(baseKey, slug);
   const fallbackRef = useRef(fallback);
+
+  // Once per key per visit: take the account's copy, or upload this browser's
+  // copy if the account has none yet (data saved before syncing existed).
+  useEffect(() => {
+    if (!slug || !SYNCED.has(baseKey) || pulled.has(key)) return;
+    pulled.add(key);
+    let cancelled = false;
+    fetch(dataUrl(baseKey, slug))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { value: unknown } | null) => {
+        if (cancelled || !d) return;
+        if (d.value !== null && d.value !== undefined) {
+          if (!pushTimers.has(`${baseKey}@${slug}`)) writeStorage(key, d.value);
+        } else {
+          adoptLegacy(key);
+          const raw = window.localStorage.getItem(key);
+          if (raw !== null) pushLater(baseKey, slug, JSON.parse(raw));
+        }
+      })
+      .catch(() => pulled.delete(key));
+    return () => {
+      cancelled = true;
+    };
+  }, [baseKey, key, slug]);
 
   const subscribeFn = useCallback(
     (callback: () => void) => subscribe(key, callback),
@@ -95,8 +156,9 @@ export function useStoredState<T>(baseKey: string, fallback: T) {
       const prev = readStorage(key, fallbackRef.current);
       const resolved = typeof next === "function" ? (next as (prev: T) => T)(prev) : next;
       writeStorage(key, resolved);
+      if (slug && SYNCED.has(baseKey)) pushLater(baseKey, slug, resolved);
     },
-    [key]
+    [key, slug, baseKey]
   );
 
   return [value, update] as const;

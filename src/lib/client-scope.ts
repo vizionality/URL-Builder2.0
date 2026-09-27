@@ -7,6 +7,15 @@ import { usePathname } from "next/navigation";
 import { splitClientPath } from "@/lib/client-slug";
 
 let current = "";
+// Client portal link token: data calls go through the link instead of a login.
+let portalToken = "";
+
+export function setPortalToken(token: string): void {
+  portalToken = token;
+}
+export function isPortal(): boolean {
+  return Boolean(portalToken);
+}
 // The user's oldest client: it inherits builder data saved before clients existed.
 let legacyOwner = "";
 const LAST_KEY = "lastClient";
@@ -30,6 +39,12 @@ export function currentClient(): string {
 }
 
 export function api(path: string): string {
+  if (portalToken) {
+    const [base, query = ""] = path.split("?");
+    const params = new URLSearchParams(query);
+    params.set("share", portalToken);
+    return `${base}?${params.toString()}`;
+  }
   const slug = currentClient();
   if (!slug) return path;
   const [base, query = ""] = path.split("?");

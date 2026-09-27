@@ -1,7 +1,8 @@
 "use client";
 
-import { api } from "@/lib/client-scope";
+import { api, useClientPath } from "@/lib/client-scope";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import {
   Bar,
   BarChart,
@@ -15,7 +16,7 @@ import {
   YAxis,
   Legend,
 } from "recharts";
-import { LayoutGrid, Loader2, Redo2, TrendingUp, TrendingDown, Undo2, X } from "lucide-react";
+import { LayoutGrid, Loader2, Redo2, Share2, TrendingUp, TrendingDown, Undo2, X } from "lucide-react";
 import { Header } from "@/components/Header";
 import { DashboardTabs } from "@/components/dashboard/DashboardTabs";
 import { Card } from "@/components/Card";
@@ -47,7 +48,7 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import { DashboardDropZone, GapSlot, SortableWidget } from "@/components/dashboard/DragParts";
+import { DashboardDropZone, GapSlot, ReadOnlyContext, SortableWidget } from "@/components/dashboard/DragParts";
 import { ExtraWidgetCard, useExtraWidgets } from "@/components/dashboard/ExtraWidgets";
 import { ChartWidgetCard, formatMetric } from "@/components/dashboard/ChartWidget";
 import { CHART_WIDGET_BY_ID, isChartWidget, METRIC_PICK_CHARTS, TIME_CHART_TYPES, type ChartData } from "@/lib/chart-widgets";
@@ -239,8 +240,16 @@ function Scorecard({
 
 // The GA4 report. `aiOnly` (AI Overview tab) limits every report to sessions
 // from AI assistants and keeps its own saved layout.
-export function GaDashboard({ aiOnly = false }: { aiOnly?: boolean } = {}) {
+export function GaDashboard({
+  aiOnly = false,
+  readOnly = false,
+}: {
+  aiOnly?: boolean;
+  // Client portal: view only (no header, tabs, customizing or layout edits).
+  readOnly?: boolean;
+} = {}) {
   const layoutQuery = aiOnly ? "?page=ai" : "";
+  const to = useClientPath();
   const [propertyId] = useGa4PropertyId();
   const [today] = useState(localToday);
   // Looker Studio-style date control: a preset (default Last 28 days) or a
@@ -619,11 +628,15 @@ export function GaDashboard({ aiOnly = false }: { aiOnly?: boolean } = {}) {
 
   return (
     <>
+      {!readOnly && (
+        <>
       <Header
         title="Dashboard"
         subtitle={aiOnly ? "Traffic from AI assistants (ChatGPT, Perplexity, Gemini, Copilot, Claude, ...)" : "GA4 performance overview"}
       />
       <DashboardTabs />
+        </>
+      )}
       <DndContext
         sensors={dndSensors}
         collisionDetection={dropCollision}
@@ -631,11 +644,12 @@ export function GaDashboard({ aiOnly = false }: { aiOnly?: boolean } = {}) {
         onDragCancel={() => setDragging(null)}
         onDragEnd={(e) => {
           setDragging(null);
-          if (!layout) return;
+          if (!layout || readOnly) return;
           const next = dropWithSpans(layout, spans, String(e.active.id), e.over ? String(e.over.id) : null);
           if (next.ids !== layout || next.spans !== spans) persistLayout(next.ids, next.spans);
         }}
       >
+      <ReadOnlyContext.Provider value={readOnly}>
       {/* Leave room for the Customize panel on wide screens so both stay usable while dragging. */}
       <main className={`flex-1 px-4 py-6 sm:px-6 ${customizing ? "lg:pr-[25rem]" : ""}`}>
         {/* Filters */}
@@ -650,6 +664,8 @@ export function GaDashboard({ aiOnly = false }: { aiOnly?: boolean } = {}) {
               <option value="period">vs. previous period</option>
               <option value="year">vs. previous year</option>
             </select>
+            {!readOnly && (
+            <>
             <div className="flex items-center rounded-md border border-zinc-200 bg-white">
               <button
                 type="button"
@@ -672,6 +688,13 @@ export function GaDashboard({ aiOnly = false }: { aiOnly?: boolean } = {}) {
                 <Redo2 className="h-4 w-4" />
               </button>
             </div>
+            <Link
+              href={to("/portal")}
+              className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              title="Share a view-only dashboard with this client"
+            >
+              <Share2 className="h-4 w-4" /> Share
+            </Link>
             {/* Primary action, last in the row (right of the date controls). */}
             <button
               type="button"
@@ -680,6 +703,8 @@ export function GaDashboard({ aiOnly = false }: { aiOnly?: boolean } = {}) {
             >
               <LayoutGrid className="h-4 w-4" /> Customize
             </button>
+            </>
+            )}
           </div>
           {state.loading && state.data && (
             <span className="inline-flex w-full items-center gap-1.5 text-xs text-zinc-500" role="status">
@@ -962,6 +987,7 @@ export function GaDashboard({ aiOnly = false }: { aiOnly?: boolean } = {}) {
           </div>
         )}
       </DragOverlay>
+      </ReadOnlyContext.Provider>
       </DndContext>
     </>
   );

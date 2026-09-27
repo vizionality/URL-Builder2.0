@@ -1,6 +1,5 @@
-import { clientParam } from "@/lib/clients";
+import { requestUser } from "@/lib/portal";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
 import { GscAccessError, searchAnalytics } from "@/lib/gsc";
@@ -12,15 +11,15 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 // Search Console report for the SEO Dashboard: totals (with the previous
 // period for %Δ), a daily trend, and top queries, pages, countries and devices.
 export async function GET(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // Signed in, or a read-only client portal link (share=<token>).
+  const { user, clientSlug } = await requestUser(req, { allowShare: true });
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   const startDate = req.nextUrl.searchParams.get("startDate") ?? "";
   const endDate = req.nextUrl.searchParams.get("endDate") ?? "";
   if (!ISO.test(startDate) || !ISO.test(endDate) || startDate > endDate) {
     return NextResponse.json({ error: "Invalid date range." }, { status: 400 });
   }
-  const conn = await getGa4Connection(user.id, clientParam(req)).catch(() => null);
+  const conn = await getGa4Connection(user.id, clientSlug).catch(() => null);
   if (!conn?.gsc_site_url) return NextResponse.json({ error: "No Search Console site selected.", code: "no_site" }, { status: 400 });
   const site = conn.gsc_site_url;
   try {
