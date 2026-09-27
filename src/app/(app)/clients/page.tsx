@@ -115,6 +115,9 @@ function ClientCard({ c }: { c: Overview }) {
       </div>
       <div className="px-4 pb-3">
         <Sparkline points={c.daily} />
+        <Link href={`/c/${c.slug}/portal`} className="mt-1 inline-block text-xs font-medium text-green-700 hover:underline">
+          Share client portal
+        </Link>
       </div>
       {c.flags.length > 0 && (
         <ul className="mt-auto space-y-1 border-t border-zinc-100 px-4 py-3">

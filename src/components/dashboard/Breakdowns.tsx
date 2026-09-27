@@ -1,6 +1,6 @@
 "use client";
 
-import { api } from "@/lib/client-scope";
+import { api, isPortal } from "@/lib/client-scope";
 import { useEffect, useState } from "react";
 import {
   Bar,
@@ -410,7 +410,11 @@ export function Breakdowns({
   const cvTableEl = (
     <div className="overflow-x-auto">
       {d.conversions.length === 0 ? (
-        <KeyEventSuggestions startDate={startDate} endDate={endDate} />
+        isPortal() ? (
+          <p className="py-6 text-sm text-zinc-400">No key events recorded in this range.</p>
+        ) : (
+          <KeyEventSuggestions startDate={startDate} endDate={endDate} />
+        )
       ) : (
         <table className="w-full">
           <thead>

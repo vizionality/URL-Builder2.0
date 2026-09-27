@@ -1,7 +1,6 @@
-import { clientParam } from "@/lib/clients";
+import { requestUser } from "@/lib/portal";
 import { pageFilterExpr, parsePageFilters } from "@/lib/ga4-filters";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
 import { parseGa4Date } from "@/lib/indicators/dates";
@@ -51,11 +50,11 @@ export async function GET(request: Request) {
   // %Δ baseline: "year" = same dates last year, otherwise the previous period.
   const compare = url.searchParams.get("compare") === "year" ? "year" : "period";
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // Signed in, or a read-only client portal link (share=<token>).
+  const { user, clientSlug } = await requestUser(request, { allowShare: true });
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
 
-  const conn = await getGa4Connection(user.id, clientParam(request));
+  const conn = await getGa4Connection(user.id, clientSlug);
   if (!conn) return NextResponse.json({ error: "Google Analytics is not connected." }, { status: 501 });
   if (!conn.property_id) return NextResponse.json({ error: "No GA4 property selected." }, { status: 400 });
   const propertyId = conn.property_id;

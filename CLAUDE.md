@@ -211,7 +211,18 @@ with real GA4 reporting.
 - Builder pages (UTM Builder, Bulk Builder, Campaign Creator, UTM Options) are client-scoped too
   (`/c/<slug>/app`, ...). Their browser data (`useStoredState` in `lib/storage.ts`: saved URLs, bulk
   projects, UTM options, custom dashboard pages) is stored per client as "<key>@<slug>" (outside /c/,
-  the last client). The oldest client adopts data saved before clients existed, once.
+  the last client). The oldest client adopts data saved before clients existed, once. It also syncs to
+  the account per client (`client_data`, migration `20260930_client_data_and_shares.sql`,
+  `GET/PUT /api/client-data`): pulled once per key per visit, uploaded if the account has none yet,
+  and saved about a second after each change.
+- Client portal: view-only share links per client (`client_shares`: random token, optional scrypt
+  password hash, revocable). Managed at `/c/<slug>/portal` (Share button on the dashboard, link on
+  Clients cards). `/portal/<token>` (public, noindex) shows the GA report (`GaDashboard readOnly`: no
+  header/tabs/customize/drag, via `ReadOnlyContext`) and SEO. Browser calls carry `share=<token>`
+  (`setPortalToken` in `lib/client-scope.ts`); only the read-only GET routes accept it
+  (`requestUser(..., { allowShare: true })` in `lib/portal.ts`: overview, breakdowns, widgets, cities,
+  connection without email, gsc report, layout GET). Passwords unlock via `POST /api/portal/unlock`
+  (rate-limited, httpOnly cookie).
 
 ## Measurement / Signals (indicator engine)
 A statistical indicator engine over the connected GA4 property's daily series,

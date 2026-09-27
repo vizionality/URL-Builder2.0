@@ -1,6 +1,5 @@
-import { clientParam } from "@/lib/clients";
+import { requestUser } from "@/lib/portal";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
 import { getLayout, recordVersion, resetLayout, saveLayout } from "@/lib/dashboard-layout-store";
 import { DEFAULT_LAYOUT, sanitizeLayout } from "@/lib/dashboard-widgets";
@@ -8,10 +7,10 @@ import { DEFAULT_LAYOUT, sanitizeLayout } from "@/lib/dashboard-widgets";
 // The signed-in user and their connected property; layouts are saved per both.
 // "?page=ai" (AI Overview tab) keeps its own layout under "<property>:ai".
 async function owner(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // GET also serves read-only client portal links; saving needs a session.
+  const { user, clientSlug } = await requestUser(req, { allowShare: req.method === "GET" });
   if (!user) return { error: NextResponse.json({ error: "Not authenticated." }, { status: 401 }) };
-  const conn = await getGa4Connection(user.id, clientParam(req));
+  const conn = await getGa4Connection(user.id, clientSlug);
   if (!conn?.property_id) {
     return { error: NextResponse.json({ error: "No GA4 property selected." }, { status: 400 }) };
   }
