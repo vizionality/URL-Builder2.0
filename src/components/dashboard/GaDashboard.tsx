@@ -633,6 +633,25 @@ export function GaDashboard({
       <Header
         title="Dashboard"
         subtitle={aiOnly ? "Traffic from AI assistants (ChatGPT, Perplexity, Gemini, Copilot, Claude, ...)" : "GA4 performance overview"}
+        actions={
+          <>
+            <Link
+              href={to("/portal")}
+              className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              title="Share a view-only dashboard with this client"
+            >
+              <Share2 className="h-4 w-4" /> Share
+            </Link>
+            {/* Primary action, top right. */}
+            <button
+              type="button"
+              onClick={() => setCustomizing(true)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-green-700"
+            >
+              <LayoutGrid className="h-4 w-4" /> Customize
+            </button>
+          </>
+        }
       />
       <DashboardTabs />
         </>
@@ -688,21 +707,7 @@ export function GaDashboard({
                 <Redo2 className="h-4 w-4" />
               </button>
             </div>
-            <Link
-              href={to("/portal")}
-              className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-              title="Share a view-only dashboard with this client"
-            >
-              <Share2 className="h-4 w-4" /> Share
-            </Link>
-            {/* Primary action, last in the row (right of the date controls). */}
-            <button
-              type="button"
-              onClick={() => setCustomizing(true)}
-              className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-green-700"
-            >
-              <LayoutGrid className="h-4 w-4" /> Customize
-            </button>
+
             </>
             )}
           </div>

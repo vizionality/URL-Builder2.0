@@ -7,8 +7,11 @@ export function Header({
   subtitle,
   onExport,
   onSave,
+  actions,
 }: {
   title: string;
+  // Extra buttons on the right of the header (e.g. the dashboard's Share / Customize).
+  actions?: React.ReactNode;
   subtitle?: string;
   onExport?: () => void;
   onSave?: () => void;
@@ -27,7 +30,8 @@ export function Header({
         <h1 className="text-xl font-semibold text-zinc-900">{title}</h1>
         {subtitle && <p className="mt-0.5 text-sm text-zinc-500">{subtitle}</p>}
       </div>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {actions}
         {onExport && (
           <button
             type="button"
