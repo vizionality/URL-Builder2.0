@@ -203,6 +203,10 @@ with real GA4 reporting.
   "Connect another Google account" returns to the wizard via OAuth `?return=clients-new`, draft kept in
   sessionStorage), Search Console site auto-matched to the website (`lib/site-match.ts`, unit-tested),
   review, create. `GET /api/google-accounts` lists each login's properties and sites.
+- Clients overview (`/clients`, sidebar "Clients"): a card per client with connected sources, 28-day
+  sessions, leads (key events) and Search Console clicks vs the previous 28 days, a daily sessions line,
+  and health flags linking to the fix (`lib/client-health.ts`, unit-tested). `GET /api/clients/overview`
+  (a few clients at a time, computed on read).
 - Layouts, signals and saved scans stay keyed by property, so clients sharing a property share them.
   Custom dashboard pages (localStorage) are not yet per client.
 
