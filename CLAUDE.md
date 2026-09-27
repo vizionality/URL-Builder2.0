@@ -192,6 +192,17 @@ with real GA4 reporting.
   with a client updates the client row. Links use `useClientPath()`.
 - Sidebar `ClientSwitcher`: current client, search, switch to the same page for another client, and
   Add client (then straight to its GA4 property picker). `GET/POST /api/clients`.
+- Plans (`lib/plans.ts`, unit-tested; `user_plans` table, default 'business'): Business = 1 client and
+  1 Google login, Agency = unlimited. Enforced in `POST /api/clients` and the OAuth callback
+  (`?ga4=plan_limit`). No billing yet: set a plan in Supabase.
+- Several Google logins (`google_accounts`, migration `20260929_google_accounts_and_plans.sql`, which
+  copies each user's login and points existing clients at it). Each client stores `google_account_id`
+  (GA4) and `gsc_google_account_id` (Search Console); `getGa4Connection` reads with those logins.
+  Connecting a new email only adds a google_accounts row, never replaces the default login.
+- Add client wizard (`/clients/new`): name + website, GA4 property from any login (grouped, searchable,
+  "Connect another Google account" returns to the wizard via OAuth `?return=clients-new`, draft kept in
+  sessionStorage), Search Console site auto-matched to the website (`lib/site-match.ts`, unit-tested),
+  review, create. `GET /api/google-accounts` lists each login's properties and sites.
 - Layouts, signals and saved scans stay keyed by property, so clients sharing a property share them.
   Custom dashboard pages (localStorage) are not yet per client.
 

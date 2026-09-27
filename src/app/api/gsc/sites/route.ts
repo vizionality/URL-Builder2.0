@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   const conn = await getGa4Connection(user.id, clientParam(request)).catch(() => null);
   if (!conn) return NextResponse.json({ connected: false, sites: [], siteUrl: null });
   try {
-    const token = await getAccessToken(conn.refresh_token);
+    const token = await getAccessToken(conn.gsc_refresh_token ?? conn.refresh_token);
     const sites = await listSites(token);
     return NextResponse.json({ connected: true, sites, siteUrl: conn.gsc_site_url ?? null });
   } catch (e) {

@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
   });
   // Where to land afterwards: an integration's setup page.
   const back = req.nextUrl.searchParams.get("return");
-  if (back === "search-console" || back === "google-analytics") {
+  if (back === "search-console" || back === "google-analytics" || back === "clients-new") {
     res.cookies.set("ga4_oauth_return", back, { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 600 });
   }
   return res;

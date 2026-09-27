@@ -22,18 +22,16 @@ function Initials({ name }: { name: string }) {
 }
 
 // Sidebar client picker (agency mode): shows the current client, switches to
-// another one on the same page, and adds new clients.
+// another one on the same page, and opens the Add client wizard (plan allowing).
 export function ClientSwitcher() {
   const pathname = usePathname();
   const router = useRouter();
   const { slug: urlSlug, rest } = splitClientPath(pathname);
   const [clients, setClients] = useState<ClientItem[] | null>(null);
+  const [canAdd, setCanAdd] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [adding, setAdding] = useState(false);
-  const [name, setName] = useState("");
-  const [busy, setBusy] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -43,7 +41,10 @@ export function ClientSwitcher() {
         const d = await r.json();
         if (cancelled) return;
         if (!r.ok) setError(d.error ?? "Couldn't load clients.");
-        else setClients(d.clients);
+        else {
+          setClients(d.clients);
+          setCanAdd(d.canAddClient !== false);
+        }
       })
       .catch(() => !cancelled && setError("Couldn't load clients."));
     return () => {
@@ -75,29 +76,6 @@ export function ClientSwitcher() {
     setQuery("");
     // Same page for the other client; from a non-client page, its dashboard.
     router.push(`/c/${slug}${urlSlug ? rest : "/dashboard"}`);
-  }
-
-  async function add(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name.trim()) return;
-    setBusy(true);
-    const r = await fetch("/api/clients", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name }),
-    }).catch(() => null);
-    const d = await r?.json().catch(() => ({}));
-    setBusy(false);
-    if (!r?.ok) {
-      setError(d?.error ?? "Couldn't add the client.");
-      return;
-    }
-    setClients((cs) => [...(cs ?? []), { slug: d.client.slug, name: d.client.name, domain: null, propertyId: null }]);
-    setName("");
-    setAdding(false);
-    setOpen(false);
-    // Straight to picking the new client's GA4 property.
-    router.push(`/c/${d.client.slug}/integrations/google-analytics`);
   }
 
   return (
@@ -155,32 +133,21 @@ export function ClientSwitcher() {
             {shown.length === 0 && <li className="px-2 py-2 text-sm text-zinc-400">No matching clients.</li>}
           </ul>
           <div className="mt-1 border-t border-zinc-100 pt-1">
-            {adding ? (
-              <form onSubmit={add} className="flex items-center gap-1.5 p-1">
-                <input
-                  autoFocus
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Client name"
-                  maxLength={80}
-                  className="min-w-0 flex-1 rounded-md border border-zinc-200 px-2 py-1 text-sm outline-none focus:border-green-500"
-                />
-                <button
-                  type="submit"
-                  disabled={busy || !name.trim()}
-                  className="rounded-md bg-green-600 px-2 py-1 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
-                >
-                  Add
-                </button>
-              </form>
-            ) : (
+            {canAdd ? (
               <button
                 type="button"
-                onClick={() => setAdding(true)}
+                onClick={() => {
+                  setOpen(false);
+                  router.push("/clients/new");
+                }}
                 className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-sm font-medium text-green-700 hover:bg-green-50"
               >
                 <Plus className="h-4 w-4" /> Add client
               </button>
+            ) : (
+              <p className="px-1.5 py-1.5 text-xs text-zinc-500">
+                Your Business plan includes one client. Upgrade to Agency to add more.
+              </p>
             )}
             {error && <p className="px-1.5 pt-1 text-xs text-red-600">{error}</p>}
           </div>

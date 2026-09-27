@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   if (!conn?.gsc_site_url) return NextResponse.json({ error: "No Search Console site selected.", code: "no_site" }, { status: 400 });
   const site = conn.gsc_site_url;
   try {
-    const token = await getAccessToken(conn.refresh_token);
+    const token = await getAccessToken(conn.gsc_refresh_token ?? conn.refresh_token);
     const prev = previousPeriod(startDate, endDate);
     const range = { startDate, endDate };
     const [cur, before, daily, queries, pages, countries, devices] = await Promise.all([

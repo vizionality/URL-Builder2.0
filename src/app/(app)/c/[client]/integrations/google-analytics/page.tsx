@@ -33,6 +33,8 @@ export default function GoogleAnalyticsIntegrationPage() {
     if (status === "connected") return "Google Analytics connected.";
     if (status === "norefresh")
       return "Connection failed — Google didn't return access. Try again.";
+    if (status === "plan_limit")
+      return "Your Business plan includes one Google account. Upgrade to Agency to connect more.";
     if (status === "error")
       return "Something went wrong connecting to Google. Try again.";
     return null;
