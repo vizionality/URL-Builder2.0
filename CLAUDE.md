@@ -166,6 +166,10 @@ with real GA4 reporting.
 - Pages: sign-up, sign-in, sign-out. Protect the app so only logged-in users reach it;
   redirect logged-out visitors to sign-in.
 - Env: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY.
+- Bot protection: Cloudflare Turnstile (@marsidev/react-turnstile) on the email sign-up and sign-in form
+  (`components/auth/AuthForm.tsx`), token passed as `options.captchaToken`; submit stays disabled until a
+  token exists and the widget resets after each attempt. NEXT_PUBLIC_TURNSTILE_SITE_KEY; the secret key
+  lives in Supabase Auth > Attack Protection. Google OAuth doesn't use it.
 
 ## Account page (/account)
 - Shows the logged-in user's profile: name, email, avatar (from Google metadata when present),

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -12,6 +13,11 @@ const labelClass = "block text-sm font-medium text-zinc-700 mb-1";
 // Only allow same-origin, relative redirect targets — reject absolute URLs and
 // protocol-relative "//host" values so a crafted ?redirectedFrom can't bounce a
 // just-authenticated user off-site.
+// Cloudflare Turnstile guards the email forms against bot signups (Supabase
+// verifies the token when CAPTCHA protection is on). Unset in local dev: no
+// widget and no token required.
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
+
 function safeRedirect(value: string | null): string {
   if (value && value.startsWith("/") && !value.startsWith("//")) {
     return value;
@@ -31,6 +37,14 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
     searchParams.get("error")
   );
   const [message, setMessage] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstile = useRef<TurnstileInstance | null>(null);
+  const needsCaptcha = Boolean(TURNSTILE_SITE_KEY);
+  // Tokens are single use: clear and re-issue after every attempt.
+  function resetCaptcha() {
+    setCaptchaToken(null);
+    turnstile.current?.reset();
+  }
 
   const isSignUp = mode === "sign-up";
   const redirectedFrom = safeRedirect(searchParams.get("redirectedFrom"));
@@ -48,6 +62,11 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
 
   async function handleEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (needsCaptcha && !captchaToken) {
+      setError("Please complete the security check first.");
+      return;
+    }
+    const token = captchaToken ?? undefined;
     setLoading(true);
     setError(null);
     setMessage(null);
@@ -58,6 +77,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
+          captchaToken: token,
         },
       });
       if (error) {
@@ -74,6 +94,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
+        options: { captchaToken: token },
       });
       if (error) {
         setError(error.message);
@@ -83,6 +104,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
         return;
       }
     }
+    resetCaptcha();
     setLoading(false);
   }
 
@@ -186,12 +208,30 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
           />
         </div>
 
+        {needsCaptcha && (
+          <Turnstile
+            ref={turnstile}
+            siteKey={TURNSTILE_SITE_KEY}
+            options={{ size: "flexible", theme: "light" }}
+            onSuccess={(t) => setCaptchaToken(t)}
+            onExpire={() => {
+              setCaptchaToken(null);
+              setError("The security check expired. It will refresh, then try again.");
+              turnstile.current?.reset();
+            }}
+            onError={() => {
+              setCaptchaToken(null);
+              setError("The security check couldn't load. Check your connection or disable blockers, then refresh.");
+            }}
+          />
+        )}
+
         {error && <p className="text-sm text-red-600">{error}</p>}
         {message && <p className="text-sm text-green-700">{message}</p>}
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || (needsCaptcha && !captchaToken)}
           className="w-full rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
         >
           {loading
