@@ -169,10 +169,13 @@ export function GeoMap({
   data,
   metric,
   query,
+  onFilterState,
 }: {
   data: { region: string; value: number }[];
   metric: BreakdownMetric;
   query: string;
+  // Cross-filter: filter the whole dashboard to a state.
+  onFilterState?: (state: string) => void;
 }) {
   const unit = metricLabel(metric).toLowerCase();
   const [hover, setHover] = useState<Hover>(null);
@@ -270,6 +273,15 @@ export function GeoMap({
           className="mb-1 inline-flex items-center gap-1 text-xs font-medium text-green-700 hover:underline"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> All states
+        </button>
+      )}
+      {selected && onFilterState && (
+        <button
+          type="button"
+          onClick={() => onFilterState(selected.name)}
+          className="mb-1 ml-3 inline-flex items-center gap-1 text-xs font-medium text-green-700 hover:underline"
+        >
+          Filter dashboard to {selected.name}
         </button>
       )}
 

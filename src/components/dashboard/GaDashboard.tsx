@@ -898,14 +898,33 @@ export function GaDashboard({
               </Card>
                 ),
                 states: (
-              <Card title="Top States" description={`${metricLabel(geoMetric)} by region. Click a bar to filter.`}>
+              <Card title="Top States" description={`${metricLabel(geoMetric)} by region. Click a state to filter.`}>
                 <MetricSelect value={geoMetric} onChange={setGeoMetric} label="Top States and Geo Map metric" />
                 <div className="h-72 w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={statesData} layout="vertical" margin={{ top: 8, right: 16, bottom: 4, left: 8 }}>
+                    <BarChart
+                      data={statesData}
+                      layout="vertical"
+                      margin={{ top: 8, right: 16, bottom: 4, left: 8 }}
+                      // Anywhere on a state's row (label, bar or the space after it) filters to it.
+                      onClick={(e) => {
+                        const label = (e as { activeLabel?: string | number } | null)?.activeLabel;
+                        if (label != null) pickRegion(String(label));
+                      }}
+                      className="cursor-pointer"
+                    >
                       <CartesianGrid stroke="#f1f5f4" horizontal={false} />
                       <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => compact(Number(v))} />
-                      <YAxis type="category" dataKey="region" tick={{ fontSize: 11 }} width={90} />
+                      <YAxis
+                        type="category"
+                        dataKey="region"
+                        width={90}
+                        tick={{ fontSize: 11, cursor: "pointer" }}
+                        onClick={(e) => {
+                          const v = (e as { value?: string | number } | null)?.value;
+                          if (v != null) pickRegion(String(v));
+                        }}
+                      />
                       <Tooltip />
                       <Bar
                         name={metricLabel(geoMetric)}
@@ -913,11 +932,12 @@ export function GaDashboard({
                         fill={GREEN}
                         radius={[0, 3, 3, 0]}
                         className="cursor-pointer"
-                        onClick={(e) => {
-                          const r = (e as { payload?: { region?: string } })?.payload?.region;
-                          if (r) pickRegion(r);
-                        }}
-                      />
+                      >
+                        {/* The filtered state stays bright; the others dim. */}
+                        {statesData.map((d) => (
+                          <Cell key={d.region} fill={region.length && !region.includes(d.region) ? "#b7e4d7" : GREEN} />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -935,7 +955,7 @@ export function GaDashboard({
                 {geoData.length === 0 ? (
                   <p className="py-10 text-center text-sm text-zinc-400">No US state data in this range.</p>
                 ) : (
-                  <GeoMap data={geoData} metric={geoMetric} query={geoQuery} />
+                  <GeoMap data={geoData} metric={geoMetric} query={geoQuery} onFilterState={readOnly ? undefined : pickRegion} />
                 )}
               </Card>
                 ),
