@@ -112,6 +112,14 @@ with real GA4 reporting.
   `?page=ai` on the layout routes). Search Console's API has no AI Overviews / AI Mode breakdown, so
   nothing from GSC is shown there.
 
+- Bot Detection (/dashboard/bots, tab after AI Overview): `GET /api/ga4/bots` reports sessions, engaged
+  sessions, engagement seconds and new/total users by country, city, source/medium, browser, screen
+  resolution and landing page, plus a daily trend. `lib/bot-signals.ts` (unit-tested) scores each segment:
+  engagement rate, seconds per session, new-user share, datacenter countries / cities, headless screen
+  sizes, "(not set)" values; levels bot / suspicious / ok (min 5 sessions), and flags unengaged spike days.
+  Page: scorecards, sessions vs engaged trend with spike bars, per-dimension tables (only flagged by
+  default) with score and reasons, and remedies.
+
 ### Integrations (/integrations)
 - A tile per platform (icon, name, status) linking to its setup page: /integrations/google-analytics
   (GA4 connect, property, BigQuery link test, Reconnect) and /integrations/search-console. OAuth start takes
