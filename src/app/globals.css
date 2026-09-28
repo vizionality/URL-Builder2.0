@@ -135,3 +135,12 @@ body {
   font-weight: 600;
   color: #18181b;
 }
+
+/* Recharts focuses the chart's SVG when it's clicked (e.g. to cross-filter),
+   which draws the browser's focus ring around the plot. Keyboard focus rings
+   elsewhere are unaffected. */
+.recharts-wrapper:focus,
+.recharts-wrapper *:focus,
+.recharts-surface:focus {
+  outline: none;
+}
