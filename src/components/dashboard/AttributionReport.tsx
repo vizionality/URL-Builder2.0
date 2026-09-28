@@ -64,6 +64,17 @@ export function AttributionReport() {
     return () => ac.abort();
   }, [url]);
 
+  // Whether the snippet is installed, to word the empty state.
+  const [setup, setSetup] = useState<{ key: string | null; lastTouch: string | null } | null>(null);
+  const empty = !!state?.data && state.data.conversions === 0 && state.data.newVisitors === 0;
+  useEffect(() => {
+    if (!empty || setup) return;
+    fetch(api("/api/attribution/settings"))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => s && setSetup({ key: s.key ?? null, lastTouch: s.lastTouch ?? null }))
+      .catch(() => {});
+  }, [empty, setup]);
+
   const loading = !state || state.url !== url;
   const d = state?.data ?? null;
   const rows = d ? (group === "channel" ? d.byChannel : d.byCampaign).slice(0, 25) : [];
@@ -101,6 +112,18 @@ export function AttributionReport() {
       ) : !d ? (
         <div className="flex items-center gap-2 py-16 text-zinc-400"><Loader2 size={18} className="animate-spin" /><span className="text-sm">Loading…</span></div>
       ) : d.conversions === 0 && d.newVisitors === 0 ? (
+        setup?.key ? (
+          <Card title={setup.lastTouch ? "No conversions in this range yet" : "Tracking is set up, waiting for data"}>
+            <p className="text-sm text-zinc-600">
+              {setup.lastTouch
+                ? `The snippet is working (last visit recorded ${new Date(setup.lastTouch).toLocaleString()}). Leads and purchases will show here as they happen. Try a wider date range.`
+                : "The snippet is installed but no visits have arrived yet. Make sure the GTM container is published, then visit the site to test."}
+            </p>
+            <Link href={to("/integrations/attribution")} className="mt-3 inline-block rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+              View tracking status
+            </Link>
+          </Card>
+        ) : (
         <Card title="No conversions recorded yet">
           <p className="text-sm text-zinc-600">
             Attribution uses the one-line tracking snippet. Install it in the client&apos;s Google Tag Manager, and leads and purchases
@@ -110,6 +133,7 @@ export function AttributionReport() {
             Set up tracking
           </Link>
         </Card>
+        )
       ) : (
         <div className={`space-y-4 transition-opacity ${loading ? "opacity-60" : ""}`}>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
