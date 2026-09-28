@@ -117,7 +117,7 @@ with real GA4 reporting.
   resolution and landing page, plus a daily trend. `lib/bot-signals.ts` (unit-tested) scores each segment:
   engagement rate, seconds per session, new-user share, datacenter countries / cities, headless screen
   sizes, "(not set)" values; levels bot / suspicious / ok (min 5 sessions), and flags unengaged spike days.
-  Page: scorecards, sessions vs engaged trend with spike bars, per-dimension tables (only flagged by
+  Page: scorecards (incl. bot sessions: likely-bot segments OR bot filter rules, counted once), sessions / engaged / bot sessions trend with spike bars, per-dimension tables (only flagged by
   default) with score and reasons, and remedies.
 - Bot filter: per-client rules (`bot_filters`, migration `20261003_bot_filters.sql`; one dimension value
   each: country, city, source/medium, browser, screen size, landing page) plus `clients.bot_filter_enabled`.

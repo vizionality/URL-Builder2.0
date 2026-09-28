@@ -15,7 +15,8 @@ import type { BotDimension, Scored } from "@/lib/bot-signals";
 type Data = {
   totals: { sessions: number; engagedSessions: number };
   flaggedLocationSessions: number;
-  days: { date: string; sessions: number; engagedSessions: number; spike: boolean }[];
+  botSessions?: number;
+  days: { date: string; sessions: number; engagedSessions: number; botSessions?: number; spike: boolean }[];
   segments: Record<BotDimension, Scored[]>;
 };
 
@@ -97,11 +98,19 @@ export function BotDetection() {
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <Stat label="Sessions" value={compact(d.totals.sessions)} />
             <Stat label="Unengaged sessions" value={compact(unengaged)} sub={d.totals.sessions ? `${pct(unengaged / d.totals.sessions)} of sessions` : undefined} />
-            <Stat label="From datacenter-like cities" value={compact(d.flaggedLocationSessions)} sub={d.totals.sessions ? `${pct(d.flaggedLocationSessions / d.totals.sessions)} of sessions` : undefined} warn={d.flaggedLocationSessions > 0} />
+            <Stat
+              label="Bot sessions"
+              value={compact(d.botSessions ?? 0)}
+              sub={d.totals.sessions ? `${pct((d.botSessions ?? 0) / d.totals.sessions)} of sessions` : undefined}
+              warn={(d.botSessions ?? 0) > 0}
+            />
             <Stat label="Suspicious segments" value={String(flaggedSegments)} sub={spikes ? `${spikes} spike day${spikes === 1 ? "" : "s"}` : "No spike days"} warn={flaggedSegments > 0} />
           </div>
 
-          <Card title="Sessions vs engaged sessions" description="Red bars are days where unengaged traffic jumped well above normal, a common sign of a bot burst.">
+          <Card
+            title="Sessions, engaged sessions and bot sessions"
+            description="Bot sessions match a likely-bot segment below or a bot filter rule (each session counted once). Red bars are days where unengaged traffic jumped well above normal, a common sign of a bot burst."
+          >
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={d.days.map((x) => ({ ...x, unengaged: x.sessions - x.engagedSessions, spikeBar: x.spike ? x.sessions - x.engagedSessions : 0 }))} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
@@ -113,6 +122,7 @@ export function BotDetection() {
                   <Bar dataKey="spikeBar" name="Spike (unengaged)" fill="#ef4444" isAnimationActive={false} />
                   <Line type="monotone" dataKey="sessions" name="Sessions" stroke="#94a3b8" strokeWidth={1.5} dot={false} isAnimationActive={false} />
                   <Line type="monotone" dataKey="engagedSessions" name="Engaged sessions" stroke="#12b795" strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <Line type="monotone" dataKey="botSessions" name="Bot sessions" stroke="#dc2626" strokeWidth={2} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>

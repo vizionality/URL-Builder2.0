@@ -5,6 +5,7 @@ import { getGa4Connection } from "@/lib/ga4-connection";
 import { getAccessToken } from "@/lib/google-oauth";
 import { batchRunReports, ga4FailureMessage, Ga4Error, type RawRow } from "@/lib/ga4-api";
 import { scoreSegment, spikeDays, type BotDimension, type Scored } from "@/lib/bot-signals";
+import { GA4_FIELD, listBotRules } from "@/lib/bot-filter";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const METRICS = ["sessions", "engagedSessions", "userEngagementDuration", "newUsers", "totalUsers"].map((name) => ({ name }));
@@ -80,10 +81,41 @@ export async function GET(request: Request) {
     const totals = { sessions: t ? n(t, 0) : 0, engagedSessions: t ? n(t, 1) : 0 };
     // Sessions from bot-level cities (the finest location GA4 gives).
     const flaggedLocationSessions = segments.city.filter((s) => s.level === "bot").reduce((sum, s) => sum + s.sessions, 0);
+
+    // Bot sessions per day: sessions matching any likely-bot segment or any bot
+    // filter rule (one OR filter, so a session counts once even if it matches
+    // several, e.g. Singapore and a headless screen size).
+    const botValues: Record<string, Set<string>> = {};
+    for (const d of DIMENSIONS) {
+      for (const s of segments[d.id]) if (s.level === "bot") (botValues[GA4_FIELD[d.id]] ??= new Set()).add(s.value);
+    }
+    const slug = clientParam(request);
+    if (slug) {
+      for (const r of await listBotRules(user.id, slug).catch(() => [])) (botValues[GA4_FIELD[r.dimension]] ??= new Set()).add(r.value);
+    }
+    const orParts = Object.entries(botValues).map(([fieldName, values]) => ({
+      filter: { fieldName, inListFilter: { values: [...values] } },
+    }));
+    const botByDay = new Map<string, number>();
+    let botSessions = 0;
+    if (orParts.length) {
+      const dimensionFilter = orParts.length === 1 ? orParts[0] : { orGroup: { expressions: orParts } };
+      const [botDays, botTotal] = await batchRunReports(conn.property_id, token, [
+        { dateRanges, dimensions: [{ name: "date" }], metrics: [{ name: "sessions" }], dimensionFilter, limit: 400 },
+        { dateRanges, metrics: [{ name: "sessions" }], dimensionFilter },
+      ], request.signal);
+      for (const r of botDays ?? []) {
+        const d = r.dimensionValues?.[0]?.value ?? "";
+        botByDay.set(`${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`, n(r, 0));
+      }
+      botSessions = botTotal?.[0] ? n(botTotal[0], 0) : 0;
+    }
+
     return NextResponse.json({
+      botSessions,
       totals,
       flaggedLocationSessions,
-      days: days.map((d) => ({ ...d, spike: spikes.has(d.date) })),
+      days: days.map((d) => ({ ...d, botSessions: botByDay.get(d.date) ?? 0, spike: spikes.has(d.date) })),
       segments,
     });
   } catch (err) {
