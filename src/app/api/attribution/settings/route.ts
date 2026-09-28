@@ -24,27 +24,30 @@ export async function GET(req: NextRequest) {
   // Install check: the latest touch and conversion in the last 7 days.
   let lastTouch: string | null = null;
   let lastConversion: string | null = null;
+  let storageError: string | null = null;
   if (bigQueryConfigured() && c.client.tracking_key) {
     try {
       const [row] = await query(
         `SELECT
-           (SELECT MAX(ts) FROM \`${DATASET}.touches\` WHERE owner_id = @owner AND client_slug = @slug AND ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)) AS last_touch,
-           (SELECT MAX(ts) FROM \`${DATASET}.conversions\` WHERE owner_id = @owner AND client_slug = @slug AND ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)) AS last_conversion`,
+           (SELECT MAX(ts) FROM \`${DATASET}.touches\` WHERE owner_id = @p_owner AND client_slug = @p_slug AND ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)) AS last_touch,
+           (SELECT MAX(ts) FROM \`${DATASET}.conversions\` WHERE owner_id = @p_owner AND client_slug = @p_slug AND ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)) AS last_conversion`,
         [
-          { name: "owner", type: "STRING", value: c.me.id },
-          { name: "slug", type: "STRING", value: c.client.slug },
+          { name: "p_owner", type: "STRING", value: c.me.id },
+          { name: "p_slug", type: "STRING", value: c.client.slug },
         ]
       );
       lastTouch = row?.last_touch ? new Date(row.last_touch as number).toISOString() : null;
       lastConversion = row?.last_conversion ? new Date(row.last_conversion as number).toISOString() : null;
     } catch (err) {
       console.error("attribution settings: status query failed:", err);
+      storageError = err instanceof Error ? err.message.slice(0, 400) : "BigQuery query failed.";
     }
   }
   return NextResponse.json({
     key: c.client.tracking_key ?? null,
     events: c.client.conversion_events ?? [],
     storageReady: bigQueryConfigured(),
+    storageError,
     lastTouch,
     lastConversion,
   });

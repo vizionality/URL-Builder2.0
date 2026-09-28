@@ -34,14 +34,14 @@ export async function GET(req: NextRequest) {
   const end = `${endDate}T23:59:59.999Z`;
   const T = (t: string) => `\`${DATASET}.${t}\``;
   const params = [
-    { name: "owner", type: "STRING" as const, value: me.id },
-    { name: "slug", type: "STRING" as const, value: client.slug },
-    { name: "start", type: "TIMESTAMP" as const, value: start },
-    { name: "end", type: "TIMESTAMP" as const, value: end },
-    { name: "from", type: "TIMESTAMP" as const, value: new Date(Date.parse(start) - lookback * DAY).toISOString() },
-    { name: "history", type: "TIMESTAMP" as const, value: new Date(Date.parse(end) - 730 * DAY).toISOString() },
-    { name: "lookback", type: "INT64" as const, value: lookback },
-    { name: "events", type: "STRING" as const, value: events },
+    { name: "p_owner", type: "STRING" as const, value: me.id },
+    { name: "p_slug", type: "STRING" as const, value: client.slug },
+    { name: "p_start", type: "TIMESTAMP" as const, value: start },
+    { name: "p_end", type: "TIMESTAMP" as const, value: end },
+    { name: "p_from", type: "TIMESTAMP" as const, value: new Date(Date.parse(start) - lookback * DAY).toISOString() },
+    { name: "p_history", type: "TIMESTAMP" as const, value: new Date(Date.parse(end) - 730 * DAY).toISOString() },
+    { name: "p_lookback", type: "INT64" as const, value: lookback },
+    { name: "p_events", type: "STRING" as const, value: events },
   ];
 
   const pathsSql = `
@@ -50,15 +50,15 @@ export async function GET(req: NextRequest) {
         SELECT conversion_id, visitor_id, ts, event_name, value,
           ROW_NUMBER() OVER (PARTITION BY COALESCE(transaction_id, conversion_id) ORDER BY ts) AS rn
         FROM ${T("conversions")}
-        WHERE owner_id = @owner AND client_slug = @slug AND ts BETWEEN @start AND @end
-          AND (@events = '' OR event_name IN UNNEST(SPLIT(@events, ',')))
+        WHERE owner_id = @p_owner AND client_slug = @p_slug AND ts BETWEEN @p_start AND @p_end
+          AND (@p_events = '' OR event_name IN UNNEST(SPLIT(@p_events, ',')))
       ) WHERE rn = 1
       ORDER BY ts
       LIMIT ${MAX_CONVERSIONS}
     ),
     t AS (
       SELECT visitor_id, ts, source, medium, campaign FROM ${T("touches")}
-      WHERE owner_id = @owner AND client_slug = @slug AND ts BETWEEN @from AND @end
+      WHERE owner_id = @p_owner AND client_slug = @p_slug AND ts BETWEEN @p_from AND @p_end
         AND visitor_id IN (SELECT visitor_id FROM conv)
     )
     SELECT c.conversion_id, ANY_VALUE(c.visitor_id) AS visitor_id, ANY_VALUE(c.ts) AS ts,
@@ -67,20 +67,20 @@ export async function GET(req: NextRequest) {
         IGNORE NULLS ORDER BY t.ts DESC LIMIT 50) AS path
     FROM conv c
     LEFT JOIN t ON t.visitor_id = c.visitor_id
-      AND t.ts BETWEEN TIMESTAMP_SUB(c.ts, INTERVAL @lookback DAY) AND c.ts
+      AND t.ts BETWEEN TIMESTAMP_SUB(c.ts, INTERVAL @p_lookback DAY) AND c.ts
     GROUP BY c.conversion_id`;
 
   const acquisitionSql = `
     WITH first AS (
       SELECT visitor_id, ARRAY_AGG(STRUCT(ts, source, medium) ORDER BY ts LIMIT 1)[OFFSET(0)] AS f
       FROM ${T("touches")}
-      WHERE owner_id = @owner AND client_slug = @slug AND ts BETWEEN @history AND @end
+      WHERE owner_id = @p_owner AND client_slug = @p_slug AND ts BETWEEN @p_history AND @p_end
       GROUP BY visitor_id
     ),
     conv AS (
       SELECT visitor_id, MIN(ts) AS first_conversion FROM ${T("conversions")}
-      WHERE owner_id = @owner AND client_slug = @slug AND ts BETWEEN @start AND @end
-        AND (@events = '' OR event_name IN UNNEST(SPLIT(@events, ',')))
+      WHERE owner_id = @p_owner AND client_slug = @p_slug AND ts BETWEEN @p_start AND @p_end
+        AND (@p_events = '' OR event_name IN UNNEST(SPLIT(@p_events, ',')))
       GROUP BY visitor_id
     )
     SELECT CONCAT(f.source, ' / ', f.medium) AS channel,
@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
       COUNTIF(c.visitor_id IS NOT NULL) AS converters,
       AVG(IF(c.visitor_id IS NULL, NULL, TIMESTAMP_DIFF(c.first_conversion, f.ts, SECOND) / 86400)) AS days_to_convert
     FROM first LEFT JOIN conv c USING (visitor_id)
-    WHERE f.ts BETWEEN @start AND @end
+    WHERE f.ts BETWEEN @p_start AND @p_end
     GROUP BY channel
     ORDER BY visitors DESC
     LIMIT 100`;
@@ -122,6 +122,8 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error("attribution: BigQuery query failed:", err);
-    return NextResponse.json({ error: "Couldn't read attribution data from BigQuery." }, { status: 502 });
+    // Show BigQuery's own message (no credentials in it) so setup problems are fixable.
+    const detail = err instanceof Error ? err.message.replace(/^BigQuery [A-Z]+ \S+ failed /, "").slice(0, 400) : "";
+    return NextResponse.json({ error: `Couldn't read attribution data from BigQuery. ${detail}`.trim() }, { status: 502 });
   }
 }

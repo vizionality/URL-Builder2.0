@@ -9,7 +9,7 @@ import { api } from "@/lib/client-scope";
 import { useMe } from "@/lib/use-me";
 import { atLeast } from "@/lib/roles";
 
-type Settings = { key: string | null; events: string[]; storageReady?: boolean; lastTouch: string | null; lastConversion: string | null };
+type Settings = { key: string | null; events: string[]; storageReady?: boolean; storageError?: string | null; lastTouch: string | null; lastConversion: string | null };
 
 function ago(iso: string | null, now: number): string {
   if (!iso) return "never";
@@ -91,6 +91,9 @@ export default function AttributionTrackingPage() {
               <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
                 Attribution storage (BigQuery) isn&apos;t connected yet, so visits aren&apos;t saved. Add the BIGQUERY_SA_KEY environment variable in Vercel and redeploy.
               </p>
+            )}
+            {s.storageError && (
+              <p className="break-words rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">BigQuery: {s.storageError}</p>
             )}
             <Card
               title="1. Tracking snippet"
