@@ -1,3 +1,4 @@
+import { applyBotFilter } from "@/lib/bot-filter";
 import { requestUser } from "@/lib/portal";
 import { NextResponse } from "next/server";
 import { getGa4Connection } from "@/lib/ga4-connection";
@@ -73,6 +74,8 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
 
   const conn = await getGa4Connection(user.id, clientSlug);
+
+  await applyBotFilter(filters, user.id, clientSlug);
   if (!conn) return NextResponse.json({ error: "Google Analytics is not connected." }, { status: 501 });
   if (!conn.property_id) return NextResponse.json({ error: "No GA4 property selected." }, { status: 400 });
   const propertyId = conn.property_id;

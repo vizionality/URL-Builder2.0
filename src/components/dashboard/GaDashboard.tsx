@@ -3,6 +3,7 @@
 import { api, useClientPath, useClientSlug } from "@/lib/client-scope";
 import { atLeast } from "@/lib/roles";
 import { useMe } from "@/lib/use-me";
+import { useBotFilter } from "@/components/dashboard/useBotFilter";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
@@ -18,7 +19,7 @@ import {
   YAxis,
   Legend,
 } from "recharts";
-import { LayoutGrid, Loader2, Lock, LockOpen, Redo2, Share2, TrendingUp, TrendingDown, Undo2, X } from "lucide-react";
+import { Filter, LayoutGrid, Loader2, Lock, LockOpen, Redo2, Share2, TrendingUp, TrendingDown, Undo2, X } from "lucide-react";
 import { Header } from "@/components/Header";
 import { DashboardTabs } from "@/components/dashboard/DashboardTabs";
 import { Card } from "@/components/Card";
@@ -296,6 +297,10 @@ export function GaDashboard({
   const [channel, setChannel] = useState<string[]>([]);
   const [landing, setLanding] = useState<string[]>([]);
   const [region, setRegion] = useState<string[]>([]);
+  // Bot filter (managed on the Bot Detection tab): reports leave its rules out
+  // unless "Show raw traffic" is on for this view.
+  const botFilter = useBotFilter();
+  const [rawTraffic, setRawTraffic] = useState(false);
   // Every active filter as query params (dates and compare added per request).
   const filterQs = useMemo(() => {
     const p = new URLSearchParams();
@@ -308,8 +313,9 @@ export function GaDashboard({
     add("landing", landing);
     add("region", region);
     if (aiOnly) p.set("ai", "1");
+    if (rawTraffic) p.set("nobots", "1");
     return p.toString();
-  }, [medium, campaign, source, page, channel, landing, region, aiOnly]);
+  }, [medium, campaign, source, page, channel, landing, region, aiOnly, rawTraffic]);
   const [state, setState] = useState<{ loading: boolean; error: string | null; data: Overview | null }>(
     { loading: false, error: null, data: null }
   );
@@ -760,6 +766,19 @@ export function GaDashboard({
             </span>
           )}
         </div>
+
+        {!readOnly && botFilter.enabled && botFilter.rules.length > 0 && (
+          <div className="-mt-3 mb-4 flex flex-wrap items-center gap-2 text-xs">
+            <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 ${rawTraffic ? "border-zinc-200 bg-zinc-50 text-zinc-500" : "border-red-200 bg-red-50 text-red-800"}`}>
+              <Filter className="h-3 w-3" />
+              {rawTraffic ? "Showing raw traffic (bot filter paused)" : `Bot filter on · ${botFilter.rules.length} rule${botFilter.rules.length === 1 ? "" : "s"} excluded`}
+            </span>
+            <button type="button" onClick={() => setRawTraffic((v) => !v)} className="font-medium text-green-700 hover:underline">
+              {rawTraffic ? "Apply bot filter" : "Show raw traffic"}
+            </button>
+            <Link href={to("/dashboard/bots")} className="text-zinc-500 hover:underline">Manage</Link>
+          </div>
+        )}
 
         {/* Active filters, including ones set by clicking a chart */}
         {chips.length > 0 && (

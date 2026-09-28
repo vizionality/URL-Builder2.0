@@ -14,6 +14,10 @@ export type PageFilters = {
   region: string[];
   // AI Overview tab: only sessions referred by AI assistants.
   ai: boolean;
+  // Bot filter: GA4 field -> values to leave out of every report (set by the
+  // route from the client's rules). `noBots` (?nobots=1) turns it off for a view.
+  exclude: Record<string, string[]>;
+  noBots: boolean;
 };
 
 // Session sources of AI assistants and answer engines (matched anywhere in the
@@ -39,8 +43,8 @@ const FIELDS: [keyof PageFilters, string][] = [
 
 export function parsePageFilters(params: URLSearchParams): PageFilters {
   const get = (k: string) => params.getAll(k).filter(Boolean);
-  const f = Object.fromEntries(FIELDS.map(([key]) => [key, get(key)])) as Omit<PageFilters, "ai">;
-  return { ...f, ai: params.get("ai") === "1" };
+  const f = Object.fromEntries(FIELDS.map(([key]) => [key, get(key)])) as Omit<PageFilters, "ai" | "exclude" | "noBots">;
+  return { ...f, ai: params.get("ai") === "1", exclude: {}, noBots: params.get("nobots") === "1" };
 }
 
 export const exactFilter = (fieldName: string, value: string): Expr => ({
@@ -51,6 +55,11 @@ export const exactFilter = (fieldName: string, value: string): Expr => ({
 export function pageFilterExpr(f: PageFilters, extra: Expr[] = []) {
   const expressions: Expr[] = [];
   if (f.ai) expressions.push(aiSourceFilter());
+  const excluded = Object.entries(f.exclude ?? {}).filter(([, values]) => values.length > 0);
+  if (!f.noBots && excluded.length) {
+    const parts: Expr[] = excluded.map(([fieldName, values]) => ({ filter: { fieldName, inListFilter: { values } } }));
+    expressions.push({ notExpression: parts.length === 1 ? parts[0] : { orGroup: { expressions: parts } } });
+  }
   for (const [key, fieldName] of FIELDS) {
     if ((f[key] as string[]).length) expressions.push({ filter: { fieldName, inListFilter: { values: f[key] as string[] } } });
   }

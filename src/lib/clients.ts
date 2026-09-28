@@ -25,13 +25,15 @@ export type ClientRecord = {
   gsc_google_account_id: string | null;
   // Only admins (and the owner) change a locked client's dashboard layout.
   layout_locked?: boolean;
+  // Whether the client's bot filter rules apply to reports.
+  bot_filter_enabled?: boolean;
 };
 
 const COLUMNS = "*";
 type ClientFields = Partial<
   Pick<
     ClientRecord,
-    "name" | "domain" | "property_id" | "property_name" | "gsc_site_url" | "google_account_id" | "gsc_google_account_id" | "layout_locked"
+    "name" | "domain" | "property_id" | "property_name" | "gsc_site_url" | "google_account_id" | "gsc_google_account_id" | "layout_locked" | "bot_filter_enabled"
   >
 >;
 
