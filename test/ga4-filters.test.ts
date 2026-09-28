@@ -44,3 +44,26 @@ describe("AI source filter", () => {
     for (const s of ["google", "facebook.com", "(direct)", "bing"]) expect(re.test(s)).toBe(false);
   });
 });
+
+describe("bot filter exclusions", () => {
+  it("leaves excluded values out with a NOT clause, unless turned off", async () => {
+    const { parsePageFilters, pageFilterExpr } = await import("@/lib/ga4-filters");
+    const f = parsePageFilters(new URLSearchParams(""));
+    f.exclude = { country: ["Singapore", "China"], city: ["Ashburn"] };
+    expect(pageFilterExpr(f)).toEqual({
+      dimensionFilter: {
+        notExpression: {
+          orGroup: {
+            expressions: [
+              { filter: { fieldName: "country", inListFilter: { values: ["Singapore", "China"] } } },
+              { filter: { fieldName: "city", inListFilter: { values: ["Ashburn"] } } },
+            ],
+          },
+        },
+      },
+    });
+    const off = parsePageFilters(new URLSearchParams("nobots=1"));
+    off.exclude = { country: ["Singapore"] };
+    expect(pageFilterExpr(off)).toEqual({});
+  });
+});

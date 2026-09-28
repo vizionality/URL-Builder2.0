@@ -119,6 +119,14 @@ with real GA4 reporting.
   sizes, "(not set)" values; levels bot / suspicious / ok (min 5 sessions), and flags unengaged spike days.
   Page: scorecards, sessions vs engaged trend with spike bars, per-dimension tables (only flagged by
   default) with score and reasons, and remedies.
+- Bot filter: per-client rules (`bot_filters`, migration `20261003_bot_filters.sql`; one dimension value
+  each: country, city, source/medium, browser, screen size, landing page) plus `clients.bot_filter_enabled`.
+  `applyBotFilter` (`lib/bot-filter.ts`) sets `PageFilters.exclude` in the overview, breakdowns, widgets and
+  cities routes, and `pageFilterExpr` adds a NOT (OR of inList) clause, so the dashboard, AI Overview, maps
+  and the portal leave that traffic out. `?nobots=1` skips it ("Show raw traffic" chip on the dashboard).
+  Managed on Bot Detection (which always shows raw traffic): "Add to bot filter" per row, "Add all likely
+  bots" per table, a panel with the on/off switch, rules (remove) and manual add. `GET/POST/DELETE/PATCH
+  /api/bot-filter` (changes need analyst); changes clear the browser report cache.
 
 ### Integrations (/integrations)
 - A tile per platform (icon, name, status) linking to its setup page: /integrations/google-analytics
