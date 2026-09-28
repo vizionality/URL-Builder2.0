@@ -1,3 +1,5 @@
+import { applyBotFilter } from "@/lib/bot-filter";
+import { parsePageFilters, pageFilterExpr } from "@/lib/ga4-filters";
 import { getAppUser } from "@/lib/team";
 import { clientParam } from "@/lib/clients";
 import { NextResponse } from "next/server";
@@ -96,6 +98,9 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
 
   const conn = await getGa4Connection(user.id, clientParam(request));
+  // Leave out the client's bot filter traffic.
+  const filters = parsePageFilters(new URLSearchParams(url.searchParams.get("nobots") === "1" ? "nobots=1" : ""));
+  await applyBotFilter(filters, user.id, clientParam(request));
   if (!conn) return NextResponse.json({ error: "Google Analytics is not connected." }, { status: 501 });
   if (!conn.property_id) return NextResponse.json({ error: "No GA4 property selected." }, { status: 400 });
   const propertyId = conn.property_id;
@@ -129,6 +134,7 @@ export async function GET(request: Request) {
       dimensions: [{ name: "date" }, { name: DIMENSIONS[dimParam] }],
       metrics: [{ name: metricName }],
       limit: 200000,
+      ...pageFilterExpr(filters),
     });
   } catch (err) {
     console.error("screen: GA4 report failed:", err);

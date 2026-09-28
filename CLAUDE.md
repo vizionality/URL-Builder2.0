@@ -122,7 +122,7 @@ with real GA4 reporting.
 - Bot filter: per-client rules (`bot_filters`, migration `20261003_bot_filters.sql`; one dimension value
   each: country, city, source/medium, browser, screen size, landing page) plus `clients.bot_filter_enabled`.
   `applyBotFilter` (`lib/bot-filter.ts`) sets `PageFilters.exclude` in the overview, breakdowns, widgets and
-  cities routes, and `pageFilterExpr` adds a NOT (OR of inList) clause, so the dashboard, AI Overview, maps
+  cities routes (and Signals / Screener), and `pageFilterExpr` adds a NOT (OR of inList) clause, so the dashboard, AI Overview, maps
   and the portal leave that traffic out. `?nobots=1` skips it ("Show raw traffic" chip on the dashboard).
   Managed on Bot Detection (which always shows raw traffic): "Add to bot filter" per row, "Add all likely
   bots" per table, a panel with the on/off switch, rules (remove) and manual add. `GET/POST/DELETE/PATCH

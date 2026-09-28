@@ -1,3 +1,5 @@
+import { applyBotFilter } from "@/lib/bot-filter";
+import { parsePageFilters, pageFilterExpr, exactFilter } from "@/lib/ga4-filters";
 import { getAppUser } from "@/lib/team";
 import { clientParam } from "@/lib/clients";
 import { NextResponse } from "next/server";
@@ -42,19 +44,6 @@ type DimensionId = keyof typeof DIMENSIONS;
 
 function isDimensionId(value: string): value is DimensionId {
   return value in DIMENSIONS;
-}
-
-// A GA4 dimensionFilter clause for one exact value, or {} when unfiltered.
-function dimensionFilter(dimension: DimensionId | null, value: string) {
-  if (!dimension || !value) return {};
-  return {
-    dimensionFilter: {
-      filter: {
-        fieldName: DIMENSIONS[dimension],
-        stringFilter: { value, matchType: "EXACT" },
-      },
-    },
-  };
 }
 
 function todayUtcIso(): string {
@@ -134,13 +123,16 @@ export async function GET(request: Request) {
   const filterValue = url.searchParams.get("value") ?? "";
   const dimension = dimParam && isDimensionId(dimParam) ? dimParam : null;
   const isFiltered = Boolean(dimension && filterValue);
-  const dimFilter = dimensionFilter(dimension, filterValue);
   const user = await getAppUser();
   if (!user) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }
 
   const conn = await getGa4Connection(user.id, clientParam(request));
+  // Leave out the client's bot filter traffic, plus the optional deep-link value.
+  const filters = parsePageFilters(new URLSearchParams(url.searchParams.get("nobots") === "1" ? "nobots=1" : ""));
+  await applyBotFilter(filters, user.id, clientParam(request));
+  const dimFilter = pageFilterExpr(filters, dimension && filterValue ? [exactFilter(DIMENSIONS[dimension], filterValue)] : []);
   if (!conn) {
     return NextResponse.json(
       { error: "Google Analytics is not connected." },
