@@ -128,6 +128,22 @@ with real GA4 reporting.
   bots" per table, a panel with the on/off switch, rules (remove) and manual add. `GET/POST/DELETE/PATCH
   /api/bot-filter` (changes need analyst); changes clear the browser report cache.
 
+- Attribution (/dashboard/attribution tab; first-party, separate from GA4): a one-line GTM Custom HTML snippet
+  `<script async src="<app>/t.js?k=KEY"></script>` per client (`clients.tracking_key`, extra
+  `clients.conversion_events`; migration `20261004_attribution.sql`). `/t.js` (`lib/tracker-script.ts`,
+  unit-tested in a fake browser) records a touch per visit whose source changes (UTMs, click ids, referrer;
+  30-min idle), starting with every visitor's first touch, watches the dataLayer / gtag for `generate_lead`,
+  `purchase` (value, currency, transaction id) and extras, waits for Google consent (analytics_storage) when
+  consent mode is present, and beacons to public `POST /api/collect` (rate-limited). Touches and conversions
+  stream into the app's own BigQuery (`lib/bigquery.ts`: REST + google-auth-library, service account in
+  `BIGQUERY_SA_KEY`, project `BIGQUERY_PROJECT_ID`; dataset `attribution`, tables `touches` / `conversions`
+  created on first use, day-partitioned on ts with a required partition filter, clustered by owner, client,
+  visitor, 2-year partition expiry). Clients need no BigQuery of their own. `GET /api/attribution` runs two
+  queries: per-conversion paths within a 7/30/60/90 day lookback (purchases deduped by transaction id),
+  credited under six models (`lib/attribution.ts`, unit-tested), and first-touch acquisition (visitors whose
+  first touch is in range, by channel, converted, days to convert). Setup at
+  `/c/<slug>/integrations/attribution` (`/api/attribution/settings`: key, extra events, last-received status).
+
 ### Integrations (/integrations)
 - A tile per platform (icon, name, status) linking to its setup page: /integrations/google-analytics
   (GA4 connect, property, BigQuery link test, Reconnect) and /integrations/search-console. OAuth start takes

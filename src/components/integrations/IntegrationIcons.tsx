@@ -26,6 +26,17 @@ export function SearchConsoleIcon({ className = "h-10 w-10" }: { className?: str
   );
 }
 
+export function AttributionIcon({ className = "h-10 w-10" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} aria-hidden>
+      <circle cx="10" cy="12" r="6" fill="#12b795" />
+      <circle cx="10" cy="36" r="6" fill="#8b5cf6" />
+      <circle cx="38" cy="24" r="7" fill="#f59e0b" />
+      <path d="M15 14 31 22M15 34 31 26" stroke="#94a3b8" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function BackToIntegrations() {
   const to = useClientPath();
   return (

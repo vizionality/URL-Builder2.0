@@ -16,6 +16,9 @@ const PUBLIC_PATHS = [
   // Read-only client portals (the link's token is checked by the page).
   "/portal",
   "/api/portal",
+  // One-line tracking snippet: the script and its collector are public.
+  "/t.js",
+  "/api/collect",
 ];
 
 function isPublicPath(pathname: string): boolean {

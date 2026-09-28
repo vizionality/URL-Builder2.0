@@ -21,6 +21,7 @@ const BUILT_IN = [
   { href: "/dashboard", name: "Google Analytics" },
   { href: "/dashboard/ai", name: "AI Overview" },
   { href: "/dashboard/bots", name: "Bot Detection" },
+  { href: "/dashboard/attribution", name: "Attribution" },
   { href: "/dashboard/seo", name: "SEO Dashboard" },
   { href: "/dashboard/social", name: "Social Media" },
 ];
