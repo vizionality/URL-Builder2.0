@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { Header } from "@/components/Header";
-import { GoogleAnalyticsIcon, SearchConsoleIcon } from "@/components/integrations/IntegrationIcons";
+import { AttributionIcon, GoogleAnalyticsIcon, SearchConsoleIcon } from "@/components/integrations/IntegrationIcons";
 
 type Connection = { connected: boolean; propertyId?: string; gscSiteUrl?: string | null };
 
@@ -35,6 +35,13 @@ export default function IntegrationsPage() {
       description: "Clicks, impressions, CTR and position for the SEO Dashboard.",
       Icon: SearchConsoleIcon,
       status: !conn ? null : conn.gscSiteUrl ? "Connected" : conn.connected ? "Pick a site" : "Not connected",
+    },
+    {
+      href: to("/integrations/attribution"),
+      name: "Attribution tracking",
+      description: "One-line GTM snippet for multi-touch attribution of leads and sales.",
+      Icon: AttributionIcon,
+      status: null,
     },
   ];
 
