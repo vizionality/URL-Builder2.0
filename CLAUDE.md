@@ -132,13 +132,17 @@ with real GA4 reporting.
   `<script async src="<app>/t.js?k=KEY"></script>` per client (`clients.tracking_key`, extra
   `clients.conversion_events`; migration `20261004_attribution.sql`). `/t.js` (`lib/tracker-script.ts`,
   unit-tested in a fake browser) records a touch per visit whose source changes (UTMs, click ids, referrer;
-  30-min idle), watches the dataLayer / gtag for `generate_lead`, `purchase` (value, currency, transaction id)
-  and extras, waits for Google consent (analytics_storage) when consent mode is present, and beacons to
-  public `POST /api/collect` (rate-limited; `attribution_touches` / `attribution_conversions`; random visitor
-  id, no PII; raw rows kept 180 days). `GET /api/attribution` credits conversions to touches within a 7/30/60/90
-  day lookback under six models (`lib/attribution.ts`, unit-tested: first, last, last non-direct, linear,
-  time decay 7-day half-life, position 40/20/40). Setup at `/c/<slug>/integrations/attribution`
-  (`/api/attribution/settings`: key, extra events, last-received status; admin-only changes).
+  30-min idle), starting with every visitor's first touch, watches the dataLayer / gtag for `generate_lead`,
+  `purchase` (value, currency, transaction id) and extras, waits for Google consent (analytics_storage) when
+  consent mode is present, and beacons to public `POST /api/collect` (rate-limited). Touches and conversions
+  stream into the app's own BigQuery (`lib/bigquery.ts`: REST + google-auth-library, service account in
+  `BIGQUERY_SA_KEY`, project `BIGQUERY_PROJECT_ID`; dataset `attribution`, tables `touches` / `conversions`
+  created on first use, day-partitioned on ts with a required partition filter, clustered by owner, client,
+  visitor, 2-year partition expiry). Clients need no BigQuery of their own. `GET /api/attribution` runs two
+  queries: per-conversion paths within a 7/30/60/90 day lookback (purchases deduped by transaction id),
+  credited under six models (`lib/attribution.ts`, unit-tested), and first-touch acquisition (visitors whose
+  first touch is in range, by channel, converted, days to convert). Setup at
+  `/c/<slug>/integrations/attribution` (`/api/attribution/settings`: key, extra events, last-received status).
 
 ### Integrations (/integrations)
 - A tile per platform (icon, name, status) linking to its setup page: /integrations/google-analytics

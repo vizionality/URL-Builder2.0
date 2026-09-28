@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { forbidUnless, getAppUser } from "@/lib/team";
 import { clientParam, getClientBySlug } from "@/lib/clients";
+import { bigQueryConfigured, DATASET, query } from "@/lib/bigquery";
 
 // A client's attribution tracking setup: its snippet key, extra conversion
 // events, and whether data is arriving. Key and events are admin-only.
@@ -20,15 +21,32 @@ export async function GET(req: NextRequest) {
   const c = await context(req);
   if ("error" in c) return c.error;
   if (c.client.tracking_key === undefined) return NextResponse.json({ error: HINT, unavailable: true }, { status: 500 });
-  const admin = createAdminClient();
-  const scope = (table: string) =>
-    admin.from(table).select("ts").eq("user_id", c.me.id).eq("client_slug", c.client.slug).order("ts", { ascending: false }).limit(1).maybeSingle();
-  const [t, v] = await Promise.all([scope("attribution_touches"), scope("attribution_conversions")]);
+  // Install check: the latest touch and conversion in the last 7 days.
+  let lastTouch: string | null = null;
+  let lastConversion: string | null = null;
+  if (bigQueryConfigured() && c.client.tracking_key) {
+    try {
+      const [row] = await query(
+        `SELECT
+           (SELECT MAX(ts) FROM \`${DATASET}.touches\` WHERE owner_id = @owner AND client_slug = @slug AND ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)) AS last_touch,
+           (SELECT MAX(ts) FROM \`${DATASET}.conversions\` WHERE owner_id = @owner AND client_slug = @slug AND ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)) AS last_conversion`,
+        [
+          { name: "owner", type: "STRING", value: c.me.id },
+          { name: "slug", type: "STRING", value: c.client.slug },
+        ]
+      );
+      lastTouch = row?.last_touch ? new Date(row.last_touch as number).toISOString() : null;
+      lastConversion = row?.last_conversion ? new Date(row.last_conversion as number).toISOString() : null;
+    } catch (err) {
+      console.error("attribution settings: status query failed:", err);
+    }
+  }
   return NextResponse.json({
     key: c.client.tracking_key ?? null,
     events: c.client.conversion_events ?? [],
-    lastTouch: t.data?.ts ?? null,
-    lastConversion: v.data?.ts ?? null,
+    storageReady: bigQueryConfigured(),
+    lastTouch,
+    lastConversion,
   });
 }
 

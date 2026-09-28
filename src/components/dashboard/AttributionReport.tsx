@@ -10,7 +10,14 @@ import { compact, presetRange } from "@/lib/report";
 import { getCached, setCached } from "@/lib/response-cache";
 import { MODELS, type AttributionResult, type Model } from "@/lib/attribution";
 
-type Data = AttributionResult & { lookback: number; eventNames: string[]; truncated: boolean };
+type Acquisition = { channel: string; visitors: number; converters: number; daysToConvert: number | null };
+type Data = AttributionResult & {
+  lookback: number;
+  eventNames: string[];
+  truncated: boolean;
+  acquisition: Acquisition[];
+  newVisitors: number;
+};
 
 function localToday(): string {
   const d = new Date();
@@ -33,7 +40,7 @@ export function AttributionReport() {
   const range = resolveRange(dates, today);
   const endDate = range.endDate > today ? today : range.endDate;
   const url = api(`/api/attribution?startDate=${range.startDate}&endDate=${endDate}&lookback=${lookback}${event ? `&events=${event}` : ""}`);
-  const [state, setState] = useState<{ url: string; data: Data | null; error: string | null } | null>(null);
+  const [state, setState] = useState<{ url: string; data: Data | null; error: string | null; code?: string } | null>(null);
 
   useEffect(() => {
     const cached = getCached<Data>(url);
@@ -46,7 +53,10 @@ export function AttributionReport() {
     fetch(url, { signal: ac.signal })
       .then(async (r) => {
         const d = await r.json();
-        if (!r.ok) throw new Error(d.error);
+        if (!r.ok) {
+          setState({ url, data: null, error: d.error ?? "Couldn't load.", code: d.code });
+          return;
+        }
         setCached(url, d);
         setState({ url, data: d, error: null });
       })
@@ -85,10 +95,12 @@ export function AttributionReport() {
       </div>
 
       {state?.error && !d ? (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>
+        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+          {state.code === "no_bigquery" ? "Attribution storage isn't set up yet. Add the BigQuery service account key (BIGQUERY_SA_KEY) in Vercel." : state.error}
+        </p>
       ) : !d ? (
         <div className="flex items-center gap-2 py-16 text-zinc-400"><Loader2 size={18} className="animate-spin" /><span className="text-sm">Loading…</span></div>
-      ) : d.conversions === 0 ? (
+      ) : d.conversions === 0 && d.newVisitors === 0 ? (
         <Card title="No conversions recorded yet">
           <p className="text-sm text-zinc-600">
             Attribution uses the one-line tracking snippet. Install it in the client&apos;s Google Tag Manager, and leads and purchases
@@ -100,7 +112,8 @@ export function AttributionReport() {
         </Card>
       ) : (
         <div className={`space-y-4 transition-opacity ${loading ? "opacity-60" : ""}`}>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+            <Stat label="New visitors" value={compact(d.newVisitors)} sub="First touch in this range" />
             <Stat label="Conversions" value={compact(d.conversions)} sub={d.unattributed ? `${d.unattributed} without a recorded visit` : undefined} />
             <Stat label="Revenue" value={`$${money(d.revenue)}`} />
             <Stat label="Avg touches to convert" value={d.avgTouches.toFixed(1)} />
@@ -149,6 +162,40 @@ export function AttributionReport() {
                 </tbody>
               </table>
             </div>
+          </Card>
+
+          <Card
+            title="Acquisition by first touch"
+            description="Visitors whose first ever recorded visit was in this range, by the channel that first brought them, and how many of them converted."
+          >
+            {d.acquisition.length === 0 ? (
+              <p className="py-6 text-center text-sm text-zinc-400">No new visitors in this range.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-zinc-200 text-xs font-semibold text-zinc-500">
+                      <th className="py-2 pr-3 text-left">First touch (source / medium)</th>
+                      <th className="py-2 pr-3 text-right">New visitors</th>
+                      <th className="py-2 pr-3 text-right">Converted</th>
+                      <th className="py-2 pr-3 text-right">Conversion rate</th>
+                      <th className="py-2 pr-3 text-right">Days to convert</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {d.acquisition.slice(0, 25).map((a) => (
+                      <tr key={a.channel} className="border-b border-zinc-100 text-sm">
+                        <td className="max-w-[260px] truncate py-2 pr-3 text-zinc-700" title={a.channel}>{a.channel}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums text-zinc-700">{a.visitors.toLocaleString("en-US")}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums text-zinc-700">{a.converters.toLocaleString("en-US")}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums text-zinc-700">{a.visitors ? ((a.converters / a.visitors) * 100).toFixed(1) : "0.0"}%</td>
+                        <td className="py-2 pr-3 text-right tabular-nums text-zinc-500">{a.daysToConvert == null ? "—" : a.daysToConvert.toFixed(1)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </Card>
 
           <Card title="Top conversion paths" description={`The touches before each conversion, oldest first, within the ${d.lookback}-day lookback.`}>

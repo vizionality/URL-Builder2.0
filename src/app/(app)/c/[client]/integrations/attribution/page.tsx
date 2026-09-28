@@ -9,7 +9,7 @@ import { api } from "@/lib/client-scope";
 import { useMe } from "@/lib/use-me";
 import { atLeast } from "@/lib/roles";
 
-type Settings = { key: string | null; events: string[]; lastTouch: string | null; lastConversion: string | null };
+type Settings = { key: string | null; events: string[]; storageReady?: boolean; lastTouch: string | null; lastConversion: string | null };
 
 function ago(iso: string | null, now: number): string {
   if (!iso) return "never";
@@ -87,9 +87,14 @@ export default function AttributionTrackingPage() {
           !error && <p className="flex items-center gap-2 text-sm text-zinc-400"><Loader2 size={14} className="animate-spin" /> Loading…</p>
         ) : (
           <>
+            {s.storageReady === false && (
+              <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Attribution storage (BigQuery) isn&apos;t connected yet, so visits aren&apos;t saved. Add the BIGQUERY_SA_KEY environment variable in Vercel and redeploy.
+              </p>
+            )}
             <Card
               title="1. Tracking snippet"
-              description="Records where each visitor came from on every visit (not every page view), and their leads and purchases, for the Attribution tab."
+              description="Records every visitor's first touch and each later visit from a new source (not every page view), plus leads and purchases, in BigQuery for the Attribution tab."
             >
               {!s.key ? (
                 isAdmin ? (

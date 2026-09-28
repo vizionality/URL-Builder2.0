@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { randomUUID } from "node:crypto";
 import { rateLimit, sweepExpired } from "@/lib/rate-limit";
+import { bigQueryConfigured, insertRows } from "@/lib/bigquery";
 
 // Collector for the one-line tracking snippet (/t.js). Public: called from
-// clients' websites with their tracking key. Sent with navigator.sendBeacon as
+// clients' websites with their tracking key. Every touch (from each visitor's
+// first) and conversion streams into the app's BigQuery (lib/bigquery.ts). Sent with navigator.sendBeacon as
 // text/plain JSON, so there is no CORS preflight.
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "content-type" };
 const KEY_TTL_MS = 5 * 60_000;
-const RETENTION_DAYS = 180;
 const keyCache = new Map<string, { at: number; owner: { userId: string; slug: string } | null }>();
 
 async function ownerOf(key: string) {
@@ -50,42 +52,43 @@ export async function POST(req: Request) {
 
   const owner = await ownerOf(key).catch(() => null);
   if (!owner) return ok();
-  const admin = createAdminClient();
-  const base = { user_id: owner.userId, client_slug: owner.slug, visitor_id: visitor };
+  if (!bigQueryConfigured()) return ok();
+  const base = { owner_id: owner.userId, client_slug: owner.slug, visitor_id: visitor };
 
-  if (body.type === "touch") {
-    await admin.from("attribution_touches").insert({
-      ...base,
-      ts: tsOf(body.ts),
-      source: str(body.s, 100) || "(direct)",
-      medium: str(body.m, 100) || "(none)",
-      campaign: str(body.c, 150),
-      click_id_type: str(body.id, 20) || null,
-      landing_path: str(body.p, 300) || null,
-    });
-  } else if (body.type === "conversion") {
-    const value = Number(body.value);
-    const row = {
-      ...base,
-      ts: tsOf(body.ts),
-      event_name: str(body.e, 60) || "conversion",
-      value: Number.isFinite(value) && value > 0 && value < 1e9 ? value : 0,
-      currency: str(body.cur, 3) || null,
-      transaction_id: str(body.txn, 100) || null,
-    };
-    // A repeated purchase (same transaction id, e.g. a reloaded thank-you page) is ignored.
-    if (row.transaction_id) {
-      await admin.from("attribution_conversions").upsert(row, { onConflict: "user_id,client_slug,transaction_id", ignoreDuplicates: true });
-    } else {
-      await admin.from("attribution_conversions").insert(row);
+  try {
+    if (body.type === "touch") {
+      await insertRows("touches", [{
+        json: {
+          ...base,
+          ts: tsOf(body.ts),
+          source: str(body.s, 100) || "(direct)",
+          medium: str(body.m, 100) || "(none)",
+          campaign: str(body.c, 150),
+          click_id_type: str(body.id, 20) || null,
+          landing_path: str(body.p, 300) || null,
+        },
+      }]);
+    } else if (body.type === "conversion") {
+      const value = Number(body.value);
+      const txn = str(body.txn, 100) || null;
+      const id = randomUUID();
+      await insertRows("conversions", [{
+        // A reloaded thank-you page repeats the transaction id; BigQuery drops
+        // quick repeats, and reports count each transaction once.
+        insertId: txn ? `${owner.userId}:${owner.slug}:${txn}` : id,
+        json: {
+          ...base,
+          conversion_id: id,
+          ts: tsOf(body.ts),
+          event_name: str(body.e, 60) || "conversion",
+          value: Number.isFinite(value) && value > 0 && value < 1e9 ? value : 0,
+          currency: str(body.cur, 3) || null,
+          transaction_id: txn,
+        },
+      }]);
     }
-  }
-
-  // Now and then, drop raw rows past the retention window for this client.
-  if (Math.random() < 0.01) {
-    const cutoff = new Date(Date.now() - RETENTION_DAYS * 86_400_000).toISOString();
-    await admin.from("attribution_touches").delete().eq("user_id", owner.userId).eq("client_slug", owner.slug).lt("ts", cutoff);
-    await admin.from("attribution_conversions").delete().eq("user_id", owner.userId).eq("client_slug", owner.slug).lt("ts", cutoff);
+  } catch (err) {
+    console.error("collect: BigQuery insert failed:", err);
   }
   return ok();
 }
